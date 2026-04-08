@@ -1,4 +1,4 @@
-# Okki Go API 完整参考文档
+# Okki go API 完整参考文档
 
 **Version:** 1.0.0
 **Base URL:** `https://go.okki.ai`

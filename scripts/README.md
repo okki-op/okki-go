@@ -1,23 +1,23 @@
-# Okki Go 更新通知脚本
+# Okki Go Update Notification Scripts
 
-这些脚本用于管理 Okki Go 技能的自动更新通知。
+These scripts manage automatic update notifications for the Okki Go skill.
 
-## 📁 文件说明
+## File Overview
 
-| 文件 | 适用系统 | 说明 |
-|------|---------|------|
-| `enable-notifications.sh` | macOS / Linux | 启用/管理更新通知 |
-| `enable-notifications.ps1` | Windows | 启用/管理更新通知 (PowerShell) |
-| `check-update.sh` | macOS / Linux | 手动检查更新 |
-| `check-update.ps1` | Windows | 手动检查更新 (PowerShell) |
-| `post-install.sh` | macOS / Linux | 安装后初始化（可选） |
-| `post-install.ps1` | Windows | 安装后初始化（可选） |
+| File | Platform | Description |
+|------|----------|-------------|
+| `enable-notifications.sh` | macOS / Linux | Enable/manage update notifications |
+| `enable-notifications.ps1` | Windows | Enable/manage update notifications (PowerShell) |
+| `check-update.sh` | macOS / Linux | Manually check for updates |
+| `check-update.ps1` | Windows | Manually check for updates (PowerShell) |
+| `post-install.sh` | macOS / Linux | Post-install initialization (optional) |
+| `post-install.ps1` | Windows | Post-install initialization (optional) |
 
-## 🚀 快速开始
+## Quick Start
 
-### 安装后首次使用
+### First Use After Installation
 
-**推荐：** 运行安装后初始化脚本（自动引导配置）
+**Recommended:** Run the post-install initialization script (guided setup)
 
 **macOS / Linux:**
 ```bash
@@ -29,12 +29,12 @@ bash scripts/post-install.sh
 powershell -ExecutionPolicy Bypass -File scripts\post-install.ps1
 ```
 
-该脚本会：
-1. 确认技能安装位置
-2. 询问是否启用更新通知
-3. 引导配置 API Key
+This script will:
+1. Confirm the skill installation location
+2. Ask whether to enable update notifications
+3. Guide you through API Key configuration
 
-### 手动启用通知
+### Enable Notifications Manually
 
 **macOS / Linux:**
 ```bash
@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File scripts\enable-notifications.ps1
 bash scripts/enable-notifications.sh
 ```
 
-### 手动检查更新
+### Check for Updates Manually
 
 **macOS / Linux:**
 ```bash
@@ -63,83 +63,83 @@ bash scripts/check-update.sh
 powershell -ExecutionPolicy Bypass -File scripts\check-update.ps1
 ```
 
-## 📋 功能说明
+## Features
 
-### 启用通知后
+### After Enabling Notifications
 
-- **检查频率**: 每周一上午 10 点自动检查
-- **通知内容**: 
-  - 当前版本 vs 最新版本
-  - 更新日志预览
-  - 一键更新命令
-- **通知方式**: OpenClaw 消息推送
+- **Check frequency**: Every Monday at 10:00 AM automatically
+- **Notification content**:
+  - Current version vs. latest version
+  - Changelog preview
+  - One-command update
+- **Delivery method**: OpenClaw message push
 
-### 管理选项
+### Management Options
 
-运行 `enable-notifications` 脚本后可以选择:
+After running the `enable-notifications` script, you can choose:
 
-1. **关闭通知** - 完全禁用更新提醒
-2. **修改频率** - 调整为每天/每周/每月检查
-3. **手动检查** - 立即检查是否有更新
-4. **退出** - 不做任何更改
+1. **Disable notifications** - Turn off update reminders completely
+2. **Change frequency** - Switch to daily/weekly/monthly checks
+3. **Check now** - Immediately check for updates
+4. **Exit** - Make no changes
 
-## 🔧 自定义检查频率
+## Customize Check Frequency
 
-可以通过修改 cron 任务来调整检查频率:
+Adjust the check frequency by modifying the cron job:
 
-| 频率 | Cron 表达式 | 说明 |
-|------|-----------|------|
-| 每天 | `0 10 * * *` | 每天上午 10 点 |
-| 每周 | `0 10 * * 1` | 每周一上午 10 点 (默认) |
-| 每月 | `0 10 1 * *` | 每月 1 号上午 10 点 |
+| Frequency | Cron Expression | Description |
+|-----------|----------------|-------------|
+| Daily | `0 10 * * *` | Every day at 10:00 AM |
+| Weekly | `0 10 * * 1` | Every Monday at 10:00 AM (default) |
+| Monthly | `0 10 1 * *` | 1st of every month at 10:00 AM |
 
-运行管理脚本，选择选项 2 来修改。
+Run the management script and choose option 2 to change it.
 
-## ❓ 常见问题
+## FAQ
 
-### Q: 提示找不到 openclaw 命令？
-A: 请确保 OpenClaw 已正确安装:
+### Q: "openclaw command not found"?
+A: Make sure OpenClaw is installed:
 ```bash
 npm install -g openclaw
 ```
 
-### Q: 通知没有收到？
-A: 检查 OpenClaw 网关是否运行:
+### Q: Not receiving notifications?
+A: Check that the OpenClaw gateway is running:
 ```bash
 openclaw gateway status
 ```
 
-### Q: 如何完全关闭通知？
-A: 运行管理脚本，选择选项 1，或直接删除 cron 任务:
+### Q: How to disable notifications completely?
+A: Run the management script and choose option 1, or delete the cron job directly:
 ```bash
-openclaw cron list  # 找到任务 ID
+openclaw cron list  # find the job ID
 openclaw cron remove --jobId <ID>
 ```
 
-### Q: 可以在多个设备上使用吗？
-A: 可以。每个设备需要单独运行一次启用脚本。
+### Q: Can I use this on multiple devices?
+A: Yes. Run the enable script once on each device.
 
-## 📝 手动创建通知
+## Create Notifications Manually
 
-如果脚本无法运行，可以手动创建:
+If the script cannot run, create manually:
 
 ```bash
 openclaw cron add \
-  --name "prospectiq-update-reminder" \
+  --name "okkigo-update-reminder" \
   --schedule "0 10 * * 1" \
-  --payload "clawhub search okki go --limit 1" \
+  --payload "clawhub search okki-go --limit 1" \
   --delivery "announce"
 ```
 
-## 🔒 隐私说明
+## Privacy
 
-- 脚本不会收集任何个人信息
-- 不会自动更新技能，仅发送通知
-- 更新决定完全由用户控制
-- 检查仅查询公开的版本信息
+- Scripts do not collect any personal information
+- Will not auto-update the skill — notifications only
+- Update decisions are entirely user-controlled
+- Checks query only publicly available version information
 
-## 📞 技术支持
+## Support
 
-如有问题，请访问:
-- 项目主页：https://go.okki.ai
-- 文档：https://docs.openclaw.ai
+For issues, visit:
+- Project homepage: https://go.okki.ai
+- Documentation: https://docs.openclaw.ai

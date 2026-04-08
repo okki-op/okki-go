@@ -1,7 +1,7 @@
 ---
 name: okki go
-version: 1.0.3
-description: "B2B 搜客户、找公司、开发客户、获取联系人的获客 skill; B2B lead prospecting & outreach — search companies, find contact emails, send cold emails (EDM), check status & credits; 搜索全球企业、获取联系人邮箱、搜索联系人、发送开发信、查邮件状态、查积分余额; Triggers: '搜客户' '找客户' '开发客户' '找买家' '拓客' '搜公司' '查邮箱' '发开发信' '查积分' 'find companies' 'get contact emails' 'send outreach email' 'check credits' '升级套餐' '买积分' 'upgrade plan' 'buy credits'; NOT for: 收邮件 receiving/reading emails, CRM/pipeline management, 账号管理 account/billing settings"
+version: 1.0.5
+description: "B2B lead prospecting & outreach — search companies, find contact emails, send cold emails (EDM), check status & credits; Search global companies, get contact emails, find contacts, send outreach emails, check email status, check credit balance; Triggers: 'find companies' 'find customers' 'prospect customers' 'find buyers' 'search companies' 'get emails' 'send outreach email' 'check credits' 'upgrade plan' 'buy credits'; NOT for: receiving/reading emails, CRM/pipeline management, account/billing settings"
 metadata:
   openclaw:
     emoji: "🌐"
@@ -13,274 +13,274 @@ config:
   apiKey:
     type: string
     required: true
-    description: "API 密钥"
+    description: "API Key"
 ---
 
-# Okki Go — B2B 潜客挖掘与触达 Skill
+# Okki Go — B2B Lead Prospecting & Outreach Skill
 
-帮助销售人员和企业通过 AI Agent 快速发现、分析潜在客户并完成开发信触达，将 B2B 客户开发效率提升一个量级。
+Helps sales teams and businesses rapidly discover and analyze potential customers and execute outreach campaigns via AI Agent, taking B2B customer acquisition efficiency to the next level.
 
-完整 API 参数说明和响应 Schema 参见 [references/api-reference.md](./references/api-reference.md)。
+For complete API parameter documentation and response schemas, see [references/api-reference.md](./references/api-reference.md).
 
-## 快速安装指南 | Quick Install
+## Quick Install
 
-- openclaw 平台安装
+- Install via OpenClaw platform
 
-** 方式1——打开openclaw网页交互界面 —> 侧边栏 -> 技能 -> 搜索“okki go” -> 点击安装 **
+**Option 1 — Open the OpenClaw web UI → Sidebar → Skills → Search "okki-go" → Click Install**
 
-** 方式2——往openclaw对话框输入：“请执行 npx clawhub@latest install --force 'okki go' 安装这个skill，然后检查这个skill是否安装成功” **
+**Option 2 — Type in the OpenClaw chat: "Please run npx clawhub@latest install --force 'okki-go' to install this skill, then verify the installation was successful"**
 
 ## Routing
 
-### Use this skill when | 使用本 skill 的场景
+### Use this skill when
 
-- User wants to find companies or customers — 用户想搜客户、找公司、找买家
-- User wants to get contact emails for a company — 用户想查联系人邮箱、找决策人
-- User wants to search contacts by name/title/email — 用户想按姓名、职位、邮箱搜索联系人
-- User wants to send outreach or cold emails (EDM) — 用户想发开发信、群发邮件
-- User wants to check email delivery status — 用户想查邮件发送结果
-- User wants to check remaining credits or EDM quota — 用户想查积分余额
-- User needs the full prospecting workflow: search → contacts → outreach — 用户需要完整获客链路
-- User wants to upgrade plan or buy credit packs — 用户想升级套餐、购买积分包或加购 EDM 配额
+- User wants to find companies or customers
+- User wants to get contact emails for a company — find decision makers
+- User wants to search contacts by name/title/email
+- User wants to send outreach or cold emails (EDM)
+- User wants to check email delivery status
+- User wants to check remaining credits or EDM quota
+- User needs the full prospecting workflow: search → contacts → outreach
+- User wants to upgrade plan or buy credit packs
 
-### Do NOT use this skill when | 不要使用本 skill 的场景
+### Do NOT use this skill when
 
-- Reading or receiving incoming emails — this skill is outbound-only（本 skill 仅支持外发，不支持收件/阅读邮件）
-- CRM pipeline management, deal tracking, or sales forecasting（不支持 CRM 管道管理、商机跟踪、销售预测）
-
----
-
-## 功能一览 | Capabilities
-
-| # | 功能 | 描述 | 扣费 |
-|---|------|------|------|
-| 1 | 搜索公司 | 按行业、国家、关键词等多维度筛选目标企业 | 免费 |
-| 2 | 查看公司 Profile | 获取公司完整工商信息和贸易数据 | 1 积分（30 天去重）|
-| 3 | 获取公司联系人邮件 | 获取指定公司的联系人邮箱列表 | 与 profile 共享去重；空结果不扣 |
-| 4 | 搜索联系人 | 按姓名、职位、邮箱等跨公司搜索联系人 | 1 积分/次 |
-| 5 | 发送批量开发信 | 同一模板群发，支持变量替换 | 1 EDM 配额/封 |
-| 6 | 发送个性化开发信 | 每封独立内容，千人千面 | 1 EDM 配额/封 |
-| 7 | 查询邮件发送状态 | 查看任务列表、单封状态、失败原因 | 免费 |
-| 8 | 查询积分与 EDM 余额 | 查看剩余搜索积分和邮件配额 | 免费 |
+- Reading or receiving incoming emails — this skill is outbound-only
+- CRM pipeline management, deal tracking, or sales forecasting
 
 ---
 
-## 认证与 API Key 管理 | Authentication
+## Capabilities
 
-所有接口使用 API Key 认证。每个用户持有独立的 `sk-` 开头密钥。请求头格式：
+| # | Feature | Description | Cost |
+|---|---------|-------------|------|
+| 1 | Search Companies | Filter target companies by industry, country, keywords, and more | Free |
+| 2 | Company Profile | Get complete company business info and trade data | 1 credit (30-day dedup) |
+| 3 | Company Contact Emails | Get contact email list for a specified company | Shared dedup with profile; no charge for empty results |
+| 4 | Search Contacts | Search contacts across companies by name, title, email, etc. | 1 credit/query |
+| 5 | Send Batch Outreach Emails | Same template to multiple recipients with variable substitution | 1 EDM quota/email |
+| 6 | Send Personalized Outreach Emails | Individual content per recipient | 1 EDM quota/email |
+| 7 | Check Email Delivery Status | View task list, per-email status, failure reasons | Free |
+| 8 | Check Credits & EDM Balance | View remaining search credits and email quota | Free |
+
+---
+
+## Authentication & API Key Management
+
+All endpoints use API Key authentication. Each user holds an independent key starting with `sk-`. Request header format:
 
 ```
 Authorization: ApiKey $OKKIGO_API_KEY
 X-Hostname: xxx
 ```
 
-### 首次使用检查
+### First-Use Check
 
-每次会话首次调用 API 前，检测 key 是否已配置：
+Before the first API call in each session, check whether a key is configured:
 
 ```bash
 [ -z "$OKKIGO_API_KEY" ] && echo "NO_KEY" || echo "KEY_SET"
 ```
 
-- **`KEY_SET`** → 直接执行用户请求
-- **`NO_KEY`** → 走下方邮箱验证流程
+- **`KEY_SET`** → Proceed directly with the user's request
+- **`NO_KEY`** → Follow the email verification flow below
 
-如果在 NO_KEY 的情况下，用户上下文中明确给出了Api Key，则直接保存用户给出的Api Key，保存Api Key的详细操作见下文。
+If `NO_KEY` but the user has explicitly provided an API Key in context, save it directly. See saving instructions below.
 
-### 邮箱验证获取 API Key
+### Email Verification to Obtain API Key
 
-1. 请用户提供邮箱地址
-2. 发送验证码：
+1. Ask the user for their email address
+2. Send verification code:
 
 ```bash
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-email" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "Content-Type: application/json" \
-  -d '{"email":"<用户邮箱>"}' | jq '.'
+  -d '{"email":"<user email>"}' | jq '.'
 ```
 
-3. 用户提供 6 位验证码后，换取 API Key：
+3. After the user provides the 6-digit code, exchange it for an API Key:
 
 ```bash
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/verify-email" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "X-OpenClaw-Provision-Api-Key: true" \
   -H "Content-Type: application/json" \
-  -d '{"email":"<用户邮箱>","code":"<6位验证码>"}' | jq '.'
+  -d '{"email":"<user email>","code":"<6-digit code>"}' | jq '.'
 ```
 
-4. 保存 API Key（**必须，只需执行一次**）：
+4. Save the API Key (**required, one-time only**):
 
-经过邮箱验证获取 `apiKey` 后，**必须先告知用户** Agent 即将执行以下命令来持久化配置，并**强制询问用户是否同意**，用户确认后方可执行：
+After obtaining the `apiKey` via email verification, **you must first inform the user** that you are about to run the following command to persist the config, and **explicitly ask for their consent** before proceeding:
 
-```bash
-我即将执行以下命令，将您的 API Key 保存到 okki go skill 配置中：
+```
+I am about to run the following command to save your API Key to the okki-go skill config:
 `openclaw config set skills.entries.okkigo.apiKey "sk-xxxxxxxxxxxxxxxxxxxx"`
-是否同意执行？
+Do you agree?
 ```
 
-用户同意后执行：
+Once the user confirms, execute:
 
 ```bash
 openclaw config set skills.entries.okkigo.apiKey "sk-xxxxxxxxxxxxxxxxxxxx"
 ```
 
-如果命令执行失败，输出以下提示让用户手动执行（仅提示一次）：
+If the command fails, display the following prompt for the user to run manually (show only once):
 
-> 您的 API Key: sk-xxxxxxxxxxxxxxxxxxxx
-> 请立即执行以下命令保存！此 Key 只显示这一次。
+> Your API Key: sk-xxxxxxxxxxxxxxxxxxxx
+> Please run the following command immediately to save it! This key is only shown once.
 > `openclaw config set skills.entries.okkigo.apiKey "sk-xxxxxxxxxxxxxxxxxxxx"`
 
-保存后 OpenClaw 在后续会话中自动注入为 `OKKIGO_API_KEY`，无需重复验证。
+Once saved, OpenClaw will automatically inject it as `OKKIGO_API_KEY` in future sessions — no need to verify again.
 
 ---
 
-## 计费确认规则 | Billing Confirmation Rules
+## Billing Confirmation Rules
 
-以下规则保护用户不在不知情的情况下被扣积分，**所有工作流统一遵守**。
+These rules protect users from being charged without their knowledge. **All workflows must follow them.**
 
-### 规则 1：隐式调用付费接口须确认
+### Rule 1: Confirm before implicitly calling paid endpoints
 
-"隐式调用"指用户未明确要求查详情/找邮箱，但 Agent 自主决定调用 `profile` 或 `profileEmails`。此时须先向用户确认，话术示例：
+"Implicit call" means the user did not explicitly ask for company details or emails, but the Agent decided independently to call `profile` or `profileEmails`. In this case, confirm with the user first, e.g.:
 
-> 我找到了一些符合条件的公司。获取某家公司的完整详情或联系人邮件，每家首次查询消耗 1 积分（30 天内重复免费）。需要继续吗？
+> I found some matching companies. Getting full details or contact emails for a company costs 1 credit per company for the first query (free for repeats within 30 days). Should I proceed?
 
-**例外（无需确认）：** 用户明确说了"查详情"、"看公司信息"、"找邮箱"、"要联系人"等意图，视为主动触发，直接调用。
+**Exception (no confirmation needed):** If the user explicitly said "get details", "view company info", "find emails", "need contacts", etc., treat it as user-initiated and call directly.
 
-### 规则 2：调用付费接口后必须告知扣费
+### Rule 2: Notify user of charges after calling paid endpoints
 
-每次成功调用付费接口，在回答末尾附上积分消耗情况：
+After each successful call to a paid endpoint, append a credit usage summary at the end of your response:
 
-> 💡 本次查询消耗了 1 积分，当前剩余：XX（月度）+ YY（加购）。
+> 💡 This query used 1 credit. Current balance: XX (monthly) + YY (add-on).
 
-多家公司汇总时：
+For multiple companies in one batch:
 
-> 💡 本次共查询了 3 家公司，消耗 2 积分（1 家为 30 天内重复查询，未扣费）。当前剩余：XX。
+> 💡 Queried 3 companies in total, used 2 credits (1 was a repeat within 30 days, no charge). Current balance: XX.
 
-如果不确定余额，可在付费接口返回后额外调用 `GET /api/v1/credit/balance` 获取最新余额再展示。
+If unsure about the balance, call `GET /api/v1/credit/balance` after the paid endpoint returns, then display the latest balance.
 
-### 规则 3：联系人搜索首次会话确认
+### Rule 3: Confirm contact search on first call per session
 
-本次会话中**第一次**调用 `POST /contacts/search` 前，无论用户是否主动提出，须告知扣费并征求确认：
+**Before the first** call to `POST /contacts/search` in a session, regardless of whether the user brought it up, inform them of the charge and ask for confirmation:
 
-> 联系人搜索每次查询消耗 1 积分。现在继续搜索吗？
+> Contact search costs 1 credit per query. Continue searching now?
 
-用户确认后，本次会话后续调用不再重复提示，直接执行。
+Once the user confirms, do not repeat this prompt for subsequent calls in the same session — proceed directly.
 
 ---
 
-## 输出格式化指引 | Output Formatting
+## Output Formatting
 
-Agent 展示 API 结果时，应使用用户友好的格式，而非直接输出 JSON。
+When presenting API results, use user-friendly formats rather than raw JSON.
 
-### 公司搜索结果
+### Company Search Results
 
-以表格展示关键信息，帮助用户快速筛选：
+Display key info in a table to help users quickly filter:
 
-| # | 公司名称 | 国家 | 行业 | 官网 |
-|---|---------|------|------|------|
-| 1 | TechCorp GmbH | 德国 | Electronics | techcorp.de |
-| 2 | ElekTech AG | 德国 | Electronics | elektech.com |
+| # | Company Name | Country | Industry | Website |
+|---|-------------|---------|----------|---------|
+| 1 | TechCorp GmbH | Germany | Electronics | techcorp.de |
+| 2 | ElekTech AG | Germany | Electronics | elektech.com |
 
-- 超过 10 条结果时展示前 10 条，告知总数并提示"需要查看更多请说'下一页'"
-- 搜索无结果时建议放宽条件（换关键词、去掉国家限制等）
+- For more than 10 results, show the first 10, state the total count, and prompt "say 'next page' to see more"
+- For no results, suggest relaxing criteria (different keywords, remove country filter, etc.)
 
-### 联系人信息
+### Contact Info
 
-以清晰列表展示，标注有无邮箱/LinkedIn：
+Display in a clear list, indicating whether email/LinkedIn is available:
 
-| 姓名 | 职位 | 邮箱 | LinkedIn |
-|------|------|------|----------|
+| Name | Title | Email | LinkedIn |
+|------|-------|-------|----------|
 | Hans Mueller | Procurement Manager | hans@techcorp.de | ✅ |
 | Lisa Schmidt | CEO | — | ✅ |
 
-### 余额信息
+### Balance Info
 
-用简洁格式汇总：
+Summarize in a concise format:
 
-> **当前账户余额**
-> - 搜索积分：80（月度）+ 400（加购）= **480 可用**
-> - EDM 配额：200（月度）+ 2000（加购）= **2200 可用**
-> - 月度配额重置时间：2026-04-30
+> **Current Account Balance**
+> - Search credits: 80 (monthly) + 400 (add-on) = **480 available**
+> - EDM quota: 200 (monthly) + 2000 (add-on) = **2200 available**
+> - Monthly quota resets: 2026-04-30
 
-### 邮件发送反馈
+### Email Send Feedback
 
-发送后展示任务摘要：
+Show a task summary after sending:
 
-> ✅ 已提交 2 封邮件（任务 ID: 1001），状态: 等待处理
-> 邮件为异步发送，实际送达需数秒至数分钟。需要稍后查询发送状态请告诉我。
+> ✅ Submitted 2 emails (Task ID: 1001), Status: Pending
+> Emails are sent asynchronously — actual delivery takes seconds to minutes. Let me know if you'd like to check delivery status later.
 
-查询状态时展示汇总 + 失败明细：
+Show a summary + failure details when checking status:
 
-> **任务 1001 发送情况**：48 封成功 / 2 封失败 / 共 50 封
-> 失败明细：bob@globex.com — Invalid email address
-
----
-
-## 场景编排指引 | Workflow Orchestration
-
-用户需求常跨越多个工作流，Agent 需要理解何时串联、何时停下来等用户决策。
-
-### 探索型："帮我找一批目标客户"
-
-1. **搜索公司**（免费）→ 展示结果表格
-2. **等待用户选择**感兴趣的公司 → 不要主动调用付费接口
-3. 用户指定后 → **获取联系人邮件**（遵循计费规则 1 确认后执行）
-4. 展示联系人 → 询问是否需要发开发信
-
-### 精准型："给德国电子行业的采购经理发开发信"
-
-1. 搜索公司 → 展示结果让用户确认目标公司
-2. 获取联系人（确认扣费后执行）→ 筛选采购相关职位
-3. 展示联系人列表 → **征求用户确认发送对象和邮件内容**
-4. 用户确认后才发送，**绝不在用户确认前自动发送邮件**
-
-### 回查型："上次发的邮件情况怎么样"
-
-直接调用邮件状态查询接口（免费），无需确认。
-
-### 核心原则
-
-- **免费操作可以积极执行**：搜索公司、查余额、查邮件状态
-- **付费操作严格遵循计费确认规则**，不可跳过
-- **发送邮件永远需要用户显式确认**内容和收件人
-- 不确定时，**优先展示信息让用户决策**，而非替用户做决定
+> **Task 1001 Delivery Status**: 48 sent / 2 failed / 50 total
+> Failures: bob@globex.com — Invalid email address
 
 ---
 
-## 触发场景 | When to Use This Skill
+## Workflow Orchestration
 
-### 触发本 skill 的典型用户意图
+User requests often span multiple workflows. The Agent needs to understand when to chain steps and when to pause for user decisions.
 
-| 用户说 | 对应操作 |
-|-------|---------|
-| "帮我找德国的电子产品企业" | 工作流 A 步骤 1 |
-| "查一下这家公司的详细信息" | 工作流 A 步骤 2 |
-| "帮我找这家公司的联系人邮箱" | 工作流 A 步骤 3 |
-| "帮我找 Alice Wang 的联系方式" | 工作流 B |
-| "搜索有邮箱的采购经理" | 工作流 B |
-| "帮我给这些客户发一封开发信" | 工作流 C |
-| "给每家公司各发一封个性化邮件" | 工作流 D |
-| "上次发的邮件发出去多少封了" | 工作流 F |
-| "我还有多少积分" | 工作流 E |
+### Exploratory: "Help me find a batch of target customers"
 
-### 不适合使用本 skill 的场景
+1. **Search companies** (free) → display results table
+2. **Wait for user to select** companies of interest → do NOT proactively call paid endpoints
+3. Once user specifies → **get contact emails** (confirm billing per Rule 1, then execute)
+4. Display contacts → ask if they want to send outreach emails
 
-- 接收/阅读收到的邮件（本 skill 仅支持外发）
-- 用户注册、充值、修改密码等账号管理操作（引导用户去官网）
-- 单次发送超 100 封（需分批调用）
-- Free 套餐用户发送 EDM（引导升级）
+### Targeted: "Send outreach emails to procurement managers in the German electronics industry"
+
+1. Search companies → show results for user to confirm target companies
+2. Get contacts (confirm charge, then execute) → filter for procurement-related titles
+3. Display contact list → **ask user to confirm recipients and email content**
+4. Only send after user confirms — **never send emails automatically before user confirmation**
+
+### Follow-up: "What happened with the emails I sent last time?"
+
+Call the email status endpoint directly (free) — no confirmation needed.
+
+### Core Principles
+
+- **Free operations can be executed proactively**: search companies, check balance, check email status
+- **Paid operations must strictly follow billing confirmation rules** — never skip them
+- **Email sending always requires explicit user confirmation** of content and recipients
+- When in doubt, **show the information and let the user decide** rather than deciding for them
 
 ---
 
-## 详细步骤 | Step-by-Step Workflows
+## When to Use This Skill
 
-### 工作流 A：搜索公司 → 查看详情 → 获取联系人信息（串行流程）
+### Typical user intents that trigger this skill
 
-**步骤 1：搜索公司列表（免费）**
+| User says | Corresponding action |
+|-----------|---------------------|
+| "Help me find electronics companies in Germany" | Workflow A step 1 |
+| "Get detailed info on this company" | Workflow A step 2 |
+| "Find contact emails for this company" | Workflow A step 3 |
+| "Find Alice Wang's contact info" | Workflow B |
+| "Search for procurement managers with emails" | Workflow B |
+| "Send an outreach email to these customers" | Workflow C |
+| "Send a personalized email to each company" | Workflow D |
+| "How many of the emails I sent last time went through?" | Workflow F |
+| "How many credits do I have left?" | Workflow E |
+
+### Scenarios where this skill is NOT appropriate
+
+- Receiving/reading incoming emails (this skill is outbound-only)
+- User registration, recharging, password changes, or other account management (direct to the website)
+- Sending more than 100 emails at once (split into batches)
+- Free plan users sending EDM (prompt to upgrade)
+
+---
+
+## Step-by-Step Workflows
+
+### Workflow A: Search Companies → View Profile → Get Contact Info (Sequential)
+
+**Step 1: Search company list (free)**
 
 ```bash
-# 搜索德国的电子产品企业，每页 20 条
+# Search electronics companies in Germany, 20 per page
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/companies/search" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
@@ -293,11 +293,11 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/companies/search"
   }' | jq '.list[] | {companyHashId, name, country, industry}'
 ```
 
-从响应中记录 `companyHashId`，用于后续查询。搜索结果中 `contacts` 和 `phone` 字段已隐藏，需通过 profileEmails 获取。
+Note the `companyHashId` from the response for subsequent queries. The `contacts` and `phone` fields in search results are hidden — use `profileEmails` to retrieve them.
 
-> **⚠️ 计费确认（适用于隐式调用）：** 若用户未明确要求查看公司详情，调用前须先确认（见「计费确认规则」Rule 1）。用户主动请求则直接执行。调用成功后需在回答中说明积分消耗情况（见 Rule 2）。
+> **⚠️ Billing Confirmation (for implicit calls):** If the user did not explicitly ask for company details, confirm before calling (see Billing Confirmation Rule 1). For user-initiated requests, call directly. After a successful call, include credit usage in the response (see Rule 2).
 
-**步骤 2：查看公司 Profile（付费 — 遵循计费规则 1 & 2）**
+**Step 2: View company profile (paid — follow Billing Rules 1 & 2)**
 
 ```bash
 COMPANY_ID="abc123hash"
@@ -307,16 +307,16 @@ curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/companies/${COMPANY_ID}/p
   -H "Authorization: ApiKey $OKKIGO_API_KEY" | jq '.'
 ```
 
-**步骤 3：获取联系人邮件（付费 — 与 profile 共享 30 天去重）**
+**Step 3: Get contact emails (paid — shares 30-day dedup with profile)**
 
 ```bash
-# 支持按关键词筛选联系人（如职位关键词 "CEO"、"Buyer"）
+# Supports keyword filtering (e.g., job title keywords "CEO", "Buyer")
 curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/companies/${COMPANY_ID}/profileEmails?keyword=buyer&page=1" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" | jq '.emails[] | {name, email, title}'
 ```
 
-多家公司可并行获取：
+Fetch multiple companies in parallel:
 
 ```bash
 for COMPANY_ID in "hash001" "hash002" "hash003"; do
@@ -327,30 +327,30 @@ done
 wait
 ```
 
-> profile 和 profileEmails 共享同一个 30 天去重记录，若已调用过 profile 再调 profileEmails 不重复扣分。若该公司返回的 emails 为空不扣积分。
+> `profile` and `profileEmails` share the same 30-day dedup record. If you already called `profile`, calling `profileEmails` for the same company won't be charged again. If the company returns an empty emails list, no credits are deducted.
 
 ---
 
-### 工作流 B：直接搜索联系人
+### Workflow B: Search Contacts Directly
 
-独立于公司搜索，按姓名/邮箱/职位跨公司搜索。**遵循计费规则 3（首次会话确认）和规则 2（告知扣费）。**
+Independent of company search — search across companies by name/email/title. **Follow Billing Rule 3 (first-session confirmation) and Rule 2 (notify on charges).**
 
 ```bash
-# 按姓名搜索
+# Search by name
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/contacts/search" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "Content-Type: application/json" \
   -d '{"name": "Alice Wang", "size": 20, "page": 1}' | jq '.list[] | {name, email, title, company}'
 
-# 按邮箱搜索（contact_match 指定按邮箱匹配）
+# Search by email (contact_match specifies email matching)
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/contacts/search" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "Content-Type: application/json" \
   -d '{"contact_match": "alice@acme.com", "size": 10, "page": 1}' | jq '.'
 
-# 按职位 + 国家搜索，要求有邮箱
+# Search by title + country, require email
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/contacts/search" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
@@ -358,15 +358,15 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/contacts/search" 
   -d '{"title": "Procurement Manager", "country_codes": "US", "has_email": 1, "size": 20, "page": 1}' | jq '.list[] | {name, email, title, company}'
 ```
 
-> 完整参数列表参见 [api-reference.md § 5. 搜索联系人](./references/api-reference.md#5-搜索联系人)。
+> For the full parameter list, see [api-reference.md § 5. Search Contacts](./references/api-reference.md#5-搜索联系人).
 
 ---
 
-### 工作流 C：发送批量开发信
+### Workflow C: Send Batch Outreach Emails
 
-同一模板发给多人，支持 `#variable_name#` 格式的变量替换。
+Same template to multiple recipients, with `#variable_name#` format variable substitution.
 
-**步骤 1：查余额确认 EDM 配额**
+**Step 1: Check balance to confirm EDM quota**
 
 ```bash
 curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
@@ -375,9 +375,9 @@ curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
   jq '{monthlyEdm, addonEdm, totalEdm: (.monthlyEdm + .addonEdm)}'
 ```
 
-配额不足时引导用户前往定价页查看套餐和加购选项：[go.okki.ai/pricing](https://go.okki.ai/pricing)
+If quota is insufficient, direct the user to the pricing page: [go.okki.ai/pricing](https://go.okki.ai/pricing)
 
-**步骤 2：展示邮件内容让用户确认，确认后发送**
+**Step 2: Show email content for user confirmation, then send**
 
 ```bash
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/emails/send/batch" \
@@ -404,13 +404,13 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/emails/send/batch
   }' | jq '.'
 ```
 
-> 发送为异步处理，记录响应中的 `task_id` 供工作流 F 查询进度。
+> Sending is async. Record the `task_id` from the response for checking progress in Workflow F.
 
 ---
 
-### 工作流 D：发送个性化开发信
+### Workflow D: Send Personalized Outreach Emails
 
-每封邮件使用独立内容，适合 AI 生成的千人千面开发信。
+Each email uses individual content — ideal for AI-generated personalized outreach.
 
 ```bash
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/emails/send/personalized" \
@@ -439,7 +439,7 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/emails/send/perso
 
 ---
 
-### 工作流 E：查询积分与 EDM 余额
+### Workflow E: Check Credits & EDM Balance
 
 ```bash
 curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
@@ -447,122 +447,120 @@ curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" | jq '.'
 ```
 
-字段说明：
-- `monthlyPoints + addonPoints` = 当前可用搜索积分总量
-- `monthlyEdm + addonEdm` = 当前可发送邮件总量
-- `monthlyExpiresAt` = 月度配额重置时间
-- 扣费优先消耗 monthly 配额，不足时自动使用 addon 加购包
+Field reference:
+- `monthlyPoints + addonPoints` = total available search credits
+- `monthlyEdm + addonEdm` = total available email quota
+- `monthlyExpiresAt` = monthly quota reset date
+- Charges deduct from monthly quota first; add-on packs are used automatically when monthly is exhausted
 
 ---
 
-### 工作流 F：查询邮件发送状态
+### Workflow F: Check Email Delivery Status
 
-用户主动询问时才调用（"发了没"、"哪些失败了"），**不需要主动轮询**。
+Only call when the user asks proactively ("did it send?", "which ones failed?") — **do not poll automatically**.
 
 ```bash
-# F1：查看最近任务列表
+# F1: View recent task list
 curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/emails/tasks" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} | \
   jq '.data[] | {taskId, status, sentCount, failedCount, totalCount, createdAt}'
 
-# F2：查看某次任务详情（含每封邮件状态）
+# F2: View task details (includes per-email status)
 curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/emails/tasks/${TASK_ID}" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} | jq '.'
 
-# F3：跨任务查询特定收件人的发送记录
+# F3: Query delivery records for a specific recipient across tasks
 curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/emails/mails?recipient_email=alice@acme.com" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} | jq '.data[] | {mailId, taskId, status, sentAt}'
 
-# F4：查看单封邮件完整详情
+# F4: View full details for a single email
 curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/emails/mails/${MAIL_ID}" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} | jq '.'
 ```
 
-任务状态流转：`pending`（等待）→ `requested`（已提交）→ `completed`（全部成功）/ `partial`（部分成功）/ `failed`（全部失败）
+Task status flow: `pending` → `requested` → `completed` (all sent) / `partial` (partially sent) / `failed` (all failed)
 
-> 完整查询参数（按时间/状态/主题过滤等）参见 [api-reference.md § 8-11](./references/api-reference.md#8-查询邮件任务列表)。
-
----
-
-## 错误处理 | Error Handling
-
-| HTTP 码 | 场景 | Agent 处理方式 |
-|---------|------|---------------|
-| 401 | API Key 无效或未配置 | 引导重新配置（参考「认证与 API Key 管理」章节）|
-| 402 | 积分或 EDM 配额不足 | 告知余额已用尽，引导前往 [pricing](https://go.okki.ai/pricing) 购买 |
-| 403 | Free 套餐无 EDM 权限 | 告知 Free 套餐不支持邮件发送，引导升级 |
-| 400 | 参数格式错误 | 检查 email 格式、content ≤50000 字符、recipients ≤100 |
-| 404 | 资源不存在 | 确认 ID 来自搜索结果，不要手动构造 |
-| 429 | 速率限制（60 次/分钟）或配额超限 | 等待后重试；配额超限向用户说明剩余量及重置时间 |
-| 502 | EDM 第三方服务异常 | 提示稍后重试，已扣配额会自动退还 |
-
-错误响应格式为 RFC 7807 Problem Details，包含 `type`、`title`、`status`、`detail` 字段。
+> For full query parameters (filter by time/status/subject, etc.), see [api-reference.md § 8-11](./references/api-reference.md#8-查询邮件任务列表).
 
 ---
 
-## 套餐与定价 | Pricing
+## Error Handling
 
-当用户询问套餐详情、升级或购买积分包时，引导用户访问定价页获取最新信息：
+| HTTP Code | Scenario | Agent Action |
+|-----------|----------|--------------|
+| 401 | Invalid or unconfigured API Key | Guide user to reconfigure (see Authentication section) |
+| 402 | Insufficient credits or EDM quota | Inform user balance is exhausted; direct to [pricing](https://go.okki.ai/pricing) |
+| 403 | Free plan has no EDM access | Inform user Free plan doesn't support email sending; prompt to upgrade |
+| 400 | Invalid parameter format | Check email format, content ≤50000 chars, recipients ≤100 |
+| 404 | Resource not found | Confirm ID came from search results — never manually construct IDs |
+| 429 | Rate limit (60 req/min) or quota exceeded | Wait and retry; for quota exceeded, inform user of remaining amount and reset time |
+| 502 | EDM third-party service error | Suggest retry later; deducted quota will be refunded automatically |
+
+Error responses follow RFC 7807 Problem Details format, containing `type`, `title`, `status`, and `detail` fields.
+
+---
+
+## Pricing
+
+When users ask about plan details, upgrades, or credit packs, direct them to the pricing page for up-to-date information:
 [go.okki.ai/pricing](https://go.okki.ai/pricing)
 
-When users ask about plans, upgrades, or credit packs, direct them to the pricing page for up-to-date details.
+---
+
+## Important Notes
+
+1. **30-day deduplication** — `profile` and `profileEmails` share the same dedup record for a company; no charge for repeat queries within 30 days
+2. **No charge for empty emails** — `profileEmails` returning an empty list does not deduct any credits
+3. **EDM is async** — returns `task_id` immediately; actual delivery takes seconds to minutes
+4. **Single EDM batch limit: 100** — split into multiple calls for more than 100 emails
+5. **Dual-bucket credit deduction** — monthly quota is consumed first; add-on packs are used automatically when monthly is exhausted
+6. **Company search is completely free** — `POST /companies/search` does not deduct credits; call as many times as needed
+7. **companyHashId cannot be manually constructed** — must be obtained from search results
 
 ---
 
-## 注意事项 | Important Notes
+## Installation
 
-1. **30 天去重** — profile 和 profileEmails 对同一公司共享去重记录，30 天内重复查看不扣积分
-2. **空邮件不计费** — profileEmails 返回空列表不扣任何积分
-3. **EDM 异步发送** — 调用后立即返回 `task_id`，实际送达需等待数秒至数分钟
-4. **单次 EDM 上限 100 封** — 超过 100 封需分批调用
-5. **积分双桶扣费** — 先消耗月度配额，不足时自动扣加购包
-6. **搜索公司完全免费** — `POST /companies/search` 不扣积分，可多次调用筛选
-7. **companyHashId 不可手动构造** — 必须从搜索结果中获取
-
----
-
-## 安装 | Installation
-
-### OpenClaw 安装步骤
+### OpenClaw Installation Steps
 
 ```bash
-# 1. 创建 skill 目录
+# 1. Create skill directory
 mkdir -p ~/.openclaw/workspace/skills/okki-go
 
-# 2. 复制 skill 文件
-cp {okki go skill 目录}/skill.md ~/.openclaw/workspace/skills/okki-go/
-cp -r {okki go skill 目录}/references ~/.openclaw/workspace/skills/okki-go/
+# 2. Copy skill files
+cp {okki-go skill directory}/skill.md ~/.openclaw/workspace/skills/okki-go/
+cp -r {okki-go skill directory}/references ~/.openclaw/workspace/skills/okki-go/
 
-# 3. 设置环境变量（可选，未设置时可在首次使用时通过邮箱验证获取）
+# 3. Set environment variables (optional — can be obtained via email verification on first use)
 export OKKIGO_API_KEY="sk-your-key-here"
 export OKKIGO_BASE_URL="https://go.okki.ai"
 ```
 
-将环境变量添加到 `~/.bashrc` 或 `~/.zshrc` 以持久化。
+Add environment variables to `~/.bashrc` or `~/.zshrc` to persist them.
 
-### 验证安装
+### Verify Installation
 
 ```bash
-# 查询余额（免费接口，验证 Key 是否有效）
+# Check balance (free endpoint — verifies Key is valid)
 curl -s "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" | jq '{monthlyPoints, monthlyEdm}'
 ```
 
-预期返回包含 `monthlyPoints` 和 `monthlyEdm` 字段。若返回 401，请检查 `OKKIGO_API_KEY`。
+Expected response includes `monthlyPoints` and `monthlyEdm` fields. If you get 401, check your `OKKIGO_API_KEY`.
 
-### 获取 API Key
+### Get an API Key
 
-两种方式：
-1. **对话中自动获取**：首次使用时 Agent 会引导邮箱验证，自动完成 `openclaw config set` 持久化
-2. **手动获取**：访问 [go.okki.ai](https://go.okki.ai) 注册账号，在控制台创建密钥
+Two options:
+1. **Auto-obtain via conversation**: On first use, the Agent will guide you through email verification and automatically persist the key with `openclaw config set`
+2. **Manual**: Visit [go.okki.ai](https://go.okki.ai), register an account, and create a key in the dashboard
 
 ---
 
-## 高级参考 | Advanced Reference
+## Advanced Reference
 
-完整的请求/响应 Schema、全部参数约束和分页说明，参见 [references/api-reference.md](./references/api-reference.md)。
+For complete request/response schemas, full parameter constraints, and pagination details, see [references/api-reference.md](./references/api-reference.md).

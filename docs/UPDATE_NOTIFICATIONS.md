@@ -1,10 +1,10 @@
-# 📬 更新通知 | Update Notifications
+# Update Notifications
 
-**有新版本时自动通知你，更新决定完全由你控制。**
+**Get notified automatically when a new version is available — update decisions are entirely yours.**
 
 ---
 
-## 快速启用
+## Quick Enable
 
 **macOS / Linux:**
 ```bash
@@ -23,20 +23,20 @@ bash scripts/enable-notifications.sh
 
 ---
 
-## 功能说明
+## Features
 
-启用后你将收到：
-- 📦 **新版本提醒** - 发现更新时立即通知
-- 📝 **更新日志预览** - 查看新版本功能和修复
-- ⚡ **一键更新命令** - 快速完成更新
+Once enabled, you will receive:
+- 📦 **New version alerts** — notified immediately when an update is found
+- 📝 **Changelog previews** — see what's new and what's fixed
+- ⚡ **One-command update** — update quickly with a single command
 
-**检查频率：** 每周一上午 10 点（可自定义为每天/每周/每月）
+**Check frequency:** Every Monday at 10:00 AM (customizable to daily/weekly/monthly)
 
 ---
 
-## 管理更新通知
+## Manage Update Notifications
 
-**查看状态/修改设置:**
+**View status / change settings:**
 ```bash
 # macOS / Linux
 bash scripts/enable-notifications.sh
@@ -45,12 +45,12 @@ bash scripts/enable-notifications.sh
 powershell -ExecutionPolicy Bypass -File scripts\enable-notifications.ps1
 ```
 
-运行后会显示：
-- ✅ 当前通知状态
-- 📅 检查频率设置
-- 🔧 管理选项（关闭/修改频率/手动检查）
+Running the script shows:
+- ✅ Current notification status
+- 📅 Check frequency setting
+- 🔧 Management options (disable / change frequency / manual check)
 
-**手动检查更新:**
+**Check for updates manually:**
 ```bash
 # macOS / Linux
 bash scripts/check-update.sh
@@ -61,103 +61,103 @@ powershell -ExecutionPolicy Bypass -File scripts\check-update.ps1
 
 ---
 
-## 自定义检查频率
+## Customize Check Frequency
 
-可以通过管理脚本修改检查频率：
+Change the check frequency using the management script:
 
-| 频率 | 说明 |
-|------|------|
-| 每天 | 每天上午 10 点检查 |
-| 每周 | 每周一上午 10 点 (默认) |
-| 每月 | 每月 1 号上午 10 点 |
-
----
-
-## 隐私说明
-
-- ✅ 不会收集个人信息
-- ✅ 不会自动更新，仅发送通知
-- ✅ 更新决定完全由用户控制
-- ✅ 仅查询公开的版本信息
+| Frequency | Description |
+|-----------|-------------|
+| Daily | Every day at 10:00 AM |
+| Weekly | Every Monday at 10:00 AM (default) |
+| Monthly | 1st of every month at 10:00 AM |
 
 ---
 
-## 故障排查
+## Privacy
 
-### 问题：提示找不到 openclaw 命令
+- ✅ No personal information is collected
+- ✅ Will not auto-update — notifications only
+- ✅ Update decisions are entirely user-controlled
+- ✅ Checks query only publicly available version information
+
+---
+
+## Troubleshooting
+
+### Issue: "openclaw command not found"
 
 ```bash
-# 安装 OpenClaw
+# Install OpenClaw
 npm install -g openclaw
 ```
 
-### 问题：通知没有收到
+### Issue: Not receiving notifications
 
 ```bash
-# 检查网关状态
+# Check gateway status
 openclaw gateway status
 ```
 
-### 问题：如何完全关闭通知
+### Issue: How to disable notifications completely
 
 ```bash
-# 运行管理脚本，选择选项 1
+# Run the management script and choose option 1
 bash scripts/enable-notifications.sh
 ```
 
-或直接删除 cron 任务：
+Or delete the cron job directly:
 ```bash
-openclaw cron list  # 找到任务 ID
+openclaw cron list  # find the job ID
 openclaw cron remove --jobId <ID>
 ```
 
 ---
 
-## 通知内容示例
+## Sample Notification
 
-当你有新版本时会收到：
+When a new version is available, you will receive:
 
 ```
-📦 Okki Go 有新版本可用
+📦 Okki Go new version available
 
-当前版本：1.1.0
-最新版本：1.2.0
+Current version: 1.1.0
+Latest version:  1.2.0
 
-更新内容：
+What's new:
 ## 1.2.0
-- ✨ 新增联系人搜索功能
-- 🐛 修复 EDM 发送配额显示问题
-- ⚡ 提升搜索速度 30%
+- ✨ Added contact search feature
+- 🐛 Fixed EDM send quota display issue
+- ⚡ Improved search speed by 30%
 
-更新命令：openclaw skills update okki go
-跳过：忽略此通知，下周继续提醒
+Update command: openclaw skills update okki-go
+Skip: dismiss this notification, remind again next week
 ```
 
 ---
 
-## 文件说明
+## File Reference
 
-相关脚本文件：
+Related script files:
 
-| 文件 | 适用系统 | 说明 |
-|------|---------|------|
-| `scripts/enable-notifications.sh` | macOS / Linux | 启用/管理更新通知 |
-| `scripts/enable-notifications.ps1` | Windows | 启用/管理更新通知 |
-| `scripts/check-update.sh` | macOS / Linux | 手动检查更新 |
-| `scripts/check-update.ps1` | Windows | 手动检查更新 |
-| `scripts/post-install.sh` | macOS / Linux | 安装后初始化 |
-| `scripts/post-install.ps1` | Windows | 安装后初始化 |
+| File | Platform | Description |
+|------|----------|-------------|
+| `scripts/enable-notifications.sh` | macOS / Linux | Enable/manage update notifications |
+| `scripts/enable-notifications.ps1` | Windows | Enable/manage update notifications |
+| `scripts/check-update.sh` | macOS / Linux | Manually check for updates |
+| `scripts/check-update.ps1` | Windows | Manually check for updates |
+| `scripts/post-install.sh` | macOS / Linux | Post-install initialization |
+| `scripts/post-install.ps1` | Windows | Post-install initialization |
 
-详细脚本说明请参见 [scripts/README.md](./scripts/README.md)
-
----
-
-## 相关文档
-
-- 脚本详细说明：[scripts/README.md](./scripts/README.md)
-- 安装后初始化：运行 `bash scripts/post-install.sh` (macOS/Linux) 或 `powershell -ExecutionPolicy Bypass -File scripts\post-install.ps1` (Windows)
+For detailed script documentation, see [scripts/README.md](./scripts/README.md)
 
 ---
 
-**最后更新:** 2026-04-01  
-**版本:** okki go v1.1.0+
+## Related Docs
+
+- Script details: [scripts/README.md](./scripts/README.md)
+- Post-install setup: run `bash scripts/post-install.sh` (macOS/Linux) or `powershell -ExecutionPolicy Bypass -File scripts\post-install.ps1` (Windows)
+
+---
+
+**Last updated:** 2026-04-01
+**Version:** okki-go v1.1.0+
