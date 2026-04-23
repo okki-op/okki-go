@@ -1,6 +1,6 @@
 ---
-name: okki go
-version: 1.0.5
+name: OKKI Go
+version: 1.0.6
 description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine — only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
 metadata:
   openclaw:
@@ -16,7 +16,7 @@ config:
     description: "API Key"
 ---
 
-# Okki Go — B2B Lead Prospecting & Outreach Skill
+# OKKI Go — B2B Lead Prospecting & Outreach Skill
 
 Helps sales teams and businesses rapidly discover and analyze potential customers and execute outreach campaigns via AI Agent, taking B2B customer acquisition efficiency to the next level.
 
@@ -55,14 +55,15 @@ For complete API parameter documentation and response schemas, see [references/a
 
 | # | Feature | Description | Cost |
 |---|---------|-------------|------|
-| 1 | Search Companies | Multi-dimensional filtering by industry, country, keyword, etc. | Free |
-| 2 | View Company Profile | Full business info and trade data | 1 credit (30-day dedup) |
-| 3 | Get Company Contact Emails | Contact email list for a given company | Shared dedup with profile; empty = free |
-| 4 | Search Contacts | Cross-company search by name, title, email | 1 credit/request |
-| 5 | Send Batch Outreach | Same template to multiple recipients, with variable substitution | 1 EDM quota/email |
-| 6 | Send Personalized Outreach | Unique content per recipient | 1 EDM quota/email |
-| 7 | Check Email Status | Task list, per-email status, failure reasons | Free |
-| 8 | Check Credits & EDM Balance | Remaining search credits and email quota | Free |
+| 1 | Search Companies | Portrait-based multi-dimensional filtering by company type, product, industry, country | Free |
+| 2 | Unlock Company | Resolve domain to companyHashId for subsequent queries | 1 credit (30-day domain dedup) |
+| 3 | View Company Profile | Full business info and trade data (requires unlock first) | Free |
+| 4 | Get Company Contact Emails | Contact email list for a given company (requires unlock first) | Free |
+| 5 | Search Contacts | Cross-company search by name, title, email | 1 credit/request |
+| 6 | Send Batch Outreach | Same template to multiple recipients, with variable substitution | 1 EDM quota/email |
+| 7 | Send Personalized Outreach | Unique content per recipient | 1 EDM quota/email |
+| 8 | Check Email Status | Task list, per-email status, failure reasons | Free |
+| 9 | Check Credits & EDM Balance | Remaining search credits and email quota | Free |
 
 ---
 
@@ -142,21 +143,21 @@ These rules protect users from being charged unknowingly. **All workflows must f
 
 ### Rule 1: Confirm before implicit paid API calls
 
-"Implicit" means the user didn't explicitly ask for details/emails, but the Agent decides to call `profile` or `profileEmails` on its own. In this case, confirm first:
+"Implicit" means the user didn't explicitly ask to unlock a company, but the Agent decides to call `/companies/unlock` on its own. In this case, confirm first:
 
-> I found some matching companies. Viewing a company's full details or contact emails costs 1 credit per company (free if viewed within the last 30 days). Shall I proceed?
+> I found some matching companies. Unlocking a company costs 1 credit per domain (free if unlocked within the last 30 days). Shall I proceed?
 
-**Exception (no confirmation needed):** If the user explicitly said "get details", "show company info", "find emails", "get contacts", etc., treat it as an active request and call directly.
+**Exception (no confirmation needed):** If the user explicitly said "unlock this company", "get company details", "find emails for this company", etc., treat it as an active request. Call `/companies/unlock` first (if not already unlocked), then proceed to profile/profileEmails directly — these are now free.
 
 ### Rule 2: Report charges after every paid API call
 
 After each successful paid API call, include the cost summary at the end of your response:
 
-> This query used 1 credit. Remaining balance: XX (monthly) + YY (add-on).
+> This unlock used 1 credit. Remaining balance: XX (monthly) + YY (add-on).
 
 For multiple companies:
 
-> This batch queried 3 companies, using 2 credits (1 was a repeat within 30 days — no charge). Remaining: XX.
+> Unlocked 3 companies, using 2 credits (1 was already unlocked within 30 days — no charge). Remaining: XX.
 
 If unsure about the balance, call `GET /api/v1/credit/balance` after the paid call to get the latest numbers.
 
@@ -178,13 +179,14 @@ Present API results in user-friendly format, not raw JSON.
 
 Show key info in a table for quick scanning:
 
-| # | Company | Country | Industry | Website |
-|---|---------|---------|----------|---------|
-| 1 | TechCorp GmbH | Germany | Electronics | techcorp.de |
-| 2 | ElekTech AG | Germany | Electronics | elektech.com |
+| # | Company | Country | Industry | Domain |
+|---|---------|---------|----------|--------|
+| 1 | Example Corp | CN | Manufacturing | example.com |
+| 2 | TechPrint AG | DE | Electronics | techprint.de |
 
 - For 10+ results, show the first 10, state the total, and offer "say 'next page' to see more"
 - For zero results, suggest broadening criteria (different keywords, removing country filter, etc.)
+- The `domain` field is used with `/companies/unlock` to get the `companyHashId`
 
 ### Contact information
 
@@ -220,45 +222,47 @@ User requests often span multiple workflows. The Agent needs to understand when 
 
 ### Workflow A: Exploration — "Help me find target customers"
 
-1. **Search companies** (free, see [api-reference.md §2](./references/api-reference.md#2-搜索公司)) → display results table
+1. **Search companies** (free, see [api-reference.md §2](./references/api-reference.md#2-搜索公司高级画像搜索)) → display results table
 2. **Wait for user to select** companies of interest → do NOT proactively call paid APIs
-3. User selects → **Get contact emails** (follow Billing Rule 1 before calling, see [api-reference.md §4](./references/api-reference.md#4-获取公司联系人邮件))
-4. Display contacts → ask if they want to send outreach
+3. User selects → **Unlock company** (follow Billing Rule 1, see [api-reference.md §3](./references/api-reference.md#3-解锁公司)) to get `companyHashId`
+4. **Get contact emails** (free, see [api-reference.md §5](./references/api-reference.md#5-获取公司联系人邮件)) using the `companyHashId`
+5. Display contacts → ask if they want to send outreach
 
 ### Workflow B: Contact Search — "Find a specific person"
 
-- Use `POST /contacts/search` to search by name, title, email, or company (see [api-reference.md §5](./references/api-reference.md#5-搜索联系人))
+- Use `POST /contacts/search` to search by name, title, email, or company (see [api-reference.md §6](./references/api-reference.md#6-搜索联系人))
 - Follow Billing Rule 3 (first-session confirmation)
 - Supports filtering by country, has_email, employee count, etc.
 
 ### Workflow C: Precision — "Send outreach to procurement managers in German auto parts companies"
 
 1. Search companies → display results for user confirmation
-2. Get contacts (confirm billing) → filter by relevant titles
-3. Display contact list → **ask user to confirm recipients and email content**
-4. **Never send emails before user confirms** — use `POST /emails/send/batch` for same-template sends (see [api-reference.md §6](./references/api-reference.md#6-发送批量开发信))
+2. Unlock selected companies (confirm billing) → get `companyHashId` for each
+3. Get contacts (free) → filter by relevant titles
+4. Display contact list → **ask user to confirm recipients and email content**
+5. **Never send emails before user confirms** — use `POST /emails/send/batch` for same-template sends (see [api-reference.md §7](./references/api-reference.md#7-发送批量开发信))
 
 ### Workflow D: Personalized Outreach — "Send each company a tailored email"
 
-- Same flow as Workflow C, but use `POST /emails/send/personalized` for unique content per recipient (see [api-reference.md §7](./references/api-reference.md#7-发送个性化开发信))
+- Same flow as Workflow C, but use `POST /emails/send/personalized` for unique content per recipient (see [api-reference.md §8](./references/api-reference.md#8-发送个性化开发信))
 - Each email should reference the recipient's company/industry context
 
 ### Workflow E: Check Balance
 
-- Call `GET /api/v1/credit/balance` (free, see [api-reference.md §1](./references/api-reference.md#1-查询积分与-edm-余额))
-- Display using the balance format from Output Formatting section
+- Call `GET /api/v1/credit/balance` (free, see [api-reference.md §1](./references/api-reference.md#1-查询积分与-edm-余额))- Display using the balance format from Output Formatting section
 - If quota is low, direct user to [go.okki.ai/pricing](https://go.okki.ai/pricing)
 
 ### Workflow F: Check Email Status — "How did my last batch go?"
 
 - Only call when user asks ("did they send?", "which ones failed?") — do NOT proactively poll
-- Use `GET /emails/tasks` for task list, `GET /emails/tasks/:taskId` for details (see [api-reference.md §8-11](./references/api-reference.md#8-查询邮件任务列表))
+- Use `GET /emails/tasks` for task list, `GET /emails/tasks/:taskId` for details (see [api-reference.md §9-12](./references/api-reference.md#9-查询邮件任务列表))
 - Task status flow: `pending` → `requested` → `completed` / `partial` / `failed`
 
 ### Core Principles
 
 - **Free operations can be executed proactively**: search companies, check balance, check email status
-- **Paid operations strictly follow Billing Confirmation Rules** — never skip
+- **Profile/detail/profileEmails are free but require unlock first** — always call `/companies/unlock` to obtain `companyHashId` before querying these endpoints
+- **Paid operations strictly follow Billing Confirmation Rules** — unlock and contact search require confirmation
 - **Sending emails always requires explicit user confirmation** of content and recipients
 - When in doubt, **show information and let the user decide** rather than deciding for them
 
@@ -266,7 +270,7 @@ User requests often span multiple workflows. The Agent needs to understand when 
 
 ## Error Handling
 
-For HTTP error codes, handling guidance, and RFC 7807 response format, see [api-reference.md §13](./references/api-reference.md#13-错误码速查表).
+For HTTP error codes, handling guidance, and RFC 7807 response format, see [api-reference.md §14](./references/api-reference.md#14-错误码速查表).
 
 Key cases to handle gracefully:
 - **401**: API Key invalid → guide re-configuration (see Authentication section)
