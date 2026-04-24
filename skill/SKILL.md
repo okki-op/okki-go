@@ -2,18 +2,14 @@
 name: OKKI Go
 version: 1.0.6
 description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine — only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
-metadata:
-  openclaw:
-    emoji: "🌐"
-    requires:
-      bins: ["curl", "jq"]
-    primaryEnv: "OKKIGO_API_KEY"
-    homepage: "https://go.okki.ai"
-config:
-  apiKey:
-    type: string
+homepage: "https://go.okki.ai"
+requires:
+  - curl
+  - jq
+env:
+  OKKIGO_API_KEY:
     required: true
-    description: "API Key"
+    description: "API Key for Okki Go platform"
 ---
 
 # OKKI Go — B2B Lead Prospecting & Outreach Skill
@@ -22,13 +18,16 @@ Helps sales teams and businesses rapidly discover and analyze potential customer
 
 For complete API parameter documentation and response schemas, see [references/api-reference.md](./references/api-reference.md).
 
-## Quick Install
+## Installation
 
-- Install via OpenClaw platform
+Install this skill through your AI coding assistant's skill/command management system:
 
-**Option 1 — Open the OpenClaw web UI → Sidebar → Skills → Search "okki-go" → Click Install**
+- **Claude Code**: Use the built-in skill installer or run `npx clawhub@latest install okki-go`
+- **OpenClaw**: Web UI → Skills → Search "okki-go" → Install, or chat command
+- **Cursor/Windsurf**: Follow your platform's skill installation process
+- **Other platforms**: Check your platform's documentation for installing custom skills/commands
 
-**Option 2 — Type in the OpenClaw chat: "Please run npx clawhub@latest install --force 'okki-go' to install this skill, then verify the installation was successful"**
+After installation, you'll need to configure your API key (see Authentication section below).
 
 ## Routing
 
@@ -87,7 +86,7 @@ Before the first API call in each session, check if the key is configured:
 - **`KEY_SET`** → Proceed directly with the user's request
 - **`NO_KEY`** → Follow the email verification flow below
 
-If `NO_KEY` but the user has explicitly provided an API Key in context, save it directly. See saving instructions below.
+If `NO_KEY` but the user has explicitly provided an API Key in context, save it using your platform's configuration method (see saving instructions below).
 
 ### Email Verification to Obtain API Key
 
@@ -113,27 +112,37 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/verify-email
 
 4. Persist the API Key (**required, once only**):
 
-After obtaining the `apiKey`, **you must inform the user** that the Agent is about to run the following command to persist the configuration, and **ask for explicit consent** before executing:
+After obtaining the `apiKey`, save it using your platform's configuration method:
 
-```
-I'm about to run the following command to save your API Key to the okki go skill config:
-`openclaw config set skills.entries.okkigo.apiKey "sk-xxxxxxxxxxxxxxxxxxxx"`
-Do you approve?
-```
+**Method 1: Environment Variable (Universal)**
 
-After user approval, execute:
+Set the `OKKIGO_API_KEY` environment variable in your shell profile:
 
 ```bash
-openclaw config set skills.entries.okkigo.apiKey "sk-xxxxxxxxxxxxxxxxxxxx"
+# Add to ~/.bashrc, ~/.zshrc, or equivalent
+export OKKIGO_API_KEY="sk-xxxxxxxxxxxxxxxxxxxx"
 ```
 
-If the command fails, show this message once for manual execution:
+Then reload your shell or run `source ~/.bashrc` (or `~/.zshrc`).
+
+**Method 2: Platform-Specific Config**
+
+- **Claude Code / OpenClaw**: Use the config command:
+  ```bash
+  openclaw config set skills.entries.okkigo.apiKey "sk-xxxxxxxxxxxxxxxxxxxx"
+  ```
+
+- **Cursor / Windsurf**: Follow your platform's environment variable or secrets management system
+
+- **Other platforms**: Check your platform's documentation for storing skill credentials
+
+**Important**: Inform the user before saving the API key and ask for explicit consent. If automatic saving fails, provide the user with their API key and manual instructions:
 
 > Your API Key: sk-xxxxxxxxxxxxxxxxxxxx
-> Please run this command immediately to save it — this key is shown only once.
-> `openclaw config set skills.entries.okkigo.apiKey "sk-xxxxxxxxxxxxxxxxxxxx"`
+> Please save this key immediately — it's shown only once.
+> Add `export OKKIGO_API_KEY="sk-xxxxxxxxxxxxxxxxxxxx"` to your shell profile, or use your platform's config system.
 
-Once saved, OpenClaw auto-injects it as `OKKIGO_API_KEY` in future sessions — no re-verification needed.
+Once saved, the key will be available as `OKKIGO_API_KEY` in future sessions — no re-verification needed.
 
 ---
 
