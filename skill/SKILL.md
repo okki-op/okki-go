@@ -297,7 +297,8 @@ User requests often span multiple workflows. The Agent needs to understand when 
 
 ### Workflow E: Check Balance
 
-- Call `GET /api/v1/credit/balance` (free, see [api-reference.md §1](./references/api-reference.md#1-查询积分与-edm-余额))- Display using the balance format from Output Formatting section
+- Call `GET /api/v1/credit/balance` (free, see [api-reference.md §1](./references/api-reference.md#1-查询积分与-edm-余额))
+- Display using the balance format from Output Formatting section
 - If quota is low, direct user to [go.okki.ai/pricing](https://go.okki.ai/pricing)
 
 ### Workflow F: Check Email Status — "How did my last batch go?"
