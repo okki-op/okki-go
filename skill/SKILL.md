@@ -288,15 +288,15 @@ User requests often span multiple workflows. The Agent needs to understand when 
 
 ### Workflow A: Exploration — "Help me find target customers"
 
-1. **Search companies** (free, see [api-reference.md §2](./references/api-reference.md#2-搜索公司高级画像搜索)) → display results table
+1. **Search companies** (free, see [api-reference.md §2](./references/api-reference.md#2)) → display results table
 2. **Wait for user to select** companies of interest → do NOT proactively call paid APIs
-3. User selects → **Unlock company** (follow Billing Rule 1, see [api-reference.md §3](./references/api-reference.md#3-解锁公司)) to get `companyHashId`
-4. **Get contact emails** (free, see [api-reference.md §5](./references/api-reference.md#5-获取公司联系人邮件)) using the `companyHashId`
+3. User selects → **Unlock company** (follow Billing Rule 1, see [api-reference.md §3](./references/api-reference.md#3)) to get `companyHashId`
+4. **Get contact emails** (free, see [api-reference.md §5](./references/api-reference.md#5)) using the `companyHashId`
 5. Display contacts → ask if they want to send outreach
 
 ### Workflow B: Contact Search — "Find a specific person"
 
-- Use `POST /contacts/search` to search by name, title, email, or company (see [api-reference.md §6](./references/api-reference.md#6-搜索联系人))
+- Use `POST /contacts/search` to search by name, title, email, or company (see [api-reference.md §6](./references/api-reference.md#6))
 - Follow Billing Rule 3 (first-session confirmation)
 - Supports filtering by country, has_email, employee count, etc.
 
@@ -306,23 +306,23 @@ User requests often span multiple workflows. The Agent needs to understand when 
 2. Unlock selected companies (confirm billing) → get `companyHashId` for each
 3. Get contacts (free) → filter by relevant titles
 4. Display contact list → **ask user to confirm recipients and email content**
-5. **Never send emails before user confirms** — use `POST /emails/send/batch` for same-template sends (see [api-reference.md §7](./references/api-reference.md#7-发送批量开发信))
+5. **Never send emails before user confirms** — use `POST /emails/send/batch` for same-template sends (see [api-reference.md §7](./references/api-reference.md#7))
 
 ### Workflow D: Personalized Outreach — "Send each company a tailored email"
 
-- Same flow as Workflow C, but use `POST /emails/send/personalized` for unique content per recipient (see [api-reference.md §8](./references/api-reference.md#8-发送个性化开发信))
+- Same flow as Workflow C, but use `POST /emails/send/personalized` for unique content per recipient (see [api-reference.md §8](./references/api-reference.md#8))
 - Each email should reference the recipient's company/industry context
 
 ### Workflow E: Check Balance
 
-- Call `GET /api/v1/credit/balance` (free, see [api-reference.md §1](./references/api-reference.md#1-查询积分与-edm-余额))
+- Call `GET /api/v1/credit/balance` (free, see [api-reference.md §1](./references/api-reference.md#1))
 - Display using the balance format from Output Formatting section
 - If quota is low, direct user to [go.okki.ai/pricing](https://go.okki.ai/pricing)
 
 ### Workflow F: Check Email Status — "How did my last batch go?"
 
 - Only call when user asks ("did they send?", "which ones failed?") — do NOT proactively poll
-- Use `GET /emails/tasks` for task list, `GET /emails/tasks/:taskId` for details (see [api-reference.md §9-12](./references/api-reference.md#9-查询邮件任务列表))
+- Use `GET /emails/tasks` for task list, `GET /emails/tasks/:taskId` for details (see [api-reference.md §9-12](./references/api-reference.md#9))
 - Task status flow: `pending` → `requested` → `completed` / `partial` / `failed`
 
 ### Core Principles
@@ -337,7 +337,7 @@ User requests often span multiple workflows. The Agent needs to understand when 
 
 ## Error Handling
 
-For HTTP error codes, handling guidance, and RFC 7807 response format, see [api-reference.md §14](./references/api-reference.md#14-错误码速查表).
+For HTTP error codes, handling guidance, and RFC 7807 response format, see [api-reference.md §14](./references/api-reference.md#14).
 
 Key cases to handle gracefully:
 - **401**: API Key invalid → guide re-configuration (see Authentication section)
