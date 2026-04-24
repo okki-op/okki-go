@@ -20,14 +20,13 @@ For complete API parameter documentation and response schemas, see [references/a
 
 ## Installation
 
-Install this skill through your AI coding assistant's skill/command management system:
+Install this skill through your AI coding assistant's skill/command management system. Common installation methods include:
 
-- **Claude Code**: Use the built-in skill installer or run `npx clawhub@latest install okki-go`
-- **OpenClaw**: Web UI → Skills → Search "okki-go" → Install, or chat command
-- **Cursor/Windsurf**: Follow your platform's skill installation process
-- **Other platforms**: Check your platform's documentation for installing custom skills/commands
+- Built-in skill installer or marketplace
+- Command-line installation via your platform's package manager
+- Manual installation by placing skill files in your platform's skill directory
 
-After installation, you'll need to configure your API key (see Authentication section below).
+Refer to your platform's documentation for the specific installation method. After installation, you'll need to configure your API key (see Authentication section below).
 
 ## Routing
 
@@ -86,7 +85,7 @@ Before the first API call in each session, check if the key is configured:
 - **`KEY_SET`** → Proceed directly with the user's request
 - **`NO_KEY`** → Follow the email verification flow below
 
-If `NO_KEY` but the user has explicitly provided an API Key in context, save it using your platform's configuration method (see saving instructions below).
+If `NO_KEY` but the user has explicitly provided an API Key in context, skip to **Step 3: Save the API Key** below.
 
 ### Email Verification to Obtain API Key
 
@@ -110,39 +109,79 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/verify-email
   -d '{"email":"<user_email>","code":"<6_digit_code>"}' | jq '.'
 ```
 
-4. Persist the API Key (**required, once only**):
+### Save the API Key
 
-After obtaining the `apiKey`, save it using your platform's configuration method:
+After obtaining the `apiKey` (from verification or user input), persist it so future sessions skip re-verification. **Inform the user before saving and ask for explicit consent.**
 
-**Method 1: Environment Variable (Universal)**
-
-Set the `OKKIGO_API_KEY` environment variable in your shell profile:
+#### Step 3a: Detect the user's environment
 
 ```bash
-# Add to ~/.bashrc, ~/.zshrc, or equivalent
-export OKKIGO_API_KEY="sk-xxxxxxxxxxxxxxxxxxxx"
+# Detect OS and shell
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) echo "PLATFORM=windows" ;;
+  Darwin*)               echo "PLATFORM=macos"   ;;
+  *)                     echo "PLATFORM=linux"   ;;
+esac
+echo "SHELL_NAME=$(basename "${SHELL:-unknown}")"
 ```
 
-Then reload your shell or run `source ~/.bashrc` (or `~/.zshrc`).
+Use the detected platform to choose **one** saving method below. Do NOT present all methods — only show the one that matches.
 
-**Method 2: Platform-Specific Config**
+#### Step 3b: Save using the best method for the user's environment
 
-- **Claude Code / OpenClaw**: Use the config command:
-  ```bash
-  openclaw config set skills.entries.okkigo.apiKey "sk-xxxxxxxxxxxxxxxxxxxx"
-  ```
+**Priority order** — use the first method that applies:
 
-- **Cursor / Windsurf**: Follow your platform's environment variable or secrets management system
+1. **Platform config command** (if available): If the host platform provides a dedicated config/secrets CLI (e.g., `openclaw config set`), prefer it — it survives shell changes and is the most portable within that platform.
 
-- **Other platforms**: Check your platform's documentation for storing skill credentials
+2. **Shell profile** (macOS / Linux): Append the export to the user's active shell profile.
 
-**Important**: Inform the user before saving the API key and ask for explicit consent. If automatic saving fails, provide the user with their API key and manual instructions:
+   ```bash
+   # Detect the correct profile file
+   case "$(basename "$SHELL")" in
+     zsh)  PROFILE="$HOME/.zshrc"    ;;
+     bash) PROFILE="$HOME/.bashrc"   ;;
+     fish) PROFILE="$HOME/.config/fish/config.fish" ;;
+     *)    PROFILE="$HOME/.profile"  ;;
+   esac
 
-> Your API Key: sk-xxxxxxxxxxxxxxxxxxxx
-> Please save this key immediately — it's shown only once.
-> Add `export OKKIGO_API_KEY="sk-xxxxxxxxxxxxxxxxxxxx"` to your shell profile, or use your platform's config system.
+   echo 'export OKKIGO_API_KEY="sk-xxxxxxxxxxxxxxxxxxxx"' >> "$PROFILE"
+   echo "Saved to $PROFILE — run: source $PROFILE"
+   ```
+
+3. **Windows PowerShell**: Set a persistent user-level environment variable.
+
+   ```powershell
+   # Set for current session
+   $env:OKKIGO_API_KEY = "sk-xxxxxxxxxxxxxxxxxxxx"
+
+   # Persist across sessions (user-level)
+   [System.Environment]::SetEnvironmentVariable("OKKIGO_API_KEY", "sk-xxxxxxxxxxxxxxxxxxxx", "User")
+
+   Write-Host "API Key saved. Restart your terminal or open a new PowerShell window to apply."
+   ```
+
+4. **Windows CMD**: Set a persistent user-level environment variable.
+
+   ```cmd
+   setx OKKIGO_API_KEY "sk-xxxxxxxxxxxxxxxxxxxx"
+   ```
+
+   Note: `setx` saves the variable permanently but does NOT update the current session. The user must open a new CMD window.
+
+#### Step 3c: Fallback — manual instructions
+
+If automatic saving fails or the environment cannot be detected, provide the key and a single instruction matching the user's platform:
+
+> Your API Key: `sk-xxxxxxxxxxxxxxxxxxxx`
+> Please save this key immediately — it is shown only once.
+
+- **macOS / Linux**: Add `export OKKIGO_API_KEY="sk-xxxxxxxxxxxxxxxxxxxx"` to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.) and run `source <profile>`.
+- **Windows PowerShell**: Run `[System.Environment]::SetEnvironmentVariable("OKKIGO_API_KEY", "sk-xxxxxxxxxxxxxxxxxxxx", "User")` then restart your terminal.
+- **Platform config**: Use your platform's secrets or environment variable management to set `OKKIGO_API_KEY`.
 
 Once saved, the key will be available as `OKKIGO_API_KEY` in future sessions — no re-verification needed.
+
+**Important**: After saving the API Key, prompt the user to restart their current session (close and reopen the AI assistant) so the new environment variable takes effect. The key will not be available in the current session unless `source <profile>` was run or the platform config command handles live reload.
 
 ---
 
