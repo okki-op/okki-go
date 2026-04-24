@@ -223,7 +223,10 @@ function copySkillFiles(skillDir, runtime) {
       const dst = path.join(dstScripts, f);
       if (fs.statSync(src).isFile()) {
         fs.copyFileSync(src, dst);
-        if (f.endsWith('.sh')) fs.chmodSync(dst, 0o755);
+        // Set executable permission on Unix systems (Windows doesn't support chmod)
+        if (f.endsWith('.sh')) {
+          try { fs.chmodSync(dst, 0o755); } catch (e) { /* Windows */ }
+        }
       }
     }
     log(`  ${green}✓${reset} Copied scripts/`);
@@ -321,6 +324,11 @@ async function promptInteractive() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
+  // Windows platform notice
+  if (process.platform === 'win32') {
+    log(`${yellow}Note: Running on Windows. Shell scripts (.sh) will be copied but require WSL/Git Bash to execute.${reset}\n`);
+  }
+
   // Interactive mode when no runtime flags given
   if (selectedRuntimes.length === 0 && !isUninstall) {
     const { runtimes, global: g } = await promptInteractive();

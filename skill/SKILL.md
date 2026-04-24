@@ -113,14 +113,32 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/verify-email
 
 After obtaining the `apiKey` (from verification or user input), persist it so future sessions skip re-verification. **Inform the user before saving and ask for explicit consent.**
 
+**Before saving**, verify the API Key format:
+
+```bash
+# Validate API Key format (should start with 'sk-')
+if [[ ! "$apiKey" =~ ^sk- ]]; then
+  echo "Error: Invalid API Key format (should start with 'sk-')"
+  exit 1
+fi
+```
+
 #### Step 3a: Detect the user's environment
 
 ```bash
 # Detect OS and shell
 case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*) echo "PLATFORM=windows" ;;
-  Darwin*)               echo "PLATFORM=macos"   ;;
-  *)                     echo "PLATFORM=linux"   ;;
+  MINGW*|MSYS*|CYGWIN*) 
+    echo "PLATFORM=windows"
+    # Detect PowerShell vs CMD
+    if [ -n "${PSVersionTable}" ] || command -v pwsh &>/dev/null || [ -n "${PSMODULEPATH}" ]; then
+      echo "SHELL_TYPE=powershell"
+    else
+      echo "SHELL_TYPE=cmd"
+    fi
+    ;;
+  Darwin*) echo "PLATFORM=macos" ;;
+  *) echo "PLATFORM=linux" ;;
 esac
 echo "SHELL_NAME=$(basename "${SHELL:-unknown}")"
 ```
