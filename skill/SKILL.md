@@ -18,15 +18,9 @@ Helps sales teams and businesses rapidly discover and analyze potential customer
 
 For complete API parameter documentation and response schemas, see [references/api-reference.md](./references/api-reference.md).
 
-## Installation
+## Quick Start
 
-Install this skill through your AI coding assistant's skill/command management system. Common installation methods include:
-
-- Built-in skill installer or marketplace
-- Command-line installation via your platform's package manager
-- Manual installation by placing skill files in your platform's skill directory
-
-Refer to your platform's documentation for the specific installation method. After installation, you'll need to configure your API key (see Authentication section below).
+This skill requires an API Key to function. Before the first API call, check if `OKKIGO_API_KEY` is configured. If not, guide the user through email verification to obtain one (see Authentication section below).
 
 ## Routing
 

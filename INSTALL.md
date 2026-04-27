@@ -1,6 +1,6 @@
 # Okki Go Skill 安装指南
 
-多运行时安装系统，支持 Claude Code、OpenClaw、Cursor、Windsurf 等 AI 编码助手。
+多运行时安装系统，支持 Claude Code、OpenClaw、Cursor、Windsurf 等 AI 助手。
 
 ## 快速安装
 
@@ -97,7 +97,7 @@ node bin/install.js --global --openclaw
 
 更新时会：
 - 自动检测版本升级（如 v1.0.5 → v1.0.6）
-- 保存你的本地修改到 `.okki-patches/`
+- 保存你的本地修改到 `.okki-go-patches/`
 - 安装新版本文件
 - 保留你的 API Key 配置
 
@@ -155,15 +155,15 @@ node bin/install.js --global --openclaw
 # Saved local modification: scripts/custom-hook.sh
 ```
 
-修改过的文件会自动保存到 `.okki-patches/`，你可以在更新后手动恢复：
+修改过的文件会自动保存到 `.okki-go-patches/`，你可以在更新后手动恢复：
 
 ```bash
 cd ~/.openclaw/workspace/skills/okki-go
-ls .okki-patches/
+ls .okki-go-patches/
 # scripts_custom-hook.sh
 
 # 恢复修改
-cp .okki-patches/scripts_custom-hook.sh scripts/custom-hook.sh
+cp .okki-go-patches/scripts_custom-hook.sh scripts/custom-hook.sh
 ```
 
 ## 故障排除
@@ -197,7 +197,7 @@ source ~/.bashrc
 ```bash
 # 确保在 okki-go 根目录运行
 cd /path/to/okki-go
-ls SKILL.md  # 应该存在
+ls skill/SKILL.md  # 应该存在
 
 # 然后运行安装
 node bin/install.js --global --openclaw
@@ -214,7 +214,7 @@ ls -la ~/.openclaw/workspace/skills/okki-go/
 # - references/
 # - scripts/
 # - VERSION
-# - .okki-manifest.json
+# - .okki-go-manifest.json
 ```
 
 ## 文件结构
@@ -232,8 +232,8 @@ okki-go/
 │   ├── post-install.sh                     # 安装后初始化
 │   └── README.md                           # 脚本说明
 ├── VERSION                                 # 版本号
-├── .okki-manifest.json                     # 文件清单（SHA256）
-└── .okki-patches/                          # 本地修改备份（如有）
+├── .okki-go-manifest.json                     # 文件清单（SHA256）
+└── .okki-go-patches/                          # 本地修改备份（如有）
 ```
 
 ## 安装系统特性
@@ -246,8 +246,8 @@ okki-go/
 | 环境变量 | 支持 XDG 等标准环境变量 |
 | 路径解析 | 健壮的多级回退机制 |
 | 清单检测 | SHA256 哈希验证文件完整性 |
-| 补丁保存 | 自动保存本地修改到 `.okki-patches/` |
-| 多运行时 | 支持 9 种 AI 编码助手 |
+| 补丁保存 | 自动保存本地修改到 `.okki-go-patches/` |
+| 多运行时 | 支持 9 种 AI 助手 |
 
 ## NPM 包安装（即将支持）
 
