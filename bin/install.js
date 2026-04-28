@@ -27,7 +27,7 @@ const cyan   = '\x1b[36m';
 
 // ─── Skill metadata ───────────────────────────────────────────────────────────
 const SKILL_NAME = 'okki-go';
-const VERSION    = '1.0.6';
+const VERSION    = '1.0.8';
 
 // Source directory: bin/ is sibling to skill/, so skill content lives at ../skill/
 const SRC_DIR = path.resolve(__dirname, '..', 'skill');
@@ -252,12 +252,12 @@ function verifyInstallation(skillDir, runtime) {
 // ─── Install one runtime ──────────────────────────────────────────────────────
 function installRuntime(runtime, isGlobal) {
   const skillDir = getSkillDir(runtime, isGlobal);
-  log(`\n  ${cyan}Installing okki-go → ${skillDir}${reset}`);
+  log(`${cyan}[${runtime}]${reset} Installing to ${skillDir}`);
 
   // Save patches if upgrading
   const oldManifest = loadManifest(skillDir);
   if (oldManifest.version) {
-    log(`  Upgrading v${oldManifest.version} → v${VERSION}`, yellow);
+    log(`${cyan}[${runtime}]${reset} ${yellow}Upgrading v${oldManifest.version} → v${VERSION}${reset}`);
     saveLocalPatches(skillDir, oldManifest);
   }
 
@@ -269,11 +269,11 @@ function installRuntime(runtime, isGlobal) {
 
   const missing = verifyInstallation(skillDir, runtime);
   if (missing) {
-    log(`  ${red}✗ Verification failed — missing: ${missing.join(', ')}${reset}`);
+    log(`${cyan}[${runtime}]${reset} ${red}✗ Verification failed — missing: ${missing.join(', ')}${reset}`);
     process.exit(1);
   }
 
-  log(`  ${green}✓ Done${reset}`);
+  log(`${cyan}[${runtime}]${reset} ${green}✓ Installation successful${reset}\n`);
 }
 
 // ─── Uninstall one runtime ────────────────────────────────────────────────────
@@ -288,13 +288,26 @@ function uninstallRuntime(runtime, isGlobal) {
   log(`  ${green}✓ Removed ${skillDir}${reset}`);
 }
 
+// ─── ASCII Art Logo ──────────────────────────────────────────────────────────
+function printLogo() {
+  console.log(`
+${cyan}   ___  _  ___  _____   ____
+  / _ \\| |/ / |/ /_ _| / ___|___
+ | | | | ' /| ' / | | | |  _/ _ \\
+ | |_| | . \\| . \\ | | | |_| | (_) |
+  \\___/|_|\\_\\_|\\_\\___| \\____|\\___/ ${reset}
+
+${cyan}  B2B Lead Prospecting & Outreach${reset}
+${yellow}  Version ${VERSION}${reset}
+  `);
+}
+
 // ─── Interactive prompt ───────────────────────────────────────────────────────
 async function promptInteractive() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const ask = q => new Promise(r => rl.question(q, r));
 
-  log(`\n${cyan}Okki Go Skill Installer v${VERSION}${reset}`);
-  log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  printLogo();
 
   log('Select runtime(s):');
   SUPPORTED_RUNTIMES.forEach((r, i) => log(`  ${i + 1}. ${r}`));
@@ -332,10 +345,12 @@ async function main() {
   // Interactive mode when no runtime flags given
   if (selectedRuntimes.length === 0 && !isUninstall) {
     const { runtimes, global: g } = await promptInteractive();
-    log(`\n${cyan}Okki Go Skill Installer v${VERSION}${reset}`);
-    log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    printLogo();
+    log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
+    log(`${cyan}Installation Progress${reset}\n`);
     for (const r of runtimes) installRuntime(r, g);
-    log(`\n${green}Installation complete!${reset}`);
+    log(`\n${green}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
+    log(`${green}✓ Installation Complete!${reset}\n`);
     printNextSteps();
     return;
   }
@@ -352,44 +367,66 @@ async function main() {
     process.exit(1);
   }
 
-  log(`\n${cyan}Okki Go Skill Installer v${VERSION}${reset}`);
-  log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  printLogo();
+  log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
+
+  if (isUninstall) {
+    log(`${yellow}Uninstalling from ${selectedRuntimes.length} runtime(s)...${reset}\n`);
+  } else {
+    log(`${cyan}Installing to ${selectedRuntimes.length} runtime(s)...${reset}\n`);
+  }
 
   for (const r of selectedRuntimes) {
     if (isUninstall) uninstallRuntime(r, isGlobal);
     else             installRuntime(r, isGlobal);
   }
 
+  log(`\n${green}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
   if (!isUninstall) {
-    log(`\n${green}Installation complete!${reset}`);
+    log(`${green}✓ Installation Complete!${reset}\n`);
     printNextSteps();
   } else {
-    log(`\n${green}Uninstall complete!${reset}`);
+    log(`${green}✓ Uninstall Complete!${reset}`);
   }
 }
 
 function printNextSteps() {
-  log('\nNext steps:');
-  log('  1. Configure your API Key:');
-  log('     openclaw config set skills.entries.okkigo.apiKey "sk-xxx"');
-  log('     (or visit https://go.okki.ai to get your key)\n');
+  log(`${cyan}Next Steps:${reset}`);
+  log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}\n`);
+  log(`${yellow}1.${reset} Get your API Key:`);
+  log(`   ${cyan}→${reset} Visit: ${green}https://go.okki.ai${reset}`);
+  log(`   ${cyan}→${reset} Sign up and get your ${yellow}sk-xxx${reset} key\n`);
+  log(`${yellow}2.${reset} Configure the API Key:`);
+  log(`   ${cyan}→${reset} For OpenClaw: ${green}openclaw config set skills.entries.okkigo.apiKey "sk-xxx"${reset}`);
+  log(`   ${cyan}→${reset} For Claude Code: Add to ${green}~/.claude/settings.local.json${reset}`);
+  log(`   ${cyan}→${reset} Or set env var: ${green}export OKKIGO_API_KEY="sk-xxx"${reset}\n`);
+  log(`${yellow}3.${reset} Restart your AI assistant to load the skill\n`);
+  log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
+  log(`${cyan}Documentation:${reset} https://docs.okki.ai`);
+  log(`${cyan}Support:${reset} support@okki.ai\n`);
 }
 
 function printHelp() {
-  console.log(`
-Okki Go Skill Installer v${VERSION}
-
-Usage:
+  printLogo();
+  console.log(`${cyan}Usage:${reset}
   node install.js [--global | --local] [--claude] [--openclaw] [--cursor] ... [--all]
   node install.js --uninstall --global --claude
 
-Runtimes: ${SUPPORTED_RUNTIMES.join(', ')}
+${cyan}Supported Runtimes:${reset}
+  ${SUPPORTED_RUNTIMES.join(', ')}
 
-Examples:
-  node install.js --global --claude
-  node install.js --global --openclaw --cursor
-  node install.js --global --all
-  node install.js --uninstall --global --openclaw
+${cyan}Examples:${reset}
+  ${green}node install.js --global --claude${reset}
+  ${green}node install.js --global --openclaw --cursor${reset}
+  ${green}node install.js --global --all${reset}
+  ${green}node install.js --uninstall --global --openclaw${reset}
+
+${cyan}Options:${reset}
+  --global, -g      Install to global config directory
+  --local, -l       Install to current directory
+  --all             Install to all supported runtimes
+  --uninstall, -u   Uninstall from specified runtimes
+  --help, -h        Show this help message
 `);
 }
 
