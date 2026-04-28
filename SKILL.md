@@ -1,7 +1,7 @@
 ---
 name: okki go
 version: 1.0.5
-description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine — only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
+description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) draft and send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine — only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
 metadata:
   openclaw:
     emoji: "🌐"
@@ -37,7 +37,7 @@ For complete API parameter documentation and response schemas, see [references/a
 - User wants to find companies or customers — search by industry, country, keywords
 - User wants to get contact emails for a company — find decision-makers
 - User wants to search contacts by name, title, or email
-- User wants to send outreach or cold emails (EDM)
+- User wants to draft or send outreach or cold emails (EDM)
 - User wants to check email delivery status
 - User wants to check remaining credits or EDM quota
 - User needs the full prospecting workflow: search → contacts → outreach
@@ -200,6 +200,9 @@ Show key info in a table for quick scanning:
 > - EDM quota: 200 (monthly) + 2000 (add-on) = **2200 available**
 > - Monthly quota resets: 2026-04-30
 
+If `monthlyExpiresAt` is null, show:
+> - Monthly quota resets: N/A (no active monthly plan)
+
 ### Email send feedback
 
 After sending:
@@ -227,8 +230,9 @@ User requests often span multiple workflows. The Agent needs to understand when 
 
 ### Workflow B: Contact Search — "Find a specific person"
 
-- Use `POST /contacts/search` to search by name, title, email, or company (see [api-reference.md §5](./references/api-reference.md#5-搜索联系人))
-- Follow Billing Rule 3 (first-session confirmation)
+1. Before the **first** `POST /contacts/search` call in the session, inform the user: "Contact search costs 1 credit per query." Wait for user confirmation before proceeding.
+2. Use `POST /contacts/search` to search by name, title, email, or company (see [api-reference.md §5](./references/api-reference.md#5-搜索联系人))
+3. After confirmation, subsequent calls in the same session do not need re-confirmation.
 - Supports filtering by country, has_email, employee count, etc.
 
 ### Workflow C: Precision — "Send outreach to procurement managers in German auto parts companies"
@@ -254,6 +258,9 @@ User requests often span multiple workflows. The Agent needs to understand when 
 - Only call when user asks ("did they send?", "which ones failed?") — do NOT proactively poll
 - Use `GET /emails/tasks` for task list, `GET /emails/tasks/:taskId` for details (see [api-reference.md §8-11](./references/api-reference.md#8-查询邮件任务列表))
 - Task status flow: `pending` → `requested` → `completed` / `partial` / `failed`
+- If no email tasks exist, display:
+  > No email tasks found. You haven't sent any outreach emails yet.
+  > Would you like to start a prospecting workflow?
 
 ### Core Principles
 
