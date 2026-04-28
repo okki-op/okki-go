@@ -27,7 +27,7 @@ const cyan   = '\x1b[36m';
 
 // ─── Skill metadata ───────────────────────────────────────────────────────────
 const SKILL_NAME = 'okki-go';
-const VERSION    = '1.0.8';
+const VERSION    = '1.0.9';
 
 // Source directory: bin/ is sibling to skill/, so skill content lives at ../skill/
 const SRC_DIR = path.resolve(__dirname, '..', 'skill');
@@ -39,6 +39,17 @@ const isLocal     = args.includes('--local')  || args.includes('-l');
 const isUninstall = args.includes('--uninstall') || args.includes('-u');
 const isAll       = args.includes('--all');
 
+let customBasePath = null;
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+  if (arg === '--path') {
+    customBasePath = args[i + 1] || null;
+    i += 1;
+  } else if (arg.startsWith('--path=')) {
+    customBasePath = arg.substring(7).trim() || null;
+  }
+}
+
 const SUPPORTED_RUNTIMES = ['claude', 'openclaw', 'opencode', 'gemini', 'cursor', 'windsurf', 'codex', 'copilot', 'cline'];
 
 let selectedRuntimes = [];
@@ -47,6 +58,19 @@ if (isAll) {
 } else {
   for (const r of SUPPORTED_RUNTIMES) {
     if (args.includes(`--${r}`)) selectedRuntimes.push(r);
+  }
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith('--custom=')) {
+      const customName = arg.substring(9).trim();
+      if (customName) selectedRuntimes.push(customName);
+    } else if (arg === '--custom') {
+      const customName = (args[i + 1] || '').trim();
+      if (customName) {
+        selectedRuntimes.push(customName);
+        i += 1;
+      }
+    }
   }
 }
 
@@ -102,8 +126,15 @@ function getSkillMeta(runtime) {
   }
 }
 
-function getSkillDir(runtime, isGlobal) {
-  const base = isGlobal ? getGlobalDir(runtime) : process.cwd();
+function getSkillDir(runtime, installMode, customPath) {
+  let base;
+  if (installMode === 'custom') {
+    base = expandTilde(customPath);
+  } else if (installMode === 'global') {
+    base = getGlobalDir(runtime);
+  } else {
+    base = process.cwd();
+  }
   const { subdir } = getSkillMeta(runtime);
   return path.join(base, subdir, SKILL_NAME);
 }
@@ -250,8 +281,8 @@ function verifyInstallation(skillDir, runtime) {
 }
 
 // ─── Install one runtime ──────────────────────────────────────────────────────
-function installRuntime(runtime, isGlobal) {
-  const skillDir = getSkillDir(runtime, isGlobal);
+function installRuntime(runtime, installMode, customPath) {
+  const skillDir = getSkillDir(runtime, installMode, customPath);
   log(`${cyan}[${runtime}]${reset} Installing to ${skillDir}`);
 
   // Save patches if upgrading
@@ -277,8 +308,8 @@ function installRuntime(runtime, isGlobal) {
 }
 
 // ─── Uninstall one runtime ────────────────────────────────────────────────────
-function uninstallRuntime(runtime, isGlobal) {
-  const skillDir = getSkillDir(runtime, isGlobal);
+function uninstallRuntime(runtime, installMode, customPath) {
+  const skillDir = getSkillDir(runtime, installMode, customPath);
   if (!fs.existsSync(skillDir)) {
     log(`  ${yellow}Not installed: ${skillDir}${reset}`);
     return;
@@ -291,14 +322,19 @@ function uninstallRuntime(runtime, isGlobal) {
 // ─── ASCII Art Logo ──────────────────────────────────────────────────────────
 function printLogo() {
   console.log(`
-${cyan}   ___  _  ___  _____   ____
-  / _ \\| |/ / |/ /_ _| / ___|___
- | | | | ' /| ' / | | | |  _/ _ \\
- | |_| | . \\| . \\ | | | |_| | (_) |
-  \\___/|_|\\_\\_|\\_\\___| \\____|\\___/ ${reset}
-
-${cyan}  B2B Lead Prospecting & Outreach${reset}
-${yellow}  Version ${VERSION}${reset}
+${cyan}  ╔═══════════════════════════════════════════════════╗
+  ║                                                   ║
+  ║   ${yellow}█████╗ ${cyan}██╗  ██╗██╗  ██╗██╗    ${green}██████╗  ██████╗${cyan}  ║
+  ║  ${yellow}██╔══██╗${cyan}██║ ██╔╝██║ ██╔╝██║   ${green}██╔════╝ ██╔═══██╗${cyan} ║
+  ║  ${yellow}██║  ██║${cyan}█████╔╝ █████╔╝ ██║   ${green}██║  ███╗██║   ██║${cyan} ║
+  ║  ${yellow}██║  ██║${cyan}██╔═██╗ ██╔═██╗ ██║   ${green}██║   ██║██║   ██║${cyan} ║
+  ║  ${yellow}╚█████╔╝${cyan}██║  ██╗██║  ██╗██║   ${green}╚██████╔╝╚██████╔╝${cyan} ║
+  ║   ${yellow}╚════╝ ${cyan}╚═╝  ╚═╝╚═╝  ╚═╝╚═╝    ${green}╚═════╝  ╚═════╝${cyan}  ║
+  ║                                                   ║
+  ║         ${reset}B2B Lead Prospecting & Outreach${cyan}           ║
+  ║                ${yellow}Version ${VERSION}${cyan}                      ║
+  ║                                                   ║
+  ╚═══════════════════════════════════════════════════╝${reset}
   `);
 }
 
@@ -309,15 +345,30 @@ async function promptInteractive() {
 
   printLogo();
 
+  log(`${cyan}Welcome to Okki Go Installer!${reset}`);
+  log(`This will install the Okki Go skill to your AI coding assistant.\n`);
+
   log('Select runtime(s):');
   SUPPORTED_RUNTIMES.forEach((r, i) => log(`  ${i + 1}. ${r}`));
   log(`  ${SUPPORTED_RUNTIMES.length + 1}. all`);
+  log(`  ${SUPPORTED_RUNTIMES.length + 2}. other (custom runtime)`);
 
   const choice = (await ask('\nChoose (number or name): ')).trim();
   const num = parseInt(choice, 10);
   let runtimes;
+
   if (choice === 'all' || num === SUPPORTED_RUNTIMES.length + 1) {
     runtimes = [...SUPPORTED_RUNTIMES];
+  } else if (choice === 'other' || num === SUPPORTED_RUNTIMES.length + 2) {
+    const customName = (await ask('Enter custom runtime name: ')).trim();
+    if (!customName) {
+      log(`${red}Runtime name cannot be empty${reset}`);
+      rl.close();
+      process.exit(1);
+    }
+    runtimes = [customName];
+    log(`${yellow}Note: Using custom runtime "${customName}". Default config directory: ~/.${customName}${reset}`);
+    log(`${yellow}You can set ${customName.toUpperCase()}_CONFIG_DIR environment variable to customize the path.${reset}\n`);
   } else if (num >= 1 && num <= SUPPORTED_RUNTIMES.length) {
     runtimes = [SUPPORTED_RUNTIMES[num - 1]];
   } else if (SUPPORTED_RUNTIMES.includes(choice)) {
@@ -328,11 +379,36 @@ async function promptInteractive() {
     process.exit(1);
   }
 
-  const modeAns = (await ask('Install globally? [Y/n]: ')).trim().toLowerCase();
-  const global = modeAns !== 'n';
+  log('');
+  log(`${cyan}Installation Mode:${reset}`);
+  log(`  ${green}1. Global${reset}   - Install to the runtime default config directory`);
+  log(`                  Example: ${yellow}~/.claude/skills/okki-go${reset}`);
+  log(`  ${green}2. Current${reset}  - Install under the current working directory`);
+  log(`                  Example: ${yellow}./skills/okki-go${reset}`);
+  log(`  ${green}3. Custom${reset}   - Install to a base directory you specify\n`);
+
+  const modeChoice = (await ask('Choose install location (1-3) [1]: ')).trim();
+  let installMode = 'global';
+  let customPath = null;
+
+  if (modeChoice === '2') {
+    installMode = 'local';
+    log(`${yellow}Installing to current directory: ${process.cwd()}${reset}\n`);
+  } else if (modeChoice === '3') {
+    installMode = 'custom';
+    customPath = (await ask('Enter custom base path: ')).trim();
+    if (!customPath) {
+      log(`${red}Custom path cannot be empty${reset}`);
+      rl.close();
+      process.exit(1);
+    }
+    customPath = expandTilde(customPath);
+    log(`${yellow}Custom install target base: ${customPath}${reset}`);
+    log(`${yellow}Final skill path will be: ${path.join(customPath, 'skills', SKILL_NAME)}${reset}\n`);
+  }
 
   rl.close();
-  return { runtimes, global };
+  return { runtimes, installMode, customPath };
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -344,19 +420,23 @@ async function main() {
 
   // Interactive mode when no runtime flags given
   if (selectedRuntimes.length === 0 && !isUninstall) {
-    const { runtimes, global: g } = await promptInteractive();
+    const { runtimes, installMode, customPath } = await promptInteractive();
     printLogo();
     log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
     log(`${cyan}Installation Progress${reset}\n`);
-    for (const r of runtimes) installRuntime(r, g);
+    for (const r of runtimes) installRuntime(r, installMode, customPath);
     log(`\n${green}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
     log(`${green}✓ Installation Complete!${reset}\n`);
     printNextSteps();
     return;
   }
 
-  if (!isGlobal && !isLocal) {
-    log(`${red}Error: specify --global or --local${reset}`);
+  let installMode = 'global';
+  if (customBasePath) installMode = 'custom';
+  else if (isLocal) installMode = 'local';
+
+  if (!isGlobal && !isLocal && !customBasePath) {
+    log(`${red}Error: specify --global, --local, or --path <dir>${reset}`);
     printHelp();
     process.exit(1);
   }
@@ -377,8 +457,8 @@ async function main() {
   }
 
   for (const r of selectedRuntimes) {
-    if (isUninstall) uninstallRuntime(r, isGlobal);
-    else             installRuntime(r, isGlobal);
+    if (isUninstall) uninstallRuntime(r, installMode, customBasePath);
+    else             installRuntime(r, installMode, customBasePath);
   }
 
   log(`\n${green}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
@@ -409,22 +489,37 @@ function printNextSteps() {
 function printHelp() {
   printLogo();
   console.log(`${cyan}Usage:${reset}
-  node install.js [--global | --local] [--claude] [--openclaw] [--cursor] ... [--all]
-  node install.js --uninstall --global --claude
+  node install.js [--global | --local | --path <dir>] [--claude] [--openclaw] [--cursor] ... [--all]
+  node install.js --uninstall [--global | --local | --path <dir>] [--claude]
 
 ${cyan}Supported Runtimes:${reset}
   ${SUPPORTED_RUNTIMES.join(', ')}
+
+${cyan}Custom Runtime:${reset}
+  Use ${green}--custom=<name>${reset} to install to a custom runtime not in the list above.
+  Example: ${green}node install.js --global --custom=myai${reset}
+
+${cyan}Custom Path:${reset}
+  Use ${green}--path /your/custom/base/path${reset} to install to a specific directory.
+  Example: ${green}node install.js --claude --path /Users/name/my-config${reset}
+
+  The installer will use ${yellow}<path>/skills/okki-go${reset} as the final target.
+  Custom path cannot be used together with ${yellow}--global${reset} or ${yellow}--local${reset}.
 
 ${cyan}Examples:${reset}
   ${green}node install.js --global --claude${reset}
   ${green}node install.js --global --openclaw --cursor${reset}
   ${green}node install.js --global --all${reset}
+  ${green}node install.js --global --custom=myai${reset}
+  ${green}node install.js --claude --path /Users/name/my-config${reset}
   ${green}node install.js --uninstall --global --openclaw${reset}
 
 ${cyan}Options:${reset}
-  --global, -g      Install to global config directory
-  --local, -l       Install to current directory
+  --global, -g      Install to runtime global config directory
+  --local, -l       Install under current working directory
+  --path <dir>      Install under a custom base directory
   --all             Install to all supported runtimes
+  --custom=<name>   Install to a custom runtime
   --uninstall, -u   Uninstall from specified runtimes
   --help, -h        Show this help message
 `);

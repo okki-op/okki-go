@@ -128,15 +128,15 @@ node bin/install.js --global --openclaw
 
 ```bash
 $ node bin/install.js --help
-Okki Go Skill Installer v1.0.6
+Okki Go Skill Installer v1.0.9
 ...
 
 $ node bin/install.js --global --claude
-Okki Go Skill Installer v1.0.6
+Okki Go Skill Installer v1.0.9
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Installing okki-go → /Users/bogiang/.claude/commands/okki-go
-  Upgrading v1.0.6 → v1.0.6
+  Upgrading v1.0.8 → v1.0.9
   ✓ Copied skill.md
   ✓ Copied references/
   ✓ Copied scripts/
@@ -169,7 +169,7 @@ okki-go/
 ├── skill.md                # 从 SKILL.md 复制
 ├── references/
 ├── scripts/
-├── VERSION                 # 1.0.6
+├── VERSION                 # 1.0.9
 └── .okki-manifest.json     # SHA256 清单
 ```
 
