@@ -24,11 +24,93 @@ const red    = '\x1b[31m';
 const green  = '\x1b[32m';
 const yellow = '\x1b[33m';
 const cyan   = '\x1b[36m';
+const bold   = '\x1b[1m';
 
 // ─── Skill metadata ───────────────────────────────────────────────────────────
 const SKILL_NAME = 'okki-go';
 const DISPLAY_NAME = 'OKKI Go';
-const VERSION    = '1.0.9';
+const VERSION    = '1.0.10';
+
+// Friendly display names for each runtime
+const RUNTIME_LABELS = {
+  accio:    'Accio Work',
+  claude:   'Claude Code',
+  openclaw: 'OpenClaw',
+  opencode: 'OpenCode',
+  gemini:   'Gemini CLI',
+  cursor:   'Cursor',
+  windsurf: 'Windsurf',
+  codex:    'Codex',
+  copilot:  'GitHub Copilot',
+  cline:    'Cline',
+};
+function runtimeLabel(r) {
+  return RUNTIME_LABELS[r] || r;
+}
+
+// ─── i18n ────────────────────────────────────────────────────────────────────
+let lang = 'en';
+
+const messages = {
+  langPrompt:       { en: 'Language / 语言选择：',                          zh: 'Language / 语言选择：' },
+  langEn:           { en: '1. English (default)',                           zh: '1. English' },
+  langZh:           { en: '2. 中文',                                        zh: '2. 中文（默认）' },
+  langChoose:       { en: 'Choose (1-2) [1]: ',                             zh: '请选择 (1-2) [2]: ' },
+  welcome:          { en: 'Welcome to Okki Go Installer!',                  zh: '欢迎使用 Okki Go 安装向导！' },
+  welcomeDesc:      { en: 'This will install Okki Go AI prospecting capabilities to your AI assistant.', zh: '接下来会把 Okki Go 的 AI 获客能力安装到你的 AI 助手中。' },
+  selectRuntime:    { en: 'Select your AI assistant (enter a number):',     zh: '请选择你使用的 AI 助手（输入编号即可）：' },
+  allRuntimes:      { en: 'Install all',                                    zh: '全部安装' },
+  otherRuntime:     { en: 'Other (enter name manually)',                    zh: '其他（手动输入名称）' },
+  enterNumber:      { en: 'Enter number: ',                                 zh: '请输入编号：' },
+  enterCustomName:  { en: 'Enter your AI assistant name: ',                 zh: '请输入你的 AI 助手名称：' },
+  nameEmpty:        { en: 'Name cannot be empty',                           zh: '名称不能为空' },
+  customNote:       { en: 'Note: Will install to ~/.%s. Set %s_CONFIG_DIR to customize.', zh: '提示：将安装到 ~/.%s 目录下。如需更改，可设置环境变量 %s_CONFIG_DIR。' },
+  invalidChoice:    { en: 'Invalid choice, please try again',               zh: '输入无效，请重新运行' },
+  selectLocation:   { en: 'Select install location:',                       zh: '请选择安装位置：' },
+  locDefault:       { en: '1. Default (recommended)',                       zh: '1. 默认位置（推荐）' },
+  locDefaultDesc:   { en: "   Install to your AI assistant's config directory", zh: '   安装到 AI 助手的配置目录' },
+  locCurrent:       { en: '2. Current directory',                           zh: '2. 当前目录' },
+  locCurrentDesc:   { en: '   Install under your current folder',           zh: '   安装到你现在所在的文件夹' },
+  locCustom:        { en: '3. Custom path',                                 zh: '3. 自定义路径' },
+  locCustomDesc:    { en: '   Install to a directory you specify',          zh: '   安装到你指定的文件夹' },
+  chooseLocation:   { en: 'Choose (1-3) [1]: ',                             zh: '请选择（1-3，直接回车选 1）：' },
+  installingToCwd:  { en: 'Installing to current directory: %s',            zh: '将安装到当前目录：%s' },
+  enterCustomPath:  { en: 'Enter install directory path: ',                 zh: '请输入安装目录路径：' },
+  pathEmpty:        { en: 'Path cannot be empty',                           zh: '路径不能为空' },
+  installTarget:    { en: 'Will install to: %s',                            zh: '将安装到：%s' },
+  windowsNote:      { en: 'Note: Windows detected. Shell scripts (.sh) require WSL or Git Bash to run.', zh: '提示：检测到 Windows 系统。部分脚本需要 WSL 或 Git Bash 才能运行。' },
+  installProgress:  { en: 'Installation Progress',                          zh: '安装进度' },
+  installComplete:  { en: 'Installation Complete!',                         zh: '安装完成！' },
+  uninstallComplete:{ en: 'Uninstall Complete!',                            zh: '卸载完成！' },
+  installingTo:     { en: 'Installing to %s...',                            zh: '正在安装到 %s 个平台...' },
+  uninstallingFrom: { en: 'Uninstalling from %s...',                        zh: '正在卸载 %s 个平台...' },
+  errNoLocation:    { en: 'Error: specify --global, --local, or --path <dir>', zh: '错误：请指定安装位置（--global / --local / --path <目录>）' },
+  errNoRuntime:     { en: 'Error: specify at least one AI assistant (e.g. --claude, --all)', zh: '错误：请指定至少一个 AI 助手（如 --claude、--all）' },
+  rtInstalling:     { en: 'Installing to',                                  zh: '正在安装到' },
+  rtUpgrading:      { en: 'Upgrading v%s to v%s',                           zh: '检测到旧版本 v%s，正在升级到 v%s' },
+  rtVerifyFail:     { en: 'Verification failed — missing: %s',              zh: '安装验证失败 — 缺少：%s' },
+  rtSuccess:        { en: 'Installation successful',                        zh: '安装成功' },
+  rtNotInstalled:   { en: 'Not installed: %s',                              zh: '未安装：%s' },
+  rtRemoved:        { en: 'Removed %s',                                     zh: '已卸载 %s' },
+  nextStepsTitle:   { en: 'Just 3 steps to get started:',                   zh: '接下来只需 3 步：' },
+  step1Title:       { en: 'Get your API Key',                               zh: '获取 API Key（密钥）' },
+  step1Desc:        { en: 'Visit %s to sign up and get your %s key',        zh: '打开 %s 注册并获取你的 %s 密钥' },
+  step2Title:       { en: 'Configure your key',                             zh: '配置密钥' },
+  step2Desc:        { en: 'Add to your shell profile (~/.bashrc or ~/.zshrc):', zh: '添加到 shell 配置文件（~/.bashrc 或 ~/.zshrc）：' },
+  step2Cmd:         { en: 'export OKKIGO_API_KEY="sk-xxx"',                 zh: 'export OKKIGO_API_KEY="sk-xxx"' },
+  step2Note:        { en: 'Then run: %s ~/.bashrc (or %s terminal)',        zh: '然后执行：%s ~/.bashrc（或%s终端）' },
+  step3Title:       { en: 'Start using',                                    zh: '开始使用' },
+  step3Desc:        { en: 'Restart your AI assistant and try:',             zh: '重启你的 AI 助手，然后试试说：' },
+  step3Example:     { en: '"Find electronics suppliers in Japan"',          zh: '"帮我找日本的电子产品供应商"' },
+  docLabel:         { en: 'Docs:',                                          zh: '文档：' },
+  supportLabel:     { en: 'Support:',                                       zh: '客服：' },
+};
+
+function t(key) {
+  const entry = messages[key];
+  if (!entry) return key;
+  return entry[lang] || entry.en;
+}
 
 // Source directory: bin/ is sibling to skill/, so skill content lives at ../skill/
 const SRC_DIR = path.resolve(__dirname, '..', 'skill');
@@ -153,14 +235,10 @@ function getAccioAccountDir() {
 // Where skills live inside the config dir, and what the main file is called
 function getSkillMeta(runtime) {
   switch (runtime) {
-    case 'accio':
-    case 'openclaw':
-    case 'opencode':
-      return { subdir: 'skills',   mainFile: 'SKILL.md' };
     case 'copilot':
       return { subdir: 'skills',   mainFile: 'instructions.md' };
-    default: // claude, gemini, cursor, windsurf, codex, cline - all use skills/
-      return { subdir: 'skills',   mainFile: 'skill.md' };
+    default:
+      return { subdir: 'skills',   mainFile: 'SKILL.md' };
   }
 }
 
@@ -350,12 +428,12 @@ function verifyInstallation(skillDir, runtime) {
 function installRuntime(runtime, installMode, customPath) {
   const skillDir = resolveSkillDir(runtime, installMode, customPath);
   if (!skillDir) return;
-  log(`${cyan}[${runtime}]${reset} Installing to ${skillDir}`);
+  const label = runtimeLabel(runtime);
+  log(`${cyan}[${label}]${reset} ${t('rtInstalling')} ${skillDir}`);
 
-  // Save patches if upgrading
   const oldManifest = loadManifest(skillDir);
   if (oldManifest.version) {
-    log(`${cyan}[${runtime}]${reset} ${yellow}Upgrading v${oldManifest.version} → v${VERSION}${reset}`);
+    log(`${cyan}[${label}]${reset} ${yellow}${t('rtUpgrading').replace('%s', oldManifest.version).replace('%s', VERSION)}${reset}`);
     saveLocalPatches(skillDir, oldManifest);
   }
 
@@ -367,7 +445,7 @@ function installRuntime(runtime, installMode, customPath) {
 
   const missing = verifyInstallation(skillDir, runtime);
   if (missing) {
-    log(`${cyan}[${runtime}]${reset} ${red}✗ Verification failed — missing: ${missing.join(', ')}${reset}`);
+    log(`${cyan}[${label}]${reset} ${red}✗ ${t('rtVerifyFail').replace('%s', missing.join(', '))}${reset}`);
     process.exit(1);
   }
 
@@ -375,7 +453,7 @@ function installRuntime(runtime, installMode, customPath) {
     updateAccioSkillsConfig(skillDir, true);
   }
 
-  log(`${cyan}[${runtime}]${reset} ${green}✓ Installation successful${reset}\n`);
+  log(`${cyan}[${label}]${reset} ${green}✓ ${t('rtSuccess')}${reset}\n`);
 }
 
 function resolveSkillDir(runtime, installMode, customPath) {
@@ -395,7 +473,7 @@ function uninstallRuntime(runtime, installMode, customPath) {
   const skillDir = resolveSkillDir(runtime, installMode, customPath);
   if (!skillDir) return;
   if (!fs.existsSync(skillDir)) {
-    log(`  ${yellow}Not installed: ${skillDir}${reset}`);
+    log(`  ${yellow}${t('rtNotInstalled').replace('%s', skillDir)}${reset}`);
     return;
   }
   saveLocalPatches(skillDir, loadManifest(skillDir));
@@ -403,7 +481,7 @@ function uninstallRuntime(runtime, installMode, customPath) {
   if (runtime === 'accio') {
     updateAccioSkillsConfig(skillDir, false);
   }
-  log(`  ${green}✓ Removed ${skillDir}${reset}`);
+  log(`  ${green}✓ ${t('rtRemoved').replace('%s', skillDir)}${reset}`);
 }
 
 // ─── ASCII Art Logo ──────────────────────────────────────────────────────────
@@ -432,66 +510,76 @@ async function promptInteractive() {
 
   printLogo();
 
-  log(`${cyan}Welcome to Okki Go Installer!${reset}`);
-  log(`This will install the Okki Go skill to your AI coding assistant.\n`);
+  // Step 0: Language selection (default English)
+  log(t('langPrompt'));
+  log(`  ${t('langEn')}`);
+  log(`  ${t('langZh')}`);
+  const langChoice = (await ask(`\n${t('langChoose')}`)).trim();
+  if (langChoice === '2') lang = 'zh';
+  else lang = 'en';
+  log('');
 
-  log('Select runtime(s):');
-  SUPPORTED_RUNTIMES.forEach((r, i) => log(`  ${i + 1}. ${r}`));
-  log(`  ${SUPPORTED_RUNTIMES.length + 1}. all`);
-  log(`  ${SUPPORTED_RUNTIMES.length + 2}. other (custom runtime)`);
+  log(`${cyan}${t('welcome')}${reset}`);
+  log(`${t('welcomeDesc')}\n`);
 
-  const choice = (await ask('\nChoose (number or name): ')).trim();
+  log(t('selectRuntime'));
+  SUPPORTED_RUNTIMES.forEach((r, i) => log(`  ${i + 1}. ${runtimeLabel(r)}`));
+  log(`  ${SUPPORTED_RUNTIMES.length + 1}. ${t('allRuntimes')}`);
+  log(`  ${SUPPORTED_RUNTIMES.length + 2}. ${t('otherRuntime')}`);
+
+  const choice = (await ask(`\n${t('enterNumber')}`)).trim();
   const num = parseInt(choice, 10);
   let runtimes;
 
   if (choice === 'all' || num === SUPPORTED_RUNTIMES.length + 1) {
     runtimes = [...SUPPORTED_RUNTIMES];
   } else if (choice === 'other' || num === SUPPORTED_RUNTIMES.length + 2) {
-    const customName = (await ask('Enter custom runtime name: ')).trim();
+    const customName = (await ask(t('enterCustomName'))).trim();
     if (!customName) {
-      log(`${red}Runtime name cannot be empty${reset}`);
+      log(`${red}${t('nameEmpty')}${reset}`);
       rl.close();
       process.exit(1);
     }
     runtimes = [customName];
-    log(`${yellow}Note: Using custom runtime "${customName}". Default config directory: ~/.${customName}${reset}`);
-    log(`${yellow}You can set ${customName.toUpperCase()}_CONFIG_DIR environment variable to customize the path.${reset}\n`);
+    log(`${yellow}${t('customNote').replace('%s', customName).replace('%s', customName.toUpperCase())}${reset}\n`);
   } else if (num >= 1 && num <= SUPPORTED_RUNTIMES.length) {
     runtimes = [SUPPORTED_RUNTIMES[num - 1]];
   } else if (SUPPORTED_RUNTIMES.includes(choice)) {
     runtimes = [choice];
   } else {
-    log(`${red}Invalid choice${reset}`);
+    log(`${red}${t('invalidChoice')}${reset}`);
     rl.close();
     process.exit(1);
   }
 
   log('');
-  log(`${cyan}Installation Mode:${reset}`);
-  log(`  ${green}1. Global${reset}   - Install to the runtime default config directory`);
-  log(`                  Example: ${yellow}~/.claude/skills/okki-go${reset}`);
-  log(`  ${green}2. Current${reset}  - Install under the current working directory`);
-  log(`                  Example: ${yellow}./skills/okki-go${reset}`);
-  log(`  ${green}3. Custom${reset}   - Install to a base directory you specify\n`);
+  log(`${cyan}${t('selectLocation')}${reset}`);
+  log(`  ${green}${t('locDefault')}${reset}`);
+  log(`${t('locDefaultDesc')}`);
+  log(`                        ${yellow}~/.claude/skills/okki-go${reset}`);
+  log(`  ${green}${t('locCurrent')}${reset}`);
+  log(`${t('locCurrentDesc')}`);
+  log(`                        ${yellow}./skills/okki-go${reset}`);
+  log(`  ${green}${t('locCustom')}${reset}`);
+  log(`${t('locCustomDesc')}\n`);
 
-  const modeChoice = (await ask('Choose install location (1-3) [1]: ')).trim();
+  const modeChoice = (await ask(t('chooseLocation'))).trim();
   let installMode = 'global';
   let customPath = null;
 
   if (modeChoice === '2') {
     installMode = 'local';
-    log(`${yellow}Installing to current directory: ${process.cwd()}${reset}\n`);
+    log(`${yellow}${t('installingToCwd').replace('%s', process.cwd())}${reset}\n`);
   } else if (modeChoice === '3') {
     installMode = 'custom';
-    customPath = (await ask('Enter custom base path: ')).trim();
+    customPath = (await ask(t('enterCustomPath'))).trim();
     if (!customPath) {
-      log(`${red}Custom path cannot be empty${reset}`);
+      log(`${red}${t('pathEmpty')}${reset}`);
       rl.close();
       process.exit(1);
     }
     customPath = expandTilde(customPath);
-    log(`${yellow}Custom install target base: ${customPath}${reset}`);
-    log(`${yellow}Final skill path will be: ${path.join(customPath, 'skills', SKILL_NAME)}${reset}\n`);
+    log(`${yellow}${t('installTarget').replace('%s', path.join(customPath, 'skills', SKILL_NAME))}${reset}\n`);
   }
 
   rl.close();
@@ -502,7 +590,7 @@ async function promptInteractive() {
 async function main() {
   // Windows platform notice
   if (process.platform === 'win32') {
-    log(`${yellow}Note: Running on Windows. Shell scripts (.sh) will be copied but require WSL/Git Bash to execute.${reset}\n`);
+    log(`${yellow}${t('windowsNote')}${reset}\n`);
   }
 
   // Interactive mode when no runtime flags given
@@ -510,10 +598,10 @@ async function main() {
     const { runtimes, installMode, customPath } = await promptInteractive();
     printLogo();
     log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
-    log(`${cyan}Installation Progress${reset}\n`);
+    log(`${cyan}${t('installProgress')}${reset}\n`);
     for (const r of runtimes) installRuntime(r, installMode, customPath);
     log(`\n${green}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
-    log(`${green}✓ Installation Complete!${reset}\n`);
+    log(`${green}✓ ${t('installComplete')}${reset}\n`);
     printNextSteps();
     return;
   }
@@ -523,13 +611,13 @@ async function main() {
   else if (isLocal) installMode = 'local';
 
   if (!isGlobal && !isLocal && !customBasePath) {
-    log(`${red}Error: specify --global, --local, or --path <dir>${reset}`);
+    log(`${red}${t('errNoLocation')}${reset}`);
     printHelp();
     process.exit(1);
   }
 
   if (selectedRuntimes.length === 0) {
-    log(`${red}Error: specify at least one runtime (e.g. --claude, --openclaw, --all)${reset}`);
+    log(`${red}${t('errNoRuntime')}${reset}`);
     printHelp();
     process.exit(1);
   }
@@ -538,9 +626,9 @@ async function main() {
   log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
 
   if (isUninstall) {
-    log(`${yellow}Uninstalling from ${selectedRuntimes.length} runtime(s)...${reset}\n`);
+    log(`${yellow}${t('uninstallingFrom').replace('%s', selectedRuntimes.length)}${reset}\n`);
   } else {
-    log(`${cyan}Installing to ${selectedRuntimes.length} runtime(s)...${reset}\n`);
+    log(`${cyan}${t('installingTo').replace('%s', selectedRuntimes.length)}${reset}\n`);
   }
 
   for (const r of selectedRuntimes) {
@@ -550,27 +638,29 @@ async function main() {
 
   log(`\n${green}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
   if (!isUninstall) {
-    log(`${green}✓ Installation Complete!${reset}\n`);
+    log(`${green}✓ ${t('installComplete')}${reset}\n`);
     printNextSteps();
   } else {
-    log(`${green}✓ Uninstall Complete!${reset}`);
+    log(`${green}✓ ${t('uninstallComplete')}${reset}`);
   }
 }
 
 function printNextSteps() {
-  log(`${cyan}Next Steps:${reset}`);
+  log(`${cyan}${t('nextStepsTitle')}${reset}`);
   log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}\n`);
-  log(`${yellow}1.${reset} Get your API Key:`);
-  log(`   ${cyan}→${reset} Visit: ${green}https://go.okki.ai${reset}`);
-  log(`   ${cyan}→${reset} Sign up and get your ${yellow}sk-xxx${reset} key\n`);
-  log(`${yellow}2.${reset} Configure the API Key using the first method your agent supports:`);
+  log(`${yellow}1.${reset} ${t('step1Title')}`);
+  log(`   ${cyan}→${reset} ${t('step1Desc').replace('%s', `${green}https://go.okki.ai${reset}`).replace('%s', `${yellow}sk-xxx${reset}`)}\n`);
+  log(`${yellow}2.${reset} ${t('step2Title')}`);
+  log(`   ${cyan}→${reset} ${t('step2Desc')}`);
   log(`   ${cyan}→${reset} Platform secrets/config injection as ${green}OKKIGO_API_KEY${reset}`);
   log(`   ${cyan}→${reset} Environment variable: ${green}export OKKIGO_API_KEY="sk-xxx"${reset}`);
   log(`   ${cyan}→${reset} Local fallback: ${green}~/.config/okki-go/credentials.json${reset} with mode ${green}0600${reset}\n`);
-  log(`${yellow}3.${reset} Restart your AI assistant to load the skill\n`);
+  log(`${yellow}3.${reset} ${t('step3Title')}`);
+  log(`   ${cyan}→${reset} ${t('step3Desc')}`);
+  log(`      ${green}${t('step3Example')}${reset}\n`);
   log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
-  log(`${cyan}Documentation:${reset} https://docs.okki.ai`);
-  log(`${cyan}Support:${reset} support@okki.ai\n`);
+  log(`${cyan}${t('docLabel')}${reset} https://docs.okki.ai`);
+  log(`${cyan}${t('supportLabel')}${reset} support@okki.ai\n`);
 }
 
 function printHelp() {

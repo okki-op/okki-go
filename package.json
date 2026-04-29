@@ -1,6 +1,6 @@
 {
   "name": "@okki-global/okki-go",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "B2B lead prospecting and outreach skill for AI coding assistants",
   "main": "bin/install.js",
   "bin": {

@@ -179,7 +179,7 @@ cp -r package/skill/* ~/.claude/skills/okki-go/
 
 ## Version
 
-**Current**: 1.0.9
+**Current**: 1.0.10
 
 ## Links
 
