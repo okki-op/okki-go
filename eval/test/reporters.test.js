@@ -36,6 +36,37 @@ test('summarize counts exact result statuses', () => {
   });
 });
 
+test('reporters treat missing and non-array results as empty lists', () => {
+  for (const results of [undefined, null, 'not-an-array']) {
+    const outputDir = makeOutputDir();
+    const run = { runId: 'empty-run', mode: 'local-core', suite: 'routing' };
+    if (results !== undefined) run.results = results;
+
+    writeJsonReport(outputDir, run);
+    writeMarkdownReport(outputDir, run);
+
+    assert.deepEqual(readJson(path.join(outputDir, 'summary.json')).summary, {
+      total: 0,
+      passed: 0,
+      failed: 0,
+      warned: 0,
+      skipped: 0
+    });
+    assert.deepEqual(readJson(path.join(outputDir, 'cases.json')), []);
+    assert.match(readText(path.join(outputDir, 'report.md')), /\| total \| 0 \|/);
+  }
+});
+
+test('summarize includes unknown statuses in total but not known buckets', () => {
+  assert.deepEqual(summarize([{ status: 'passed' }, { status: 'unknown' }]), {
+    total: 2,
+    passed: 1,
+    failed: 0,
+    warned: 0,
+    skipped: 0
+  });
+});
+
 test('writeMarkdownReport writes run metadata, summary, cases, and failure reasons', () => {
   const outputDir = makeOutputDir();
   const run = makeRun();
@@ -53,6 +84,23 @@ test('writeMarkdownReport writes run metadata, summary, cases, and failure reaso
   assert.match(report, /\| scenario-fail \| failed \| missing required confirmation; timeout waiting for answer \|/);
   assert.ok(fs.existsSync(path.join(outputDir, 'report.md')));
 });
+
+test('writeMarkdownReport escapes markdown table cells', () => {
+  const outputDir = makeOutputDir();
+  writeMarkdownReport(outputDir, {
+    runId: 'run|pipe',
+    mode: 'local-core',
+    suite: 'routing',
+    results: [
+      { caseId: 'case|id', status: 'failed', failureReasons: ['line one\nline two', 'bad | pipe'] }
+    ]
+  });
+
+  const report = readText(path.join(outputDir, 'report.md'));
+  assert.match(report, /Run ID: run\\\|pipe/);
+  assert.match(report, /\| case\\\|id \| failed \| line one line two; bad \\\| pipe \|/);
+});
+
 
 function makeRun() {
   return {

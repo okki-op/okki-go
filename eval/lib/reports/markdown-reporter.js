@@ -7,7 +7,8 @@ const { summarize } = require('./json-reporter');
 const STATUSES = ['passed', 'failed', 'warned', 'skipped'];
 
 function writeMarkdownReport(outputDir, run) {
-  const summary = summarize(run.results);
+  const results = Array.isArray(run.results) ? run.results : [];
+  const summary = summarize(results);
   const lines = [
     '# OKKI Go Evaluation Report',
     '',
@@ -34,7 +35,7 @@ function writeMarkdownReport(outputDir, run) {
     '| --- | --- | --- |'
   );
 
-  for (const result of run.results) {
+  for (const result of results) {
     lines.push(`| ${formatCell(result.caseId || result.id)} | ${formatCell(result.status)} | ${formatCell(reasonFor(result))} |`);
   }
 
