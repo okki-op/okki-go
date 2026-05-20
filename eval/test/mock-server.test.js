@@ -103,6 +103,24 @@ test('mock server returns 400 for invalid JSON request bodies', async () => {
   }
 });
 
+test('mock server returns JSON 413 when request body exceeds configured limit', async () => {
+  const server = await createMockServer({ bodyLimitBytes: 16 }).start();
+  try {
+    const response = await fetch(`${server.baseUrl}/api/v1/contacts/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'VP Sales', company: 'Acme SaaS' })
+    });
+    const body = await response.json();
+    assert.equal(response.status, 413);
+    assert.equal(body.type, 'body-too-large');
+    assert.equal(body.title, 'Payload Too Large');
+    assert.equal(server.recorder.requests.at(-1).responseStatus, 413);
+  } finally {
+    await server.stop();
+  }
+});
+
 test('insufficient credit responses are method-sensitive and configurable by path', async () => {
   const server = await createMockServer({
     errorMode: 'insufficient-credits',

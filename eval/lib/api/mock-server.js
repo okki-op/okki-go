@@ -13,22 +13,34 @@ function readBody(req, limitBytes = DEFAULT_BODY_LIMIT_BYTES) {
   return new Promise((resolve, reject) => {
     let body = '';
     let bodyBytes = 0;
+    let settled = false;
+    let overLimit = false;
+
+    function fail(error) {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    }
+
     req.on('data', (chunk) => {
+      if (overLimit) return;
       bodyBytes += chunk.length;
       if (bodyBytes > limitBytes) {
-        reject(Object.assign(new Error('Request body too large'), { status: 413, type: 'body-too-large' }));
-        req.destroy();
+        overLimit = true;
+        fail(Object.assign(new Error('Request body too large'), { status: 413, type: 'body-too-large' }));
         return;
       }
       body += chunk;
     });
     req.on('error', (error) => {
-      reject(Object.assign(error, { status: 400, type: 'request-error' }));
+      fail(Object.assign(error, { status: 400, type: 'request-error' }));
     });
     req.on('aborted', () => {
-      reject(Object.assign(new Error('Request aborted'), { status: 400, type: 'request-aborted' }));
+      fail(Object.assign(new Error('Request aborted'), { status: 400, type: 'request-aborted' }));
     });
     req.on('end', () => {
+      if (settled) return;
+      settled = true;
       try {
         resolve(body ? JSON.parse(body) : null);
       } catch {
