@@ -58,7 +58,7 @@ function normalizeCall(call) {
 function concretePath(call) {
   if (call.path) return call.path;
   if (call.pathPattern) return call.pathPattern.replace(':companyHashId', 'hash-eval');
-  if (call.pathPrefix) return call.pathPrefix.replace(/\/+$/, '');
+  if (call.pathPrefix) return call.pathPrefix;
   return '/api/v1/companies/search-advanced';
 }
 
