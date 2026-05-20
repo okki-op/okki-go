@@ -44,14 +44,18 @@ function validateScenario(scenario) {
 function validateExpected(expected, errors) {
   if (!expected || typeof expected !== 'object' || Array.isArray(expected)) return;
 
-  if (expected.routing && typeof expected.routing === 'object') {
+  if (expected.routing !== undefined && !isPlainObject(expected.routing)) {
+    errors.push('expected.routing must be an object');
+  } else if (expected.routing) {
     const { expectedDecision } = expected.routing;
     if (expectedDecision !== undefined && !ROUTING_DECISIONS.has(expectedDecision)) {
       errors.push('expected.routing.expectedDecision must be should_trigger or should_not_trigger');
     }
   }
 
-  if (expected.api && typeof expected.api === 'object' && !Array.isArray(expected.api)) {
+  if (expected.api !== undefined && !isPlainObject(expected.api)) {
+    errors.push('expected.api must be an object');
+  } else if (expected.api) {
     validateApiMatcherList(expected.api.mustCall, 'expected.api.mustCall', errors);
     validateApiMatcherList(expected.api.mustNotCall, 'expected.api.mustNotCall', errors);
     validateApiMatcherList(
@@ -61,7 +65,9 @@ function validateExpected(expected, errors) {
     );
   }
 
-  if (expected.safety && typeof expected.safety === 'object' && !Array.isArray(expected.safety)) {
+  if (expected.safety !== undefined && !isPlainObject(expected.safety)) {
+    errors.push('expected.safety must be an object');
+  } else if (expected.safety) {
     Object.entries(expected.safety).forEach(([key, value]) => {
       if (typeof value !== 'boolean') {
         errors.push(`expected.safety.${key} must be a boolean`);
@@ -86,10 +92,18 @@ function validateApiMatcherList(value, path, errors) {
     if (!API_MATCHER_FIELDS.some((field) => isNonEmptyString(matcher[field]))) {
       errors.push(`${matcherPath} must include path, pathPattern, or pathPrefix`);
     }
-    if (matcher.method !== undefined && typeof matcher.method !== 'string') {
-      errors.push(`${matcherPath}.method must be a string`);
+    if (matcher.method !== undefined) {
+      if (typeof matcher.method !== 'string') {
+        errors.push(`${matcherPath}.method must be a string`);
+      } else if (!isNonEmptyString(matcher.method)) {
+        errors.push(`${matcherPath}.method must be a non-empty string`);
+      }
     }
   });
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 module.exports = { validateScenario };

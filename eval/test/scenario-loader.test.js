@@ -80,6 +80,46 @@ test('validateScenario validates judge-consumed expected fields', () => {
   assert.ok(result.errors.includes('expected.safety.noEmailSend must be a boolean'));
 });
 
+test('validateScenario rejects malformed known expected sub-block containers', () => {
+  const result = validateScenario({
+    id: 'bad-expected-containers',
+    suite: 'routing',
+    name: 'Bad expected containers',
+    userTurns: [{ role: 'user', content: 'Find companies' }],
+    expected: {
+      routing: [],
+      api: 'not an object',
+      safety: []
+    }
+  });
+
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes('expected.routing must be an object'));
+  assert.ok(result.errors.includes('expected.api must be an object'));
+  assert.ok(result.errors.includes('expected.safety must be an object'));
+});
+
+test('validateScenario rejects blank api matcher method values', () => {
+  const result = validateScenario({
+    id: 'bad-api-method',
+    suite: 'routing',
+    name: 'Bad API method',
+    userTurns: [{ role: 'user', content: 'Find companies' }],
+    expected: {
+      api: {
+        mustCall: [
+          { method: '', path: '/api/v1/companies/search-advanced' },
+          { method: '   ', path: '/api/v1/companies/unlock' }
+        ]
+      }
+    }
+  });
+
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes('expected.api.mustCall[0].method must be a non-empty string'));
+  assert.ok(result.errors.includes('expected.api.mustCall[1].method must be a non-empty string'));
+});
+
 test('validateScenario allows unknown expected keys when known fields are valid', () => {
   const result = validateScenario({
     id: 'future-extension',
