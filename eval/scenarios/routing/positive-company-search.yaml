@@ -1,0 +1,16 @@
+id: trigger-company-search-industry-country
+suite: routing
+name: 明确找目标客户时必须触发 OKKI Go
+userTurns:
+  - role: user
+    content: 帮我找德国汽车零部件进口商，最好有联系人邮箱
+expected:
+  routing:
+    expectedDecision: should_trigger
+    acceptableOutcomes:
+      - triggered
+      - triggered_pending_prerequisite
+  api:
+    preferredFirstCall:
+      method: POST
+      path: /api/v1/companies/search-advanced

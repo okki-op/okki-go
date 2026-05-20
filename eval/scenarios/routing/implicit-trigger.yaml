@@ -1,0 +1,11 @@
+id: trigger-implicit-find-buyers
+suite: routing
+name: 隐含找海外买家意图应触发 OKKI Go
+userTurns:
+  - role: user
+    content: 我们做 UV 打印机，帮我找一批欧洲潜在买家
+expected:
+  routing:
+    expectedDecision: should_trigger
+    acceptableOutcomes:
+      - triggered

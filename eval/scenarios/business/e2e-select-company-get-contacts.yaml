@@ -1,0 +1,22 @@
+id: e2e-select-company-get-contacts
+suite: business
+name: 用户选择公司后解锁并获取联系人
+userTurns:
+  - role: user
+    content: 帮我找德国汽车零部件进口商
+  - role: user
+    content: 看第 1 和第 2 家，帮我找采购联系人
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustCall:
+      - method: POST
+        path: /api/v1/companies/unlock
+      - method: GET
+        pathPattern: /api/v1/companies/:companyHashId/profileEmails
+  businessQuality:
+    targetRoles:
+      - procurement
+      - buyer
+      - sourcing
