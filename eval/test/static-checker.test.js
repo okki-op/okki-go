@@ -18,7 +18,7 @@ test('runStaticChecks warns with relative file paths for legacy runtime flags', 
     files: ['bin/', 'skill/'],
     skill: 'OKKIGO_API_KEY\nDo NOT use this skill\n',
     readme: 'Use --runtime=codex here.\n',
-    install: 'Modern install docs.\n',
+    install: 'Use --runtime=claude here.\n',
     docs: {
       'guide.md': 'Use --runtime=openclaw here.\n',
       'ignore.txt': 'Use --runtime=claude here.\n'
@@ -31,16 +31,42 @@ test('runStaticChecks warns with relative file paths for legacy runtime flags', 
 
   assert.equal(result.status, 'warned');
   assert.equal(result.reason, 'documentation references legacy --runtime= flag');
-  assert.deepEqual(result.files, ['README.md', 'docs/guide.md']);
+  assert.deepEqual(result.files, ['README.md', 'INSTALL.md', 'docs/guide.md']);
+});
+
+test('runStaticChecks passes docs legacy runtime check when docs are current', () => {
+  const root = makeOkkiRoot();
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'docs-legacy-runtime-flag');
+
+  assert.equal(result.status, 'passed');
 });
 
 test('runStaticChecks fails when package files include eval', () => {
-  for (const files of [['eval'], ['eval/']]) {
+  for (const files of [['eval'], ['eval/'], ['./eval'], ['eval/**'], ['.'], ['./'], ['*']]) {
     const root = makeOkkiRoot({ files });
     const result = resultById(runStaticChecks({ okkiRoot: root }), 'package-files-exclude-eval');
 
     assert.equal(result.status, 'failed');
     assert.equal(result.reason, 'package files must not include eval/');
+  }
+});
+
+test('runStaticChecks fails when package files are missing or invalid', () => {
+  for (const files of [undefined, null, 'bin/']) {
+    const root = makeOkkiRoot({ files });
+    const packagePath = path.join(root, 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+    if (files === undefined) {
+      delete packageJson.files;
+    } else {
+      packageJson.files = files;
+    }
+    fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2));
+
+    const result = resultById(runStaticChecks({ okkiRoot: root }), 'package-files-exclude-eval');
+
+    assert.equal(result.status, 'failed');
+    assert.equal(result.reason, 'package files must explicitly exclude eval/');
   }
 });
 
@@ -74,7 +100,7 @@ function makeOkkiRoot(overrides = {}) {
 
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
     name: '@okki/go-skill',
-    files: overrides.files || ['bin/', 'skill/', 'README.md', 'INSTALL.md']
+    files: Object.hasOwn(overrides, 'files') ? overrides.files : ['bin/', 'skill/', 'README.md', 'INSTALL.md']
   }, null, 2));
   fs.writeFileSync(path.join(root, 'README.md'), overrides.readme || 'Current README.\n');
   fs.writeFileSync(path.join(root, 'INSTALL.md'), overrides.install || 'Current install docs.\n');

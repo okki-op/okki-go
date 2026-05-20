@@ -19,14 +19,27 @@ function runStaticChecks(options = {}) {
 
 function checkPackageFilesExcludeEval(okkiRoot) {
   const packageJson = readJson(path.join(okkiRoot, 'package.json'));
-  const files = Array.isArray(packageJson.files) ? packageJson.files : [];
-  const hasEval = files.includes('eval') || files.includes('eval/');
+  if (!Array.isArray(packageJson.files)) {
+    return fail('package-files-exclude-eval', 'package files must explicitly exclude eval/');
+  }
 
-  if (hasEval) {
+  const hasUnsafeEntry = packageJson.files.some((entry) => canIncludeEval(entry));
+
+  if (hasUnsafeEntry) {
     return fail('package-files-exclude-eval', 'package files must not include eval/');
   }
 
   return pass('package-files-exclude-eval');
+}
+
+function canIncludeEval(entry) {
+  if (typeof entry !== 'string') return false;
+  const normalized = entry.replace(/\\/g, '/').replace(/\/+$/, '').replace(/^\.\//, '');
+  return normalized === 'eval' ||
+    normalized.startsWith('eval/') ||
+    normalized === '.' ||
+    normalized === '*' ||
+    normalized === '**';
 }
 
 function checkSkillRoutingAndEnvPresent(okkiRoot) {
