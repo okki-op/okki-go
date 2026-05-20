@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { loadScenarios } = require('../lib/scenarios/loader');
 const { validateScenario } = require('../lib/scenarios/schema');
 
@@ -26,3 +29,149 @@ test('validateScenario rejects missing expected block', () => {
   assert.equal(result.valid, false);
   assert.ok(result.errors.includes('expected is required'));
 });
+
+test('validateScenario rejects null and scalar values without throwing', () => {
+  for (const value of [null, 'not an object', 42]) {
+    const result = validateScenario(value);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.includes('scenario must be an object'));
+  }
+});
+
+test('validateScenario rejects nested malformed yaml-shaped values without throwing', () => {
+  const result = validateScenario({
+    id: 'malformed-nested',
+    suite: 'routing',
+    name: 'Malformed nested',
+    userTurns: [null],
+    expected: []
+  });
+
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes('userTurns[0] must be an object'));
+  assert.ok(result.errors.includes('expected must be an object'));
+});
+
+test('validateScenario validates judge-consumed expected fields', () => {
+  const result = validateScenario({
+    id: 'bad-expected',
+    suite: 'routing',
+    name: 'Bad expected',
+    userTurns: [{ role: 'user', content: 'Find companies' }],
+    expected: {
+      routing: { expectedDecision: 'should_triger' },
+      api: {
+        mustCall: [{ method: 123, url: '/wrong-key' }],
+        mustNotCall: 'not an array',
+        mustNotCallBeforeConfirmation: [{ method: 'POST' }]
+      },
+      safety: {
+        noEmailSend: 'yes'
+      }
+    }
+  });
+
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes('expected.routing.expectedDecision must be should_trigger or should_not_trigger'));
+  assert.ok(result.errors.includes('expected.api.mustCall[0] must include path, pathPattern, or pathPrefix'));
+  assert.ok(result.errors.includes('expected.api.mustCall[0].method must be a string'));
+  assert.ok(result.errors.includes('expected.api.mustNotCall must be an array'));
+  assert.ok(result.errors.includes('expected.api.mustNotCallBeforeConfirmation[0] must include path, pathPattern, or pathPrefix'));
+  assert.ok(result.errors.includes('expected.safety.noEmailSend must be a boolean'));
+});
+
+test('validateScenario allows unknown expected keys when known fields are valid', () => {
+  const result = validateScenario({
+    id: 'future-extension',
+    suite: 'routing',
+    name: 'Future extension',
+    userTurns: [{ role: 'user', content: 'Find companies' }],
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      futureJudge: { customField: 'allowed' }
+    }
+  });
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.errors, []);
+});
+
+test('validateScenario requires non-empty strings for identifiers and turn content', () => {
+  const result = validateScenario({
+    id: ' ',
+    suite: '',
+    name: 123,
+    userTurns: [{ role: 'user', content: ' ' }],
+    expected: {}
+  });
+
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes('id must be a non-empty string'));
+  assert.ok(result.errors.includes('suite must be a non-empty string'));
+  assert.ok(result.errors.includes('name must be a non-empty string'));
+  assert.ok(result.errors.includes('userTurns[0].content must be a non-empty string'));
+});
+
+test('loadScenarios rejects unsupported suites', () => {
+  assert.throws(
+    () => loadScenarios({ suite: 'typo' }),
+    /Unsupported scenario suite: typo/
+  );
+});
+
+test('loadScenarios rejects unknown selected scenario ids', () => {
+  assert.throws(
+    () => loadScenarios({ suite: 'routing', scenarios: ['typo'] }),
+    /Unknown scenario id\(s\): typo/
+  );
+});
+
+test('loadScenarios sorts yaml files deterministically', () => {
+  const scenarios = loadScenarios({ suite: 'routing' });
+  const fileNames = scenarios.map((scenario) => path.basename(scenario.sourcePath));
+  assert.deepEqual(fileNames, [...fileNames].sort());
+});
+
+test('loadScenarios rejects duplicate scenario ids', (t) => {
+  const root = makeScenarioRoot(t);
+  writeScenario(root, 'routing', 'a.yaml', 'duplicate-id', 'routing');
+  writeScenario(root, 'routing', 'b.yaml', 'duplicate-id', 'routing');
+
+  assert.throws(
+    () => loadScenarios({ suite: 'routing', scenarioRoot: root }),
+    /Duplicate scenario id: duplicate-id/
+  );
+});
+
+test('loadScenarios rejects files whose directory suite does not match yaml suite', (t) => {
+  const root = makeScenarioRoot(t);
+  writeScenario(root, 'routing', 'mismatch.yaml', 'mismatched-suite', 'business');
+
+  assert.throws(
+    () => loadScenarios({ suite: 'routing', scenarioRoot: root }),
+    /Scenario suite mismatch.*expected routing.*got business/
+  );
+});
+
+function makeScenarioRoot(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'okki-scenarios-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  return root;
+}
+
+function writeScenario(root, suiteDir, fileName, id, suiteValue) {
+  const dir = path.join(root, suiteDir);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, fileName), [
+    `id: ${id}`,
+    `suite: ${suiteValue}`,
+    'name: Test scenario',
+    'userTurns:',
+    '  - role: user',
+    '    content: Find companies',
+    'expected:',
+    '  routing:',
+    '    expectedDecision: should_trigger',
+    ''
+  ].join('\n'));
+}
