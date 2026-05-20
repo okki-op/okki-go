@@ -5,7 +5,7 @@ const { spawnSync } = require('child_process');
 function runCommand(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd,
-    env: options.env,
+    env: { ...process.env, ...(options.env || {}) },
     encoding: 'utf8',
     timeout: options.timeoutMs || 30000
   });

@@ -29,3 +29,27 @@ test('parseArgs parses comma-separated agents and scenarios', () => {
 test('parseArgs rejects unsupported mode', () => {
   assert.throws(() => parseArgs(['--mode', 'live']), /Unsupported mode in Phase 1/);
 });
+
+test('parseArgs rejects missing value before next option', () => {
+  assert.throws(
+    () => parseArgs(['--agents', '--report']),
+    /Missing value for --agents/
+  );
+});
+
+test('parseArgs rejects missing output directory value', () => {
+  assert.throws(
+    () => parseArgs(['--output-dir']),
+    /Missing value for --output-dir/
+  );
+});
+
+test('parseArgs rejects unsupported suite', () => {
+  assert.throws(() => parseArgs(['--suite', 'unknown']), /Unsupported suite/);
+});
+
+test('parseArgs parses models and output directory', () => {
+  const args = parseArgs(['--models', 'a,b', '--output-dir', 'out']);
+  assert.deepEqual(args.models, ['a', 'b']);
+  assert.equal(args.outputDir, 'out');
+});

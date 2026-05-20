@@ -1,19 +1,19 @@
 'use strict';
 
 function pass(id, details = {}) {
-  return { id, status: 'passed', ...details };
+  return { ...details, id, status: 'passed' };
 }
 
 function fail(id, reason, details = {}) {
-  return { id, status: 'failed', reason, ...details };
+  return { ...details, id, status: 'failed', reason };
 }
 
 function warn(id, reason, details = {}) {
-  return { id, status: 'warned', reason, ...details };
+  return { ...details, id, status: 'warned', reason };
 }
 
 function skipped(id, reason, details = {}) {
-  return { id, status: 'skipped', reason, ...details };
+  return { ...details, id, status: 'skipped', reason };
 }
 
 module.exports = { pass, fail, warn, skipped };

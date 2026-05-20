@@ -11,6 +11,14 @@ function splitCsv(value) {
     .filter(Boolean);
 }
 
+function readOptionValue(argv, index, optionName) {
+  const value = argv[index + 1];
+  if (!value || String(value).startsWith('--')) {
+    throw new Error(`Missing value for ${optionName}`);
+  }
+  return value;
+}
+
 function parseArgs(argv) {
   const parsed = {
     mode: 'local-core',
@@ -27,17 +35,23 @@ function parseArgs(argv) {
     if (token === '--report') {
       parsed.report = true;
     } else if (token === '--mode') {
-      parsed.mode = argv[++i];
+      parsed.mode = readOptionValue(argv, i, token);
+      i += 1;
     } else if (token === '--suite') {
-      parsed.suite = argv[++i];
+      parsed.suite = readOptionValue(argv, i, token);
+      i += 1;
     } else if (token === '--agents') {
-      parsed.agents = splitCsv(argv[++i]);
+      parsed.agents = splitCsv(readOptionValue(argv, i, token));
+      i += 1;
     } else if (token === '--models') {
-      parsed.models = splitCsv(argv[++i]);
+      parsed.models = splitCsv(readOptionValue(argv, i, token));
+      i += 1;
     } else if (token === '--scenarios') {
-      parsed.scenarios = splitCsv(argv[++i]);
+      parsed.scenarios = splitCsv(readOptionValue(argv, i, token));
+      i += 1;
     } else if (token === '--output-dir') {
-      parsed.outputDir = argv[++i];
+      parsed.outputDir = readOptionValue(argv, i, token);
+      i += 1;
     } else if (token === '--help' || token === '-h') {
       parsed.help = true;
     } else {
