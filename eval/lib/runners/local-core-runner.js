@@ -48,11 +48,20 @@ function runLocalCore(options = {}) {
 }
 
 function runAllSuites(selectedScenarios) {
-  return [
-    ...runInstallerMatrix(),
-    ...runStaticChecks(),
-    ...runScenarios('all', selectedScenarios)
-  ];
+  const scenariosBySuite = loadScenarioSuitesForAll(selectedScenarios);
+  const results = [];
+
+  for (const suite of ALL_SUITES) {
+    if (suite === 'install') {
+      results.push(...runInstallerMatrix());
+    } else if (suite === 'static') {
+      results.push(...runStaticChecks());
+    } else {
+      results.push(...judgeScenarios(scenariosBySuite.get(suite) || []));
+    }
+  }
+
+  return results;
 }
 
 function runSuite(suite, selectedScenarios) {
@@ -62,7 +71,33 @@ function runSuite(suite, selectedScenarios) {
 }
 
 function runScenarios(suite, selectedScenarios) {
-  return loadScenarios({ suite, scenarios: selectedScenarios || [] }).map((scenario) => {
+  return judgeScenarios(loadScenarios({ suite, scenarios: selectedScenarios || [] }));
+}
+
+function loadScenarioSuitesForAll(selectedScenarios) {
+  const selectedIds = new Set(selectedScenarios || []);
+  const selectedFound = new Set();
+  const scenariosBySuite = new Map();
+
+  for (const suite of ALL_SUITES.filter((candidate) => SCENARIO_SUITES.has(candidate))) {
+    const scenarios = loadScenarios({ suite });
+    const filtered = selectedIds.size === 0
+      ? scenarios
+      : scenarios.filter((scenario) => selectedIds.has(scenario.id));
+    for (const scenario of filtered) selectedFound.add(scenario.id);
+    scenariosBySuite.set(suite, filtered);
+  }
+
+  const unknownIds = [...selectedIds].filter((id) => !selectedFound.has(id));
+  if (unknownIds.length > 0) {
+    throw new Error(`Unknown scenario id(s): ${unknownIds.join(', ')}`);
+  }
+
+  return scenariosBySuite;
+}
+
+function judgeScenarios(scenarios) {
+  return scenarios.map((scenario) => {
     return judgeScenarioRun(scenario, runReferenceScenario(scenario));
   });
 }

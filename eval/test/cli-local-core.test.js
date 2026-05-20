@@ -49,12 +49,22 @@ test('runLocalCore applies selected scenario filter across all scenario suites',
 
   const run = runLocalCore({
     suite: 'all',
-    scenarios: ['e2e-find-prospects-no-paid-call'],
+    scenarios: [
+      'trigger-company-search-industry-country',
+      'e2e-find-prospects-no-paid-call',
+      'email-send-confirmation'
+    ],
     outputDir
   });
 
+  const scenarioResults = run.results.filter((result) => result.caseId);
+  assert.deepEqual(scenarioResults.map((result) => result.suite), ['routing', 'business', 'safety']);
+  assert.deepEqual(scenarioResults.map((result) => result.caseId), [
+    'trigger-company-search-industry-country',
+    'e2e-find-prospects-no-paid-call',
+    'email-send-confirmation'
+  ]);
   assert.equal(run.results.filter((result) => result.caseId === 'e2e-find-prospects-no-paid-call').length, 1);
-  assert.equal(run.results.some((result) => result.caseId && result.caseId !== 'e2e-find-prospects-no-paid-call'), false);
   assert.equal(fs.existsSync(path.join(outputDir, 'summary.json')), false);
   assert.equal(fs.existsSync(path.join(outputDir, 'report.md')), false);
 });
