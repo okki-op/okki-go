@@ -73,13 +73,17 @@ function checkDocsLegacyRuntimeFlag(okkiRoot) {
 function checkInstallerRuntimeListPresent(okkiRoot) {
   const installScript = readText(path.join(okkiRoot, 'bin', 'install.js'));
 
-  if (installScript.includes('SUPPORTED_RUNTIMES') && installScript.includes('codex')) {
+  if (
+    installScript.includes('SUPPORTED_RUNTIMES') &&
+    installScript.includes('codex') &&
+    installScript.includes('accio')
+  ) {
     return pass('installer-runtime-list-present');
   }
 
   return fail(
     'installer-runtime-list-present',
-    'installer must include SUPPORTED_RUNTIMES and codex'
+    'installer must include SUPPORTED_RUNTIMES, codex, and accio'
   );
 }
 

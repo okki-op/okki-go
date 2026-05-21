@@ -1,6 +1,6 @@
 # Okki Go Skill 安装指南
 
-多运行时安装系统，支持 Claude Code、OpenClaw、Cursor、Windsurf 等 AI 助手。
+多运行时安装系统，支持 Claude Code、OpenClaw、Accio Work、Cursor、Windsurf 等 AI 助手。
 
 ## 快速安装
 
@@ -24,8 +24,11 @@ node bin/install.js --global --claude
 # 安装到 OpenClaw
 node bin/install.js --global --openclaw
 
+# 安装到 Accio Work
+node bin/install.js --global --accio
+
 # 同时安装到多个运行时
-node bin/install.js --global --claude --openclaw --cursor
+node bin/install.js --global --claude --openclaw --accio --cursor
 
 # 安装到所有支持的运行时
 node bin/install.js --global --all
@@ -44,6 +47,7 @@ node bin/install.js --global --all
 | Codex | `--codex` | `~/.codex` | `skills/okki-go/` | skill.md |
 | Copilot | `--copilot` | `~/.copilot` | `skills/okki-go/` | instructions.md |
 | Cline | `--cline` | `~/.cline` | `skills/okki-go/` | skill.md |
+| Accio Work | `--accio` | `~/.accio` | `accounts/<accountId>/skills/okki-go/` | SKILL.md |
 
 ## 环境变量支持
 
@@ -61,6 +65,10 @@ node bin/install.js --global --openclaw
 # OpenCode (XDG 标准)
 export XDG_CONFIG_HOME=~/.config
 node bin/install.js --global --opencode
+
+# Accio Work
+export ACCIO_ACCOUNT_ID=1763281345
+node bin/install.js --global --accio
 ```
 
 支持的环境变量：
@@ -73,7 +81,12 @@ node bin/install.js --global --opencode
 - `CODEX_HOME`
 - `COPILOT_CONFIG_DIR`
 - `CLINE_CONFIG_DIR`
+- `ACCIO_CONFIG_DIR`
+- `ACCIO_ACCOUNT_ID`
+- `ACCIO_ACCOUNT_DIR`
 - `XDG_CONFIG_HOME` (用于 OpenCode)
+
+Accio Work 需要先打开桌面端并登录。安装器会自动检测 `~/.accio/accounts/` 下的账号；如果有多个账号，请设置 `ACCIO_ACCOUNT_ID`。使用 `--all` 时，如果未检测到 Accio 账号，安装器会跳过 Accio Work，不阻断其他运行时安装。
 
 ## 安装后配置
 
@@ -86,6 +99,9 @@ openclaw config set skills.entries.okkigo.apiKey "sk-xxx"
 
 **其他运行时:**
 访问 https://go.okki.ai 获取 API Key，在首次使用时按提示配置。
+
+**Accio Work:**
+安装器会同步更新 `~/.accio/accounts/<accountId>/skills/skills_config.json`，启用 `OKKI Go`。如 Accio Work 已打开，安装后建议重启 Accio Work 或新开会话以加载新 Skill。
 
 ## 更新 Skill
 
@@ -209,6 +225,9 @@ node bin/install.js --global --openclaw
 # 检查安装的文件
 ls -la ~/.openclaw/workspace/skills/okki-go/
 
+# Accio Work
+ls -la ~/.accio/accounts/<accountId>/skills/okki-go/
+
 # 应该包含：
 # - SKILL.md (或 skill.md/instructions.md)
 # - references/
@@ -247,7 +266,7 @@ okki-go/
 | 路径解析 | 健壮的多级回退机制 |
 | 清单检测 | SHA256 哈希验证文件完整性 |
 | 补丁保存 | 自动保存本地修改到 `.okki-go-patches/` |
-| 多运行时 | 支持 9 种 AI 助手 |
+| 多运行时 | 支持 10 种 AI 助手 |
 
 ## NPM 包安装（即将支持）
 

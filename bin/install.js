@@ -27,6 +27,7 @@ const cyan   = '\x1b[36m';
 
 // ─── Skill metadata ───────────────────────────────────────────────────────────
 const SKILL_NAME = 'okki-go';
+const DISPLAY_NAME = 'OKKI Go';
 const VERSION    = '1.0.6';
 
 // Source directory: bin/ is sibling to skill/, so skill content lives at ../skill/
@@ -39,7 +40,7 @@ const isLocal     = args.includes('--local')  || args.includes('-l');
 const isUninstall = args.includes('--uninstall') || args.includes('-u');
 const isAll       = args.includes('--all');
 
-const SUPPORTED_RUNTIMES = ['claude', 'openclaw', 'opencode', 'gemini', 'cursor', 'windsurf', 'codex', 'copilot', 'cline'];
+const SUPPORTED_RUNTIMES = ['claude', 'openclaw', 'opencode', 'gemini', 'cursor', 'windsurf', 'codex', 'copilot', 'cline', 'accio'];
 
 let selectedRuntimes = [];
 if (isAll) {
@@ -58,6 +59,8 @@ function expandTilde(p) {
 
 function getGlobalDir(runtime) {
   switch (runtime) {
+    case 'accio':
+      return getAccioAccountDir();
     case 'opencode':
       if (process.env.OPENCODE_CONFIG_DIR) return expandTilde(process.env.OPENCODE_CONFIG_DIR);
       if (process.env.XDG_CONFIG_HOME)     return path.join(expandTilde(process.env.XDG_CONFIG_HOME), 'opencode');
@@ -89,9 +92,44 @@ function getGlobalDir(runtime) {
   }
 }
 
+function getAccioRoot() {
+  if (process.env.ACCIO_CONFIG_DIR) return expandTilde(process.env.ACCIO_CONFIG_DIR);
+  return path.join(os.homedir(), '.accio');
+}
+
+function getAccioAccountDir() {
+  if (process.env.ACCIO_ACCOUNT_DIR) return expandTilde(process.env.ACCIO_ACCOUNT_DIR);
+
+  const root = getAccioRoot();
+  const accountsDir = path.join(root, 'accounts');
+
+  if (process.env.ACCIO_ACCOUNT_ID) {
+    return path.join(accountsDir, process.env.ACCIO_ACCOUNT_ID);
+  }
+
+  if (!fs.existsSync(accountsDir)) {
+    throw new Error('Accio account directory not found. Open Accio Work and sign in, or set ACCIO_ACCOUNT_ID.');
+  }
+
+  const accountIds = fs.readdirSync(accountsDir)
+    .filter(name => fs.statSync(path.join(accountsDir, name)).isDirectory())
+    .filter(name => !name.startsWith('.'));
+
+  if (accountIds.length === 0) {
+    throw new Error('No Accio accounts found. Open Accio Work and sign in, or set ACCIO_ACCOUNT_ID.');
+  }
+
+  if (accountIds.length > 1) {
+    throw new Error(`Multiple Accio accounts found (${accountIds.join(', ')}). Set ACCIO_ACCOUNT_ID to choose one.`);
+  }
+
+  return path.join(accountsDir, accountIds[0]);
+}
+
 // Where skills live inside the config dir, and what the main file is called
 function getSkillMeta(runtime) {
   switch (runtime) {
+    case 'accio':
     case 'openclaw':
     case 'opencode':
       return { subdir: 'skills',   mainFile: 'SKILL.md' };
@@ -103,6 +141,10 @@ function getSkillMeta(runtime) {
 }
 
 function getSkillDir(runtime, isGlobal) {
+  if (runtime === 'accio' && !isGlobal) {
+    throw new Error('Accio Work skills are account-scoped. Use --global --accio.');
+  }
+
   const base = isGlobal ? getGlobalDir(runtime) : process.cwd();
   const { subdir } = getSkillMeta(runtime);
   return path.join(base, subdir, SKILL_NAME);
@@ -134,6 +176,30 @@ function loadManifest(skillDir) {
 
 function saveManifest(skillDir, manifest) {
   fs.writeFileSync(path.join(skillDir, '.okki-go-manifest.json'), JSON.stringify(manifest, null, 2));
+}
+
+function updateAccioSkillsConfig(skillDir, enabled) {
+  const skillsDir = path.dirname(skillDir);
+  ensureDir(skillsDir);
+  const configPath = path.join(skillsDir, 'skills_config.json');
+  let config = {};
+
+  if (fs.existsSync(configPath)) {
+    try {
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch (error) {
+      throw new Error(`Accio skills_config.json is not valid JSON: ${configPath}`);
+    }
+  }
+
+  if (enabled) {
+    config[DISPLAY_NAME] = { enabled: true, installedVersion: VERSION };
+  } else {
+    delete config[DISPLAY_NAME];
+  }
+
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  log(`  ${green}✓${reset} Updated Accio skills_config.json`);
 }
 
 function saveLocalPatches(skillDir, oldManifest) {
@@ -251,7 +317,8 @@ function verifyInstallation(skillDir, runtime) {
 
 // ─── Install one runtime ──────────────────────────────────────────────────────
 function installRuntime(runtime, isGlobal) {
-  const skillDir = getSkillDir(runtime, isGlobal);
+  const skillDir = resolveSkillDir(runtime, isGlobal);
+  if (!skillDir) return;
   log(`\n  ${cyan}Installing okki-go → ${skillDir}${reset}`);
 
   // Save patches if upgrading
@@ -273,18 +340,38 @@ function installRuntime(runtime, isGlobal) {
     process.exit(1);
   }
 
+  if (runtime === 'accio') {
+    updateAccioSkillsConfig(skillDir, true);
+  }
+
   log(`  ${green}✓ Done${reset}`);
+}
+
+function resolveSkillDir(runtime, isGlobal) {
+  try {
+    return getSkillDir(runtime, isGlobal);
+  } catch (error) {
+    if (runtime === 'accio' && isAll) {
+      log(`\n  ${yellow}Skipping Accio Work: ${error.message}${reset}`);
+      return null;
+    }
+    throw error;
+  }
 }
 
 // ─── Uninstall one runtime ────────────────────────────────────────────────────
 function uninstallRuntime(runtime, isGlobal) {
-  const skillDir = getSkillDir(runtime, isGlobal);
+  const skillDir = resolveSkillDir(runtime, isGlobal);
+  if (!skillDir) return;
   if (!fs.existsSync(skillDir)) {
     log(`  ${yellow}Not installed: ${skillDir}${reset}`);
     return;
   }
   saveLocalPatches(skillDir, loadManifest(skillDir));
   fs.rmSync(skillDir, { recursive: true, force: true });
+  if (runtime === 'accio') {
+    updateAccioSkillsConfig(skillDir, false);
+  }
   log(`  ${green}✓ Removed ${skillDir}${reset}`);
 }
 

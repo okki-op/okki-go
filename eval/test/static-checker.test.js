@@ -78,12 +78,12 @@ test('runStaticChecks fails when skill routing or environment text is missing', 
   assert.equal(result.reason, 'skill must include OKKIGO_API_KEY and routing boundary text');
 });
 
-test('runStaticChecks fails when installer runtime list or codex is missing', () => {
+test('runStaticChecks fails when installer runtime list, codex, or accio is missing', () => {
   const root = makeOkkiRoot({ installer: 'const SUPPORTED_RUNTIMES = [\'openclaw\'];\n' });
   const result = resultById(runStaticChecks({ okkiRoot: root }), 'installer-runtime-list-present');
 
   assert.equal(result.status, 'failed');
-  assert.equal(result.reason, 'installer must include SUPPORTED_RUNTIMES and codex');
+  assert.equal(result.reason, 'installer must include SUPPORTED_RUNTIMES, codex, and accio');
 });
 
 function resultById(results, id) {
@@ -110,7 +110,7 @@ function makeOkkiRoot(overrides = {}) {
   );
   fs.writeFileSync(
     path.join(root, 'bin', 'install.js'),
-    overrides.installer || 'const SUPPORTED_RUNTIMES = [\'codex\'];\n'
+    overrides.installer || 'const SUPPORTED_RUNTIMES = [\'codex\', \'accio\'];\n'
   );
 
   for (const [fileName, content] of Object.entries(overrides.docs || {})) {

@@ -4,7 +4,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OKKI_DIR="$(dirname "$SCRIPT_DIR")"
+SKILL_DIR="$(dirname "$SCRIPT_DIR")"
+OKKI_DIR="$(dirname "$SKILL_DIR")"
 
 echo "🧪 Testing Okki Go Installer"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -23,8 +24,9 @@ echo ""
 
 # Test 2: Dry run - check if script can parse arguments
 echo "Test 2: Argument parsing"
-# This will fail at directory creation but that's ok - we're testing parsing
-node "$OKKI_DIR/bin/install.js" --global --runtime=claude 2>&1 | grep -q "Okki Go Skill Installer"
+# Use the current runtime flag style and isolate output in a temp config dir.
+TEST_CLAUDE_CONFIG_DIR="$(mktemp -d)"
+CLAUDE_CONFIG_DIR="$TEST_CLAUDE_CONFIG_DIR" node "$OKKI_DIR/bin/install.js" --global --claude 2>&1 | grep -q "Okki Go Skill Installer"
 if [ $? -eq 0 ]; then
     echo "✅ Argument parsing works"
 else
@@ -36,9 +38,9 @@ echo ""
 # Test 3: Check file structure
 echo "Test 3: Source file structure"
 REQUIRED_FILES=(
-    "$OKKI_DIR/SKILL.md"
-    "$OKKI_DIR/references/api-reference.md"
-    "$OKKI_DIR/scripts/enable-notifications.sh"
+    "$SKILL_DIR/SKILL.md"
+    "$SKILL_DIR/references/api-reference.md"
+    "$SKILL_DIR/scripts/enable-notifications.sh"
     "$OKKI_DIR/bin/install.js"
 )
 
@@ -60,7 +62,7 @@ else
     echo "⚠️  install.js not executable (run: chmod +x bin/install.js)"
 fi
 
-if [ -x "$OKKI_DIR/scripts/enable-notifications.sh" ]; then
+if [ -x "$SKILL_DIR/scripts/enable-notifications.sh" ]; then
     echo "✅ enable-notifications.sh is executable"
 else
     echo "⚠️  enable-notifications.sh not executable"

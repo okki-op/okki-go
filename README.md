@@ -12,7 +12,7 @@ cd okki-go
 node bin/install.js
 
 # Or with parameters
-node bin/install.js --global --runtime=openclaw
+node bin/install.js --global --openclaw
 ```
 
 ### Supported Platforms
@@ -21,6 +21,7 @@ node bin/install.js --global --runtime=openclaw
 - **OpenClaw** - Open-source AI coding platform
 - **Cursor** - AI-first code editor
 - **Windsurf** - AI coding assistant
+- **Accio Work** - Alibaba International cross-border business agent workspace
 - **Codex, Copilot, Gemini, Cline** - Other AI platforms
 
 ### Configure API Key
@@ -51,7 +52,7 @@ openclaw config set skills.entries.okkigo.apiKey "sk-xxx"
 
 Multi-runtime installation system with the following features:
 
-- ✅ Multi-runtime support (8+ platforms)
+- ✅ Multi-runtime support (10 platforms)
 - ✅ SHA256 manifest for change detection
 - ✅ Local modification protection
 - ✅ Automatic version management

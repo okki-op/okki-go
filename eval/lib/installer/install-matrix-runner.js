@@ -8,7 +8,7 @@ const { fromOkkiRoot } = require('../core/paths');
 const { runCommand } = require('../core/process');
 const { fail, pass } = require('../core/result');
 
-const DEFAULT_RUNTIMES = ['codex', 'openclaw', 'claude', 'copilot'];
+const DEFAULT_RUNTIMES = ['codex', 'openclaw', 'claude', 'copilot', 'accio'];
 const SKILL_NAME = 'okki-go';
 const TIMEOUT_MS = 30000;
 
@@ -16,7 +16,8 @@ const RUNTIME_META = {
   codex: { envVar: 'CODEX_HOME', mainFile: 'skill.md' },
   openclaw: { envVar: 'OPENCLAW_CONFIG_DIR', mainFile: 'SKILL.md' },
   claude: { envVar: 'CLAUDE_CONFIG_DIR', mainFile: 'skill.md' },
-  copilot: { envVar: 'COPILOT_CONFIG_DIR', mainFile: 'instructions.md' }
+  copilot: { envVar: 'COPILOT_CONFIG_DIR', mainFile: 'instructions.md' },
+  accio: { envVar: 'ACCIO_CONFIG_DIR', mainFile: 'SKILL.md', accountScoped: true }
 };
 
 const RUNTIME_ENV_VARS = Object.values(RUNTIME_META).map(meta => meta.envVar);
@@ -25,10 +26,10 @@ function runInstallerMatrix(options = {}) {
   const runtimes = options.runtimes || DEFAULT_RUNTIMES;
   const tmpRoot = options.tmpRoot || fs.mkdtempSync(path.join(os.tmpdir(), 'okki-eval-install-'));
 
-  return runtimes.map(runtime => runInstallerForRuntime(runtime, tmpRoot));
+  return runtimes.map(runtime => runInstallerForRuntime(runtime, tmpRoot, options));
 }
 
-function runInstallerForRuntime(runtime, tmpRoot) {
+function runInstallerForRuntime(runtime, tmpRoot, options = {}) {
   const id = `install-${runtime}`;
   const meta = RUNTIME_META[runtime];
 
@@ -37,10 +38,16 @@ function runInstallerForRuntime(runtime, tmpRoot) {
   }
 
   const configDir = path.join(tmpRoot, runtime);
-  const skillDir = path.join(configDir, 'skills', SKILL_NAME);
+  const accioAccountId = options.accioAccountId || 'default-account';
+  const skillDir = meta.accountScoped
+    ? path.join(configDir, 'accounts', accioAccountId, 'skills', SKILL_NAME)
+    : path.join(configDir, 'skills', SKILL_NAME);
   ensureDir(configDir);
 
   const env = makeRuntimeEnv(meta.envVar, configDir);
+  if (runtime === 'accio') {
+    env.ACCIO_ACCOUNT_ID = accioAccountId;
+  }
   const commandResult = runCommand(
     process.execPath,
     [fromOkkiRoot('bin', 'install.js'), '--global', `--${runtime}`],
@@ -117,6 +124,24 @@ function validateInstall(skillDir, runtime, mainFile) {
       reason: `Manifest runtime mismatch: expected ${runtime}, got ${manifest.runtime}`,
       error: manifest.runtime
     };
+  }
+
+  if (runtime === 'accio') {
+    const configPath = path.join(path.dirname(skillDir), 'skills_config.json');
+    let skillsConfig;
+    try {
+      skillsConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch (error) {
+      return { reason: 'Accio skills_config.json is missing or invalid', error: error.message };
+    }
+
+    if (
+      !skillsConfig['OKKI Go'] ||
+      skillsConfig['OKKI Go'].enabled !== true ||
+      typeof skillsConfig['OKKI Go'].installedVersion !== 'string'
+    ) {
+      return { reason: 'Accio skills_config.json does not enable OKKI Go', error: skillsConfig['OKKI Go'] };
+    }
   }
 
   return null;
