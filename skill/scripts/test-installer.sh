@@ -26,8 +26,7 @@ echo ""
 echo "Test 2: Argument parsing"
 # Use the current runtime flag style and isolate output in a temp config dir.
 TEST_CLAUDE_CONFIG_DIR="$(mktemp -d)"
-CLAUDE_CONFIG_DIR="$TEST_CLAUDE_CONFIG_DIR" node "$OKKI_DIR/bin/install.js" --global --claude 2>&1 | grep -q "Okki Go Skill Installer"
-if [ $? -eq 0 ]; then
+if CLAUDE_CONFIG_DIR="$TEST_CLAUDE_CONFIG_DIR" node "$OKKI_DIR/bin/install.js" --global --claude 2>&1 | grep -q "Installation successful"; then
     echo "✅ Argument parsing works"
 else
     echo "❌ Argument parsing failed"

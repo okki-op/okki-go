@@ -1,7 +1,7 @@
 ---
 name: OKKI Go
-version: 1.0.6
-description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) draft and send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine — only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
+version: 1.0.9
+description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine — only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
 homepage: "https://go.okki.ai"
 requires:
   - curl
@@ -231,6 +231,34 @@ After confirmation, subsequent calls in the same session do not need re-confirma
 
 ---
 
+## User Input Guidance
+
+**Language rule**: Always respond in the same language the user is using. If the user writes in Chinese, reply in Chinese. If the user writes in English, reply in English. This applies to all clarification prompts, result displays, and next-step suggestions.
+
+When user input is vague or incomplete, guide them to provide more specific information:
+
+### Common vague inputs and how to clarify
+
+| User says | Clarify by asking |
+|-----------|-------------------|
+| Find companies | What industry, country, or keywords? |
+| Send email | Who should receive it? Any specific template or content? |
+| Check balance | No clarification needed — execute directly |
+| Find customers | What type of customers? Which industry or region? |
+| Find contacts | Which company? What job title or role? |
+
+### Suggest better phrasing
+
+When clarifying, offer a concrete example in the user's language to help them refine:
+
+- Vague: "Find companies" → Better: "Search for electronics suppliers in Japan with 100-500 employees"
+- Vague: "Send email" → Better: "Send outreach to procurement managers at these 5 companies"
+- Vague: "Find contacts" → Better: "Find email addresses for CEOs in the automotive industry"
+
+When users provide clear, specific requests, proceed directly without asking for clarification.
+
+---
+
 ## Output Formatting
 
 Present API results in user-friendly format, not raw JSON.
@@ -239,14 +267,21 @@ Present API results in user-friendly format, not raw JSON.
 
 Show key info in a table for quick scanning:
 
-| # | Company | Country | Industry | Domain |
-|---|---------|---------|----------|--------|
-| 1 | Example Corp | CN | Manufacturing | example.com |
-| 2 | TechPrint AG | DE | Electronics | techprint.de |
+| # | Company | Country | Industry | Employees |
+|---|---------|---------|----------|-----------|
+| 1 | Example Corp | CN | Manufacturing | 500-1000 |
+| 2 | TechPrint AG | DE | Electronics | 100-500 |
 
+**Important**:
+- **DO NOT display the `domain` field to users** — it is an internal identifier used only for calling `/companies/unlock` to obtain `companyHashId`. Exposing it allows users to bypass the system.
+- Store the `domain` value internally for each company in the search results, but never include it in the displayed table or text output.
 - For 10+ results, show the first 10, state the total, and offer "say 'next page' to see more"
 - For zero results, suggest broadening criteria (different keywords, removing country filter, etc.)
-- The `domain` field is used with `/companies/unlock` to get the `companyHashId`
+
+**Next Steps Guidance**: After displaying search results, proactively suggest:
+- "Select a company to view detailed profile and contact information"
+- "I can unlock companies to get decision-maker emails (1 credit per domain)"
+- "Refine your search with different keywords or filters"
 
 ### Contact information
 
@@ -254,6 +289,11 @@ Show key info in a table for quick scanning:
 |------|-------|-------|----------|
 | Hans Mueller | Procurement Manager | hans@techcorp.de | Yes |
 | Lisa Schmidt | CEO | — | Yes |
+
+**Next Steps Guidance**: After displaying contacts, proactively ask:
+- "Would you like to send outreach emails to these contacts?"
+- "I can help you draft a personalized email template"
+- "Need to search for more contacts at other companies?"
 
 ### Balance information
 
@@ -264,6 +304,11 @@ Show key info in a table for quick scanning:
 
 If `monthlyExpiresAt` is null, show:
 > - Monthly quota resets: N/A (no active monthly plan)
+
+**Next Steps Guidance**: After displaying balance, suggest based on quota levels:
+- If quota is sufficient: "You have enough credits to proceed with your prospecting"
+- If quota is low: "Your credits are running low. Would you like to upgrade your plan or purchase credit packs? Visit go.okki.ai/pricing"
+- Always offer: "Ready to search for companies or contacts?"
 
 ### Email send feedback
 
@@ -277,6 +322,11 @@ When checking status:
 > **Task 1001 results**: 48 sent / 2 failed / 50 total
 > Failed: bob@globex.com — Invalid email address
 
+**Next Steps Guidance**: After email submission, proactively suggest:
+- "I can check the delivery status in a few minutes once processing completes"
+- "Would you like to send emails to additional contacts?"
+- "Need to search for more prospects in other companies or regions?"
+
 ---
 
 ## Workflow Orchestration
@@ -289,7 +339,7 @@ User requests often span multiple workflows. The Agent needs to understand when 
 2. **Wait for user to select** companies of interest → do NOT proactively call paid APIs
 3. User selects → **Unlock company** (follow Billing Rule 1, see [api-reference.md §3](./references/api-reference.md#3)) to get `companyHashId`
 4. **Get contact emails** (free, see [api-reference.md §5](./references/api-reference.md#5)) using the `companyHashId`
-5. Display contacts → ask if they want to send outreach
+5. Display contacts → **proactively ask**: "Would you like to send outreach emails to these contacts, or continue searching for more companies?"
 
 ### Workflow B: Contact Search — "Find a specific person"
 
@@ -297,6 +347,7 @@ User requests often span multiple workflows. The Agent needs to understand when 
 2. Use `POST /contacts/search` to search by name, title, email, or company (see [api-reference.md §6](./references/api-reference.md#6))
 3. After confirmation, subsequent calls in the same session do not need re-confirmation.
 - Supports filtering by country, has_email, employee count, etc.
+- After displaying results, **proactively ask**: "Would you like to send outreach emails to these contacts, or refine the search criteria?"
 
 ### Workflow C: Precision — "Send outreach to procurement managers in German auto parts companies"
 
@@ -305,17 +356,20 @@ User requests often span multiple workflows. The Agent needs to understand when 
 3. Get contacts (free) → filter by relevant titles
 4. Display contact list → **ask user to confirm recipients and email content**
 5. **Never send emails before user confirms** — use `POST /emails/send/batch` for same-template sends (see [api-reference.md §7](./references/api-reference.md#7))
+6. After sending, **proactively suggest**: "Emails submitted successfully. I can check delivery status in a few minutes, or help you search for additional prospects in other regions or industries."
 
 ### Workflow D: Personalized Outreach — "Send each company a tailored email"
 
 - Same flow as Workflow C, but use `POST /emails/send/personalized` for unique content per recipient (see [api-reference.md §8](./references/api-reference.md#8))
 - Each email should reference the recipient's company/industry context
+- After sending, **proactively suggest**: "Personalized emails submitted. Would you like to check delivery status later, or start prospecting a new batch of companies?"
 
 ### Workflow E: Check Balance
 
 - Call `GET /api/v1/credit/balance` (free, see [api-reference.md §1](./references/api-reference.md#1))
 - Display using the balance format from Output Formatting section
 - If quota is low, direct user to [go.okki.ai/pricing](https://go.okki.ai/pricing)
+- After displaying, **proactively suggest**: "Would you like to start searching for companies or contacts?"
 
 ### Workflow F: Check Email Status — "How did my last batch go?"
 
@@ -325,6 +379,7 @@ User requests often span multiple workflows. The Agent needs to understand when 
 - If no email tasks exist, display:
   > No email tasks found. You haven't sent any outreach emails yet.
   > Would you like to start a prospecting workflow?
+- After displaying status, **proactively suggest**: "Would you like to resend to failed addresses, or start a new outreach campaign?"
 
 ### Core Principles
 

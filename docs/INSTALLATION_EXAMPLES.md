@@ -159,12 +159,12 @@ ls -la ~/.openclaw/workspace/skills/okki-go/
 
 # 查看版本
 cat ~/.openclaw/workspace/skills/okki-go/VERSION
-# 1.0.6
+# 1.0.9
 
 # 查看清单（SHA256 哈希）
 cat ~/.openclaw/workspace/skills/okki-go/.okki-manifest.json
 # {
-#   "version": "1.0.6",
+#   "version": "1.0.9",
 #   "runtime": "openclaw",
 #   "installedAt": "2026-04-24T06:30:00.000Z",
 #   "files": {
@@ -353,6 +353,6 @@ ln -s ~/Dropbox/okki-go-config ~/.openclaw/workspace/skills/okki-go
 
 ---
 
-**文档版本**: 1.0.6  
+**文档版本**: 1.0.9  
 **最后更新**: 2026-04-24  
 **适用平台**: Claude Code, OpenClaw, Cursor, Windsurf, Codex, Copilot, Gemini, Cline

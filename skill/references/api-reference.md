@@ -1,6 +1,6 @@
 # Okki go API 完整参考文档
 
-**Version:** 1.1.0
+**Version:** 1.0.0
 **Base URL:** `https://go.okki.ai`
 **认证方式:** `Authorization: ApiKey sk-your-key-here`
 **错误格式:** RFC 7807 Problem Details

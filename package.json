@@ -1,14 +1,12 @@
 {
-  "name": "@okki/go-skill",
-  "version": "1.0.6",
+  "name": "@okki-global/okki-go",
+  "version": "1.0.9",
   "description": "B2B lead prospecting and outreach skill for AI coding assistants",
   "main": "bin/install.js",
   "bin": {
-    "okki-go-install": "./bin/install.js"
+    "okki-go": "./bin/install.js"
   },
   "scripts": {
-    "install": "node bin/install.js",
-    "postinstall": "bash skill/scripts/post-install.sh",
     "test": "node bin/install.js --help"
   },
   "keywords": [
