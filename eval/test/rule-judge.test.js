@@ -226,3 +226,27 @@ test('reference agent emits concrete paths for preferred matcher shapes', () => 
     path: '/api/v1/emails/tasks/'
   });
 });
+
+test('reference agent follows explicit mustCall sequence for selected company contact workflow', () => {
+  const scenario = {
+    id: 'e2e-select-company-get-contacts',
+    suite: 'business',
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustCall: [
+          { method: 'POST', path: '/api/v1/companies/unlock' },
+          { method: 'GET', pathPattern: '/api/v1/companies/:companyHashId/profileEmails' }
+        ]
+      }
+    }
+  };
+
+  const run = runReferenceScenario(scenario);
+  assert.equal(run.routingDecision, 'triggered');
+  assert.deepEqual(run.apiCalls, [
+    { method: 'POST', path: '/api/v1/companies/unlock' },
+    { method: 'GET', path: '/api/v1/companies/hash-eval/profileEmails' }
+  ]);
+  assert.equal(judgeScenarioRun(scenario, run).status, 'passed');
+});

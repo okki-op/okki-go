@@ -29,6 +29,16 @@ function runReferenceScenario(scenario) {
     };
   }
 
+  if (expected.api && Array.isArray(expected.api.mustCall) && expected.api.mustCall.length > 0) {
+    return {
+      caseId: scenario.id,
+      suite: scenario.suite,
+      routingDecision: 'triggered',
+      apiCalls: expected.api.mustCall.map(normalizeCall),
+      output: 'OKKI Go reference agent triggered and made the expected API calls.'
+    };
+  }
+
   if (String(scenario.id || '').includes('contact')) {
     return {
       caseId: scenario.id,
