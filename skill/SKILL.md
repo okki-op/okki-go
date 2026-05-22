@@ -64,16 +64,26 @@ This skill requires an API Key to function. Before the first API call, check if 
 All endpoints use API Key authentication. Each user has an independent `sk-` prefixed key. Request header format:
 
 ```
-Authorization: ApiKey $OKKIGO_API_KEY
+Authorization: ApiKey <resolved API key>
 X-Hostname: xxx
 ```
 
+### Credential resolution
+
+Use three-tier credential resolution so this skill works across the widest range of agent platforms:
+
+1. **Platform config/secrets injection** — preferred. This is the platform config/secrets path. Agent platforms should inject the key into the session as `OKKIGO_API_KEY`, `OKKI_GO_API_KEY`, or `OKKIGO_SKILL_API_KEY`.
+2. **Standard environment variable** — `OKKIGO_API_KEY` is the public cross-platform contract for CLIs, CI, local shells, and hosted agents.
+3. **Local credentials file fallback** — `~/.config/okki-go/credentials.json` for platforms that cannot inject secrets. The file must be mode `0600` and contain JSON such as `{"apiKey":"sk-..."}`.
+
+Do not store API Keys in `SKILL.md`, repositories, transcripts, logs, examples, or command history beyond the explicit user-approved save command.
+
 ### First-use check
 
-Before the first API call in each session, check if the key is configured:
+Before the first API call in each session, use the resolver script. It checks platform-injected secrets, standard environment variables, then the secure local credentials file:
 
 ```bash
-[ -z "$OKKIGO_API_KEY" ] && echo "NO_KEY" || echo "KEY_SET"
+bash scripts/resolve-api-key.sh --check
 ```
 
 - **`KEY_SET`** → Proceed directly with the user's request
@@ -81,19 +91,69 @@ Before the first API call in each session, check if the key is configured:
 
 If `NO_KEY` but the user has explicitly provided an API Key in context, skip to **Step 3: Save the API Key** below.
 
+For API calls, resolve the key immediately before `curl` and avoid printing it:
+
+```bash
+OKKIGO_API_KEY="$(bash scripts/resolve-api-key.sh --print)" && \
+curl -s -X GET "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
+  -H "Authorization: ApiKey $OKKIGO_API_KEY" \
+  ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"}
+```
+
+For debugging configuration only, use `bash scripts/resolve-api-key.sh --source`; it prints the source name, not the secret value.
+
 ### Email Verification to Obtain API Key
 
-1. Ask the user for their email address
-2. Send verification code:
+1. Show the legal documents and require explicit acceptance. **Do not ask for or submit the user's email before this confirmation.**
+
+   ```text
+   Before creating an OKKI Go account and API Key, please read:
+
+   Terms of Service v2026-04-23: https://go.okki.ai/legal/terms
+   Privacy Policy v2026-04-23: https://go.okki.ai/legal/privacy
+
+   If you agree to continue, reply:
+   I have read and agree to the Terms of Service and acknowledge the Privacy Policy.
+   ```
+
+   In Chinese, use:
+
+   ```text
+   创建 OKKI Go 账号和 API Key 前，请先阅读：
+
+   服务条款 v2026-04-23: https://go.okki.ai/legal/terms
+   隐私政策 v2026-04-23: https://go.okki.ai/legal/privacy
+
+   如同意继续，请回复：
+   我已阅读并同意《服务条款》，并确认已阅读《隐私政策》。
+   ```
+
+   Only proceed after explicit acceptance. Do not treat vague replies such as "OK", "continue", "send the code", "好的", "继续", or "发验证码吧" as valid acceptance. If the reply is ambiguous, ask the user to reply with the exact confirmation sentence.
+
+2. After acceptance, ask the user for their email address.
+3. Send verification code with `legalAcceptance`:
 
 ```bash
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-email" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "Content-Type: application/json" \
-  -d '{"email":"<user email>"}' | jq '.'
+  -d '{
+    "email":"<user email>",
+    "legalAcceptance": {
+      "accepted": true,
+      "termsVersion": "2026-04-23",
+      "privacyVersion": "2026-04-23",
+      "termsUrl": "https://go.okki.ai/legal/terms",
+      "privacyUrl": "https://go.okki.ai/legal/privacy",
+      "channel": "agent",
+      "skillVersion": "1.0.9",
+      "locale": "en-US",
+      "affirmationText": "I have read and agree to the Terms of Service and acknowledge the Privacy Policy."
+    }
+  }' | jq '.'
 ```
 
-3. After the user provides the 6-digit code, exchange it for an API Key:
+4. After the user provides the 6-digit code, exchange it for an API Key:
 
 ```bash
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/verify-email" \
@@ -106,6 +166,8 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/verify-email
 ### Save the API Key
 
 After obtaining the `apiKey` (from verification or user input), persist it so future sessions skip re-verification. **Inform the user before saving and ask for explicit consent.**
+
+Saving the API Key is a separate confirmation from accepting the Terms of Service and acknowledging the Privacy Policy. Do not merge these confirmations.
 
 **Before saving**, verify the API Key format:
 
@@ -145,7 +207,16 @@ Use the detected platform to choose **one** saving method below. Do NOT present 
 
 1. **Platform config command** (if available): If the host platform provides a dedicated config/secrets CLI (e.g., `openclaw config set`), prefer it — it survives shell changes and is the most portable within that platform.
 
-2. **Shell profile** (macOS / Linux): Append the export to the user's active shell profile.
+2. **Local credentials file fallback** (macOS / Linux): Save the key to a user-only JSON file. Prefer this over shell profiles for desktop agents because many agent apps do not load `.zshrc` or `.bashrc`.
+
+   ```bash
+   mkdir -p "$HOME/.config/okki-go"
+   umask 077
+   printf '%s\n' '{"apiKey":"sk-xxxxxxxxxxxxxxxxxxxx"}' > "$HOME/.config/okki-go/credentials.json"
+   chmod 600 "$HOME/.config/okki-go/credentials.json"
+   ```
+
+3. **Shell profile** (macOS / Linux CLI-only fallback): Append the export to the user's active shell profile only when the user is using a terminal-launched agent and no local credentials file is acceptable.
 
    ```bash
    # Detect the correct profile file
@@ -160,7 +231,7 @@ Use the detected platform to choose **one** saving method below. Do NOT present 
    echo "Saved to $PROFILE — run: source $PROFILE"
    ```
 
-3. **Windows PowerShell**: Set a persistent user-level environment variable.
+4. **Windows PowerShell**: Set a persistent user-level environment variable.
 
    ```powershell
    # Set for current session
@@ -172,7 +243,7 @@ Use the detected platform to choose **one** saving method below. Do NOT present 
    Write-Host "API Key saved. Restart your terminal or open a new PowerShell window to apply."
    ```
 
-4. **Windows CMD**: Set a persistent user-level environment variable.
+5. **Windows CMD**: Set a persistent user-level environment variable.
 
    ```cmd
    setx OKKIGO_API_KEY "sk-xxxxxxxxxxxxxxxxxxxx"
@@ -187,13 +258,13 @@ If automatic saving fails or the environment cannot be detected, provide the key
 > Your API Key: `sk-xxxxxxxxxxxxxxxxxxxx`
 > Please save this key immediately — it is shown only once.
 
-- **macOS / Linux**: Add `export OKKIGO_API_KEY="sk-xxxxxxxxxxxxxxxxxxxx"` to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.) and run `source <profile>`.
+- **macOS / Linux**: Save `{"apiKey":"sk-xxxxxxxxxxxxxxxxxxxx"}` to `~/.config/okki-go/credentials.json`, then run `chmod 600 ~/.config/okki-go/credentials.json`.
 - **Windows PowerShell**: Run `[System.Environment]::SetEnvironmentVariable("OKKIGO_API_KEY", "sk-xxxxxxxxxxxxxxxxxxxx", "User")` then restart your terminal.
 - **Platform config**: Use your platform's secrets or environment variable management to set `OKKIGO_API_KEY`.
 
-Once saved, the key will be available as `OKKIGO_API_KEY` in future sessions — no re-verification needed.
+Once saved, future sessions should pass `bash scripts/resolve-api-key.sh --check` — no re-verification needed.
 
-**Important**: After saving the API Key, prompt the user to restart their current session (close and reopen the AI assistant) so the new environment variable takes effect. The key will not be available in the current session unless `source <profile>` was run or the platform config command handles live reload.
+**Important**: After saving the API Key through platform config or user-level environment variables, prompt the user to restart their current session (close and reopen the AI assistant) so the new value is injected. The local credentials file fallback is available immediately to tools that can read the user's config directory.
 
 ---
 

@@ -563,10 +563,10 @@ function printNextSteps() {
   log(`${yellow}1.${reset} Get your API Key:`);
   log(`   ${cyan}→${reset} Visit: ${green}https://go.okki.ai${reset}`);
   log(`   ${cyan}→${reset} Sign up and get your ${yellow}sk-xxx${reset} key\n`);
-  log(`${yellow}2.${reset} Configure the API Key:`);
-  log(`   ${cyan}→${reset} For OpenClaw: ${green}openclaw config set skills.entries.okkigo.apiKey "sk-xxx"${reset}`);
-  log(`   ${cyan}→${reset} For Claude Code: Add to ${green}~/.claude/settings.local.json${reset}`);
-  log(`   ${cyan}→${reset} Or set env var: ${green}export OKKIGO_API_KEY="sk-xxx"${reset}\n`);
+  log(`${yellow}2.${reset} Configure the API Key using the first method your agent supports:`);
+  log(`   ${cyan}→${reset} Platform secrets/config injection as ${green}OKKIGO_API_KEY${reset}`);
+  log(`   ${cyan}→${reset} Environment variable: ${green}export OKKIGO_API_KEY="sk-xxx"${reset}`);
+  log(`   ${cyan}→${reset} Local fallback: ${green}~/.config/okki-go/credentials.json${reset} with mode ${green}0600${reset}\n`);
   log(`${yellow}3.${reset} Restart your AI assistant to load the skill\n`);
   log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
   log(`${cyan}Documentation:${reset} https://docs.okki.ai`);

@@ -1,0 +1,22 @@
+id: trigger-mixed-language-buyers
+suite: routing
+name: 中英混合找 buyers 应触发 OKKI Go
+userTurns:
+  - role: user
+    content: 我们做 solar panel mounting system，帮我找 EU buyers，最好有采购负责人邮箱
+expected:
+  routing:
+    expectedDecision: should_trigger
+    acceptableOutcomes:
+      - triggered
+      - triggered_pending_prerequisite
+  api:
+    preferredFirstCall:
+      method: POST
+      path: /api/v1/companies/search-advanced
+  businessQuality:
+    targetRegions:
+      - EU
+    targetRoles:
+      - procurement
+      - buyer

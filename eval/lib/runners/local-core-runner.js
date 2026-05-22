@@ -33,7 +33,7 @@ function runLocalCore(options = {}) {
     : runSuite(suite, options.scenarios || []);
   const run = {
     runId,
-    mode: 'local-core',
+    mode: options.mode || 'local-core',
     suite,
     outputDir,
     results

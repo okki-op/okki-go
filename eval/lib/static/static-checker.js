@@ -12,6 +12,7 @@ function runStaticChecks(options = {}) {
   return [
     checkPackageFilesExcludeEval(okkiRoot),
     checkSkillRoutingAndEnvPresent(okkiRoot),
+    checkSkillCredentialResolutionPresent(okkiRoot),
     checkDocsLegacyRuntimeFlag(okkiRoot),
     checkInstallerRuntimeListPresent(okkiRoot)
   ];
@@ -52,6 +53,27 @@ function checkSkillRoutingAndEnvPresent(okkiRoot) {
   return fail(
     'skill-routing-and-env-present',
     'skill must include OKKIGO_API_KEY and routing boundary text'
+  );
+}
+
+function checkSkillCredentialResolutionPresent(okkiRoot) {
+  const skill = readText(path.join(okkiRoot, 'skill', 'SKILL.md'));
+  const resolverPath = path.join(okkiRoot, 'skill', 'scripts', 'resolve-api-key.sh');
+
+  if (
+    fs.existsSync(resolverPath) &&
+    skill.includes('three-tier credential resolution') &&
+    skill.includes('platform config/secrets') &&
+    skill.includes('OKKIGO_API_KEY') &&
+    skill.includes('local credentials file') &&
+    skill.includes('scripts/resolve-api-key.sh')
+  ) {
+    return pass('skill-credential-resolution-present');
+  }
+
+  return fail(
+    'skill-credential-resolution-present',
+    'skill must document three-tier credential resolution and include scripts/resolve-api-key.sh'
   );
 }
 

@@ -1,0 +1,15 @@
+id: e2e-check-credit-balance
+suite: business
+name: 查询搜索点数和 EDM 额度
+userTurns:
+  - role: user
+    content: 我还剩多少搜索 credits 和 EDM quota？
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustCall:
+      - method: GET
+        path: /api/v1/credit/balance
+  businessQuality:
+    shouldReportMonthlyAndAddonBalance: true

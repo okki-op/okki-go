@@ -1,0 +1,11 @@
+{
+  "scenarioId": "vertical-auto-parts-de",
+  "capturedAt": "2026-05-20T00:00:00.000Z",
+  "source": "curated-replay-fixture",
+  "tags": [
+    "auto-parts",
+    "germany",
+    "procurement"
+  ],
+  "redacted": true
+}

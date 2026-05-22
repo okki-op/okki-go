@@ -35,6 +35,8 @@ function judgeScenarioRun(scenario, run) {
     suite: scenario.suite,
     status: failureReasons.length === 0 ? 'passed' : 'failed',
     failureReasons,
+    routingExpectedDecision: routingExpectedDecisionFor(scenario, expectedDecision),
+    routingOutcome: run.routingDecision || null,
     scores: {
       routing: hasAny(failureReasons, ['missed_trigger', 'wrongly_triggered']) ? 0 : 100,
       apiCorrectness: hasAny(failureReasons, [
@@ -51,6 +53,11 @@ function judgeScenarioRun(scenario, run) {
     },
     run
   };
+}
+
+function routingExpectedDecisionFor(scenario, expectedDecision) {
+  if (scenario.suite === 'routing' && String(scenario.id || '').includes('boundary')) return 'boundary';
+  return expectedDecision || null;
 }
 
 function validateApiExpectations(expectedApi, apiCalls, run, failureReasons) {

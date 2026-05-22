@@ -97,6 +97,26 @@ Run the management script and choose option 2 to change it.
 
 ## FAQ
 
+### Q: How should I configure the OKKI Go API Key?
+A: Use the first method your agent platform supports:
+
+1. Platform secrets/config injection as `OKKIGO_API_KEY`
+2. Environment variable: `export OKKIGO_API_KEY="sk-xxx"`
+3. Local fallback file: `~/.config/okki-go/credentials.json` with mode `0600`
+
+The local fallback file should contain:
+
+```json
+{"apiKey":"sk-xxx"}
+```
+
+Verify without printing the secret:
+
+```bash
+bash scripts/resolve-api-key.sh --check
+bash scripts/resolve-api-key.sh --source
+```
+
 ### Q: "openclaw command not found"?
 A: Make sure OpenClaw is installed:
 ```bash

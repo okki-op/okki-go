@@ -26,6 +26,7 @@ test('runInstallerMatrix installs codex and openclaw into temp config dirs', () 
   assert.ok(fs.existsSync(path.join(codex.skillDir, 'skill.md')));
   assert.ok(fs.existsSync(path.join(codex.skillDir, 'references', 'api-reference.md')));
   assert.ok(fs.statSync(path.join(codex.skillDir, 'scripts')).isDirectory());
+  assert.ok(fs.existsSync(path.join(codex.skillDir, 'scripts', 'resolve-api-key.sh')));
   assert.ok(fs.existsSync(path.join(codex.skillDir, 'VERSION')));
   assert.equal(
     JSON.parse(fs.readFileSync(path.join(codex.skillDir, '.okki-go-manifest.json'), 'utf8')).runtime,
@@ -40,6 +41,7 @@ test('runInstallerMatrix installs codex and openclaw into temp config dirs', () 
   assert.ok(fs.existsSync(path.join(openclaw.skillDir, 'SKILL.md')));
   assert.ok(fs.existsSync(path.join(openclaw.skillDir, 'references', 'api-reference.md')));
   assert.ok(fs.statSync(path.join(openclaw.skillDir, 'scripts')).isDirectory());
+  assert.ok(fs.existsSync(path.join(openclaw.skillDir, 'scripts', 'resolve-api-key.sh')));
   assert.ok(fs.existsSync(path.join(openclaw.skillDir, 'VERSION')));
   assert.equal(
     JSON.parse(fs.readFileSync(path.join(openclaw.skillDir, '.okki-go-manifest.json'), 'utf8')).runtime,
@@ -66,6 +68,7 @@ test('runInstallerMatrix installs accio into the selected account skill director
   assert.ok(fs.existsSync(path.join(accio.skillDir, 'SKILL.md')));
   assert.ok(fs.existsSync(path.join(accio.skillDir, 'references', 'api-reference.md')));
   assert.ok(fs.statSync(path.join(accio.skillDir, 'scripts')).isDirectory());
+  assert.ok(fs.existsSync(path.join(accio.skillDir, 'scripts', 'resolve-api-key.sh')));
   assert.ok(fs.existsSync(path.join(accio.skillDir, 'VERSION')));
   assert.equal(
     JSON.parse(fs.readFileSync(path.join(accio.skillDir, '.okki-go-manifest.json'), 'utf8')).runtime,

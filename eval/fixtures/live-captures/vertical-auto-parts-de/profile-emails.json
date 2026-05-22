@@ -1,0 +1,12 @@
+{
+  "total": 1,
+  "page": 1,
+  "emails": [
+    {
+      "name": "Anna Schneider",
+      "title": "Procurement Manager",
+      "email": "anna.schneider@example.com",
+      "linkedin": "https://linkedin.com/in/anna-schneider"
+    }
+  ]
+}

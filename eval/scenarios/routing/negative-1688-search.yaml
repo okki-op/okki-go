@@ -1,0 +1,12 @@
+id: negative-1688-search
+suite: routing
+name: 用户要求 1688 站内搜索供应商时不触发 OKKI Go
+userTurns:
+  - role: user
+    content: 帮我去 1688 上找 DTF 打印机供应商，按销量排序
+expected:
+  routing:
+    expectedDecision: should_not_trigger
+  api:
+    mustNotCall:
+      - pathPrefix: /api/v1/

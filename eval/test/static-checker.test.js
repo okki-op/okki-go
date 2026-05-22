@@ -10,6 +10,7 @@ test('runStaticChecks passes required repository consistency checks', () => {
 
   assert.equal(resultById(results, 'package-files-exclude-eval').status, 'passed');
   assert.equal(resultById(results, 'skill-routing-and-env-present').status, 'passed');
+  assert.equal(resultById(results, 'skill-credential-resolution-present').status, 'passed');
   assert.equal(resultById(results, 'installer-runtime-list-present').status, 'passed');
 });
 
@@ -78,6 +79,20 @@ test('runStaticChecks fails when skill routing or environment text is missing', 
   assert.equal(result.reason, 'skill must include OKKIGO_API_KEY and routing boundary text');
 });
 
+test('runStaticChecks fails when credential resolver guidance is missing', () => {
+  const root = makeOkkiRoot({
+    skill: 'OKKIGO_API_KEY\nDo NOT use this skill\n',
+    scripts: {}
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'skill-credential-resolution-present');
+
+  assert.equal(result.status, 'failed');
+  assert.equal(
+    result.reason,
+    'skill must document three-tier credential resolution and include scripts/resolve-api-key.sh'
+  );
+});
+
 test('runStaticChecks fails when installer runtime list, codex, or accio is missing', () => {
   const root = makeOkkiRoot({ installer: 'const SUPPORTED_RUNTIMES = [\'openclaw\'];\n' });
   const result = resultById(runStaticChecks({ okkiRoot: root }), 'installer-runtime-list-present');
@@ -106,8 +121,21 @@ function makeOkkiRoot(overrides = {}) {
   fs.writeFileSync(path.join(root, 'INSTALL.md'), overrides.install || 'Current install docs.\n');
   fs.writeFileSync(
     path.join(root, 'skill', 'SKILL.md'),
-    overrides.skill || 'OKKIGO_API_KEY\nDo NOT use this skill\n'
+    overrides.skill || [
+      'OKKIGO_API_KEY',
+      'Do NOT use this skill',
+      'three-tier credential resolution',
+      'platform config/secrets',
+      'local credentials file',
+      'scripts/resolve-api-key.sh'
+    ].join('\n')
   );
+  fs.mkdirSync(path.join(root, 'skill', 'scripts'), { recursive: true });
+  for (const [fileName, content] of Object.entries(overrides.scripts || {
+    'resolve-api-key.sh': '#!/bin/sh\n'
+  })) {
+    fs.writeFileSync(path.join(root, 'skill', 'scripts', fileName), content);
+  }
   fs.writeFileSync(
     path.join(root, 'bin', 'install.js'),
     overrides.installer || 'const SUPPORTED_RUNTIMES = [\'codex\', \'accio\'];\n'

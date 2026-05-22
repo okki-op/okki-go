@@ -329,11 +329,17 @@ node bin/install.js --global --runtime=openclaw
 
 ### Q: 更新后 API Key 丢失？
 
-**A:** API Key 存储在运行时配置中，不会被安装脚本覆盖。如果丢失：
+**A:** API Key 应存储在平台 config/secrets、`OKKIGO_API_KEY` 环境变量，或 `~/.config/okki-go/credentials.json`。安装脚本不会覆盖这些位置。如果丢失：
 
 ```bash
-# 重新配置
+# 重新配置平台注入
 openclaw config set skills.entries.okkigo.apiKey "sk-xxx"
+
+# 或使用本地 fallback
+mkdir -p ~/.config/okki-go
+umask 077
+printf '%s\n' '{"apiKey":"sk-xxx"}' > ~/.config/okki-go/credentials.json
+chmod 600 ~/.config/okki-go/credentials.json
 ```
 
 ### Q: 如何在多台电脑上同步配置？

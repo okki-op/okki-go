@@ -1,0 +1,34 @@
+{
+  "total": 2,
+  "list": [
+    {
+      "company_hash_id": "hash-autoteile",
+      "company_name": "AutoTeile Import GmbH",
+      "country_code": "DE",
+      "industry": [
+        "Automotive Parts Importer"
+      ],
+      "main_products": [
+        "brake parts",
+        "engine components"
+      ],
+      "domain": "autoteile.example",
+      "email_count": 3,
+      "employees_count": "51-200"
+    },
+    {
+      "company_hash_id": "hash-berlin-components",
+      "company_name": "Berlin Components Trading",
+      "country_code": "DE",
+      "industry": [
+        "Automotive Distribution"
+      ],
+      "main_products": [
+        "aftermarket parts"
+      ],
+      "domain": "berlin-components.example",
+      "email_count": 2,
+      "employees_count": "11-50"
+    }
+  ]
+}

@@ -24,6 +24,22 @@ test('positive trigger with preferred company search call passes and scores rout
   assert.equal(result.status, 'passed');
   assert.deepEqual(result.failureReasons, []);
   assert.equal(result.scores.routing, 100);
+  assert.equal(result.routingExpectedDecision, 'should_trigger');
+  assert.equal(result.routingOutcome, 'triggered');
+});
+
+test('routing metadata classifies boundary routing cases for reports', () => {
+  const result = judgeScenarioRun(
+    {
+      id: 'trigger-boundary-platform-context',
+      suite: 'routing',
+      expected: { routing: { expectedDecision: 'should_trigger' } }
+    },
+    { routingDecision: 'triggered', apiCalls: [] }
+  );
+
+  assert.equal(result.routingExpectedDecision, 'boundary');
+  assert.equal(result.routingOutcome, 'triggered');
 });
 
 test('missed trigger fails with missed_trigger', () => {

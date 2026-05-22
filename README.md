@@ -63,19 +63,33 @@ After installation, configure your API key:
 ```bash
 # Get your API key at: https://go.okki.ai
 
-# For platforms with config commands:
+# 1. Preferred: platform secrets/config that injects OKKIGO_API_KEY
 openclaw config set skills.entries.okkigo.apiKey "sk-xxx"
 
-# For Claude Code (add to ~/.claude/settings.local.json):
+# 2. Standard environment variable, for CLI/CI/local agent sessions
+export OKKIGO_API_KEY="sk-xxx"
+```
+
+For Claude Code or other runtimes with JSON settings, inject the same variable:
+
+```json
 {
   "env": {
     "OKKIGO_API_KEY": "sk-xxx"
   }
 }
-
-# Or use environment variable:
-export OKKIGO_API_KEY="sk-xxx"
 ```
+
+For platforms that cannot inject secrets into new sessions, use the secure local fallback:
+
+```bash
+mkdir -p ~/.config/okki-go
+umask 077
+printf '%s\n' '{"apiKey":"sk-xxx"}' > ~/.config/okki-go/credentials.json
+chmod 600 ~/.config/okki-go/credentials.json
+```
+
+The skill resolves credentials in this order: platform config/secrets, `OKKIGO_API_KEY`, then `~/.config/okki-go/credentials.json`.
 
 ## Features
 

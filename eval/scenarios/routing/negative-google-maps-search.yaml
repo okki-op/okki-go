@@ -1,0 +1,12 @@
+id: negative-google-maps-search
+suite: routing
+name: 用户要求 Google Maps 站内搜索时不触发 OKKI Go
+userTurns:
+  - role: user
+    content: 帮我去 Google Maps 上搜一下洛杉矶附近的汽车维修店
+expected:
+  routing:
+    expectedDecision: should_not_trigger
+  api:
+    mustNotCall:
+      - pathPrefix: /api/v1/

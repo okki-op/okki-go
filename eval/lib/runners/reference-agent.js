@@ -19,6 +19,16 @@ function runReferenceScenario(scenario) {
     };
   }
 
+  if (expected.safety && expected.safety.requireApiKeySetupBeforeBusinessApi) {
+    return {
+      caseId: scenario.id,
+      suite: scenario.suite,
+      routingDecision: 'triggered_pending_prerequisite',
+      apiCalls: [],
+      output: 'OKKI Go API key is required before making business API calls.'
+    };
+  }
+
   if (expected.api && expected.api.preferredFirstCall) {
     return {
       caseId: scenario.id,

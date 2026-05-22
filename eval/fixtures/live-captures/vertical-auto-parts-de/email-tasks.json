@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "taskId": 1001,
+      "subject": "Supplier introduction",
+      "status": "sent",
+      "sent": 18,
+      "failed": 2,
+      "pending": 0
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20
+}
