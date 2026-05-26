@@ -62,6 +62,8 @@ function usage() {
     '  --suite <all|install|static|routing|business|safety>',
     '  --agents <id,id>                  Agent list for local-agent',
     '  --models <id,id>                  Model profile list for local-agent',
+    '  --agent-cli <path>                Override selected local-agent CLI executable',
+    '  --agent-cli-args <arg,arg>        Override selected local-agent CLI args; use {prompt}',
     '  --use-real-agent-config           Allow adapters to use real agent config',
     '  --fixture <name>                  Replay fixture name',
     '  --repeat <n>                      Repeat each selected scenario (default: 1)',

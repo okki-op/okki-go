@@ -54,6 +54,30 @@ test('credential resolver reads secure local credentials file after env vars', (
   assert.equal(result.stdout.trim(), 'sk-from-file');
 });
 
+test('credential resolver reads Accio account skill config when runtime is accio', () => {
+  const home = makeTempHome();
+  const accountId = 'account-1';
+  const skillsDir = path.join(home, '.accio', 'accounts', accountId, 'skills');
+  const configPath = path.join(skillsDir, 'skills_config.json');
+  fs.mkdirSync(skillsDir, { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify({
+    'OKKI Go': {
+      enabled: true,
+      apiKey: 'sk-from-accio'
+    }
+  }));
+  fs.chmodSync(configPath, 0o600);
+
+  const result = runResolver(['--print'], {
+    HOME: home,
+    OKKIGO_SKILL_RUNTIME: 'accio',
+    ACCIO_ACCOUNT_ID: accountId
+  });
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout.trim(), 'sk-from-accio');
+});
+
 test('credential resolver refuses local credentials files with broad permissions', () => {
   const home = makeTempHome();
   const configDir = path.join(home, '.config', 'okki-go');

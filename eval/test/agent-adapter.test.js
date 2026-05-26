@@ -327,6 +327,51 @@ test('accio adapter returns blocked run result until real CLI execution is enabl
   assert.equal(result.reason, 'agent_cli_execution_not_implemented');
 });
 
+test('accio adapter executes scenario through configured CLI and judges captured JSON transcript', () => {
+  const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'okki-accio-cli-config-'));
+  fs.mkdirSync(path.join(configRoot, 'accounts', 'account-1'), { recursive: true });
+  const adapter = createAccioAdapter({
+    configRoot,
+    tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'okki-accio-cli-run-')),
+    accountId: 'account-1',
+    executable: process.execPath,
+    commandArgs: [
+      path.join(__dirname, 'fixtures', 'fake-agent-cli.js'),
+      'agent',
+      '--message',
+      '{prompt}',
+      '--json'
+    ],
+    timeoutMs: 5000
+  });
+
+  const profile = adapter.prepareProfile({ modelProfile: 'default' });
+  const result = adapter.runScenario(profile, {
+    id: 'trigger-company-search-industry-country',
+    suite: 'routing',
+    userTurns: [
+      { role: 'user', content: '帮我找德国汽车零部件进口商，最好有联系人邮箱' }
+    ],
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustCall: [{ method: 'POST', path: '/api/v1/companies/search-advanced' }]
+      }
+    }
+  });
+
+  assert.equal(result.caseId, 'trigger-company-search-industry-country');
+  assert.equal(result.agent, 'accio');
+  assert.equal(result.modelProfile, 'default');
+  assert.equal(result.status, 'passed');
+  assert.equal(result.run.exitCode, 0);
+  assert.deepEqual(result.run.apiCalls, [
+    { method: 'POST', path: '/api/v1/companies/search-advanced' }
+  ]);
+  assert.equal(result.routingOutcome, 'triggered');
+  assert.ok(result.run.args.includes('--message'));
+});
+
 test('openclaw adapter detects executable availability through injected command lookup', () => {
   const installed = createOpenClawAdapter({
     commandExists: (command) => command === 'openclaw'
@@ -361,6 +406,53 @@ test('openclaw adapter prepares isolated profile and installs OKKI Go skill', ()
   assert.equal(profile.skillDir, path.join(tmpRoot, 'openclaw', 'gpt-4.1', 'skills', 'okki-go'));
   assert.ok(fs.existsSync(path.join(profile.skillDir, 'SKILL.md')));
   assert.ok(fs.existsSync(path.join(profile.skillDir, 'references', 'api-reference.md')));
+  assert.equal(profile.env.OPENCLAW_STATE_DIR, path.join(tmpRoot, 'openclaw', 'gpt-4.1'));
+  assert.equal(profile.env.OPENCLAW_CONFIG_PATH, path.join(tmpRoot, 'openclaw', 'gpt-4.1', 'openclaw.json'));
+  assert.ok(fs.existsSync(profile.env.OPENCLAW_CONFIG_PATH));
+});
+
+test('openclaw adapter executes scenario through CLI and judges captured JSON transcript', () => {
+  const adapter = createOpenClawAdapter({
+    commandExists: () => true,
+    executable: process.execPath,
+    tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'okki-openclaw-cli-run-')),
+    commandArgs: [
+      path.join(__dirname, 'fixtures', 'fake-agent-cli.js'),
+      'agent',
+      '--agent',
+      'main',
+      '--message',
+      '{prompt}',
+      '--local',
+      '--json'
+    ],
+    timeoutMs: 5000
+  });
+  const profile = adapter.prepareProfile({ modelProfile: 'default' });
+  const result = adapter.runScenario(profile, {
+    id: 'trigger-company-search-industry-country',
+    suite: 'routing',
+    userTurns: [
+      { role: 'user', content: '帮我找德国汽车零部件进口商，最好有联系人邮箱' }
+    ],
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustCall: [{ method: 'POST', path: '/api/v1/companies/search-advanced' }]
+      }
+    }
+  });
+
+  assert.equal(result.caseId, 'trigger-company-search-industry-country');
+  assert.equal(result.agent, 'openclaw');
+  assert.equal(result.modelProfile, 'default');
+  assert.equal(result.status, 'passed');
+  assert.equal(result.run.exitCode, 0);
+  assert.match(result.run.transcript, /payloads/);
+  assert.deepEqual(result.run.apiCalls, [
+    { method: 'POST', path: '/api/v1/companies/search-advanced' }
+  ]);
+  assert.equal(result.routingOutcome, 'triggered');
 });
 
 test('claude adapter detects executable availability through injected command lookup', () => {
@@ -399,28 +491,48 @@ test('claude adapter prepares isolated profile and installs OKKI Go skill', () =
   assert.ok(fs.existsSync(path.join(profile.skillDir, 'references', 'api-reference.md')));
 });
 
-test('openclaw and claude adapters return blocked run results until CLI execution is enabled', () => {
+test('openclaw adapter blocks failed CLI execution with transcript evidence', () => {
   const openclaw = createOpenClawAdapter({
     commandExists: () => true,
-    tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'okki-openclaw-run-'))
+    executable: process.execPath,
+    tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'okki-openclaw-failed-run-')),
+    commandArgs: [path.join(__dirname, 'fixtures', 'fake-agent-cli.js'), '--message', '{prompt}'],
+    timeoutMs: 5000
   });
+  const profile = openclaw.prepareProfile({ modelProfile: 'default' });
+  profile.env.OKKI_FAKE_AGENT_MODE = 'FAIL';
+  const result = openclaw.runScenario(profile, {
+    id: 'trigger-company-search-industry-country',
+    suite: 'routing',
+    userTurns: [
+      { role: 'user', content: '帮我找德国汽车零部件进口商，最好有联系人邮箱' }
+    ]
+  });
+
+  assert.equal(result.caseId, 'trigger-company-search-industry-country');
+  assert.equal(result.agent, 'openclaw');
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.reason, 'agent_cli_execution_failed');
+  assert.equal(result.run.exitCode, 1);
+  assert.match(result.run.stderr, /fake Agent CLI failed/);
+});
+
+test('claude adapter returns blocked run result until CLI execution is enabled', () => {
   const claude = createClaudeAdapter({
     commandExists: () => true,
     tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'okki-claude-run-'))
   });
 
-  for (const adapter of [openclaw, claude]) {
-    const profile = adapter.prepareProfile({ modelProfile: 'default' });
-    const result = adapter.runScenario(profile, {
-      id: 'trigger-company-search-industry-country',
-      suite: 'routing'
-    });
+  const profile = claude.prepareProfile({ modelProfile: 'default' });
+  const result = claude.runScenario(profile, {
+    id: 'trigger-company-search-industry-country',
+    suite: 'routing'
+  });
 
-    assert.equal(result.caseId, 'trigger-company-search-industry-country');
-    assert.equal(result.agent, adapter.name);
-    assert.equal(result.status, 'blocked');
-    assert.equal(result.reason, 'agent_cli_execution_not_implemented');
-  }
+  assert.equal(result.caseId, 'trigger-company-search-industry-country');
+  assert.equal(result.agent, 'claude');
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.reason, 'agent_cli_execution_not_implemented');
 });
 
 function makeFakeCodexExecutable() {

@@ -17,6 +17,7 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const readline = require('readline');
+const https = require('https');
 
 // ─── Terminal colors ──────────────────────────────────────────────────────────
 const reset  = '\x1b[0m';
@@ -28,10 +29,96 @@ const cyan   = '\x1b[36m';
 // ─── Skill metadata ───────────────────────────────────────────────────────────
 const SKILL_NAME = 'okki-go';
 const DISPLAY_NAME = 'OKKI Go';
-const VERSION    = '1.0.9';
+const VERSION    = '1.0.12';
 
 // Source directory: bin/ is sibling to skill/, so skill content lives at ../skill/
 const SRC_DIR = path.resolve(__dirname, '..', 'skill');
+
+// ─── Best-effort analytics ────────────────────────────────────────────────────
+const ANALYTICS_ENDPOINT = process.env.OKKIGO_ANALYTICS_URL || process.env.SENSORS_SERVER_URL || 'https://datasink-sensorsdata.okki.ai/sa?project=production';
+const analyticsPromises = [];
+
+function analyticsDisabled() {
+  const value = String(process.env.OKKIGO_ANALYTICS_DISABLED || process.env.ANALYTICS_DISABLED || '').toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes';
+}
+
+function getOkkiConfigDir() {
+  const configHome = process.env.XDG_CONFIG_HOME ? expandTilde(process.env.XDG_CONFIG_HOME) : path.join(os.homedir(), '.config');
+  return path.join(configHome, 'okki-go');
+}
+
+function newInstallId() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return crypto.randomBytes(16).toString('hex');
+}
+
+function ensureInstallId() {
+  const dir = getOkkiConfigDir();
+  const file = path.join(dir, 'install-id');
+  if (fs.existsSync(file)) {
+    const existing = fs.readFileSync(file, 'utf8').trim();
+    if (existing) return existing;
+  }
+  const installId = newInstallId();
+  ensureDir(dir);
+  fs.writeFileSync(file, installId + '\n', { mode: 0o600 });
+  try { fs.chmodSync(file, 0o600); } catch { /* best effort */ }
+  return installId;
+}
+
+function safeInstallId() {
+  try { return ensureInstallId(); } catch { return undefined; }
+}
+
+function trackInstallerEvent(event, properties = {}) {
+  if (analyticsDisabled()) return;
+  const installId = properties.install_id || safeInstallId();
+  if (!installId) return;
+
+  const payload = JSON.stringify({
+    event,
+    distinct_id: installId,
+    properties: {
+      app_name: 'okki-go',
+      product_line: 'okki_go_plg',
+      app_platform: 'skill_installer',
+      install_id: installId,
+      skill_version: VERSION,
+      node_version: process.version,
+      os_platform: process.platform,
+      ...properties,
+    },
+  });
+
+  const task = new Promise(resolve => {
+    try {
+      const url = new URL(ANALYTICS_ENDPOINT);
+      const req = https.request(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      }, res => {
+        res.resume();
+        res.on('end', resolve);
+      });
+      req.setTimeout(1000, () => { req.destroy(); resolve(); });
+      req.on('error', resolve);
+      req.write(payload);
+      req.end();
+    } catch {
+      resolve();
+    }
+  });
+  analyticsPromises.push(task);
+}
+
+async function flushAnalytics() {
+  const pending = analyticsPromises.splice(0);
+  if (pending.length > 0) await Promise.allSettled(pending);
+}
 
 // ─── Argument parsing ────────────────────────────────────────────────────────
 const args        = process.argv.slice(2);
@@ -233,6 +320,132 @@ function updateAccioSkillsConfig(skillDir, enabled) {
   log(`  ${green}✓${reset} Updated Accio skills_config.json`);
 }
 
+function stripJsonComments(content) {
+  let output = '';
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < content.length; i++) {
+    const current = content[i];
+    const next = content[i + 1];
+
+    if (inString) {
+      output += current;
+      if (escaped) {
+        escaped = false;
+      } else if (current === '\\') {
+        escaped = true;
+      } else if (current === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (current === '"') {
+      inString = true;
+      output += current;
+      continue;
+    }
+
+    if (current === '/' && next === '/') {
+      while (i < content.length && content[i] !== '\n') i++;
+      output += '\n';
+      continue;
+    }
+
+    if (current === '/' && next === '*') {
+      i += 2;
+      while (i < content.length && !(content[i] === '*' && content[i + 1] === '/')) i++;
+      i += 1;
+      continue;
+    }
+
+    output += current;
+  }
+
+  return output;
+}
+
+function readJsonFile(filePath, fallback) {
+  if (!fs.existsSync(filePath)) return fallback;
+  try {
+    return JSON.parse(stripJsonComments(fs.readFileSync(filePath, 'utf8')));
+  } catch (error) {
+    throw new Error(`Invalid JSON file: ${filePath}`);
+  }
+}
+
+function getAccioAccountRootFromSkillDir(skillDir) {
+  return path.dirname(path.dirname(skillDir));
+}
+
+function getAccioAgentSkillDirs(accountRoot) {
+  const agentsDir = path.join(accountRoot, 'agents');
+  if (!fs.existsSync(agentsDir)) return [];
+
+  return fs.readdirSync(agentsDir)
+    .filter(name => !name.startsWith('.'))
+    .map(name => path.join(agentsDir, name))
+    .filter(agentDir => {
+      try {
+        return fs.statSync(agentDir).isDirectory() &&
+          fs.existsSync(path.join(agentDir, 'agent-core', 'skills', 'skills.jsonc'));
+      } catch {
+        return false;
+      }
+    });
+}
+
+function updateAccioAgentSkillsIndex(agentDir, skillDir, enabled) {
+  const configPath = path.join(agentDir, 'agent-core', 'skills', 'skills.jsonc');
+  const config = readJsonFile(configPath, { skills: [] });
+  if (!Array.isArray(config.skills)) config.skills = [];
+
+  const skillPath = path.join(skillDir, getSkillMeta('accio').mainFile);
+  const nextSkills = config.skills.filter(skill => {
+    if (!skill || typeof skill !== 'object') return true;
+    return skill.name !== DISPLAY_NAME && skill.id !== SKILL_NAME && skill.path !== skillPath;
+  });
+
+  if (enabled) {
+    nextSkills.push({
+      name: DISPLAY_NAME,
+      path: skillPath,
+      enabled: true,
+      installedVersion: VERSION
+    });
+  }
+
+  config.skills = nextSkills;
+  ensureDir(path.dirname(configPath));
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+}
+
+function syncAccioAgentSkills(accountSkillDir, enabled) {
+  const accountRoot = getAccioAccountRootFromSkillDir(accountSkillDir);
+  const agentDirs = getAccioAgentSkillDirs(accountRoot);
+
+  for (const agentDir of agentDirs) {
+    const agentSkillDir = path.join(agentDir, 'skills', SKILL_NAME);
+    if (enabled) {
+      ensureDir(agentSkillDir);
+      copySkillFiles(agentSkillDir, 'accio');
+      const manifest = generateManifest(agentSkillDir, 'accio', safeInstallId());
+      saveManifest(agentSkillDir, manifest);
+    } else if (fs.existsSync(agentSkillDir)) {
+      saveLocalPatches(agentSkillDir, loadManifest(agentSkillDir));
+      fs.rmSync(agentSkillDir, { recursive: true, force: true });
+    }
+    updateAccioAgentSkillsIndex(agentDir, agentSkillDir, enabled);
+  }
+
+  if (agentDirs.length > 0) {
+    log(`  ${green}✓${reset} Updated ${agentDirs.length} Accio agent skill selection(s)`);
+  } else {
+    log(`  ${yellow}!${reset} No Accio agents found to select the skill automatically`);
+  }
+}
+
 function saveLocalPatches(skillDir, oldManifest) {
   if (!oldManifest || !oldManifest.files) return;
   const patchDir = path.join(skillDir, '.okki-go-patches');
@@ -249,8 +462,8 @@ function saveLocalPatches(skillDir, oldManifest) {
   }
 }
 
-function generateManifest(skillDir, runtime) {
-  const manifest = { version: VERSION, runtime, installedAt: new Date().toISOString(), files: {} };
+function generateManifest(skillDir, runtime, installId) {
+  const manifest = { version: VERSION, runtime, installId, installedAt: new Date().toISOString(), files: {} };
   const { mainFile } = getSkillMeta(runtime);
 
   // Main skill file
@@ -350,34 +563,60 @@ function verifyInstallation(skillDir, runtime) {
 function installRuntime(runtime, installMode, customPath) {
   const skillDir = resolveSkillDir(runtime, installMode, customPath);
   if (!skillDir) return;
-  log(`${cyan}[${runtime}]${reset} Installing to ${skillDir}`);
+  const installId = ensureInstallId();
+  trackInstallerEvent('SkillInstallStarted', {
+    install_id: installId,
+    runtime,
+    install_mode: installMode,
+    custom_path_used: Boolean(customPath),
+  });
 
-  // Save patches if upgrading
-  const oldManifest = loadManifest(skillDir);
-  if (oldManifest.version) {
-    log(`${cyan}[${runtime}]${reset} ${yellow}Upgrading v${oldManifest.version} → v${VERSION}${reset}`);
-    saveLocalPatches(skillDir, oldManifest);
+  try {
+    log(`${cyan}[${runtime}]${reset} Installing to ${skillDir}`);
+
+    // Save patches if upgrading
+    const oldManifest = loadManifest(skillDir);
+    if (oldManifest.version) {
+      log(`${cyan}[${runtime}]${reset} ${yellow}Upgrading v${oldManifest.version} → v${VERSION}${reset}`);
+      saveLocalPatches(skillDir, oldManifest);
+    }
+
+    ensureDir(skillDir);
+    copySkillFiles(skillDir, runtime);
+
+    const manifest = generateManifest(skillDir, runtime, installId);
+    saveManifest(skillDir, manifest);
+
+    const missing = verifyInstallation(skillDir, runtime);
+    if (missing) {
+      const message = `Verification failed — missing: ${missing.join(', ')}`;
+      log(`${cyan}[${runtime}]${reset} ${red}✗ ${message}${reset}`);
+      throw new Error(message);
+    }
+
+    if (runtime === 'accio') {
+      updateAccioSkillsConfig(skillDir, true);
+      syncAccioAgentSkills(skillDir, true);
+    }
+
+    log(`${cyan}[${runtime}]${reset} ${green}✓ Installation successful${reset}\n`);
+    trackInstallerEvent('SkillInstallSucceeded', {
+      install_id: installId,
+      runtime,
+      install_mode: installMode,
+      custom_path_used: Boolean(customPath),
+    });
+  } catch (error) {
+    trackInstallerEvent('SkillInstallFailed', {
+      install_id: installId,
+      runtime,
+      install_mode: installMode,
+      custom_path_used: Boolean(customPath),
+      error_code: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
-
-  ensureDir(skillDir);
-  copySkillFiles(skillDir, runtime);
-
-  const manifest = generateManifest(skillDir, runtime);
-  saveManifest(skillDir, manifest);
-
-  const missing = verifyInstallation(skillDir, runtime);
-  if (missing) {
-    log(`${cyan}[${runtime}]${reset} ${red}✗ Verification failed — missing: ${missing.join(', ')}${reset}`);
-    process.exit(1);
-  }
-
-  if (runtime === 'accio') {
-    updateAccioSkillsConfig(skillDir, true);
-  }
-
-  log(`${cyan}[${runtime}]${reset} ${green}✓ Installation successful${reset}\n`);
 }
-
 function resolveSkillDir(runtime, installMode, customPath) {
   try {
     return getSkillDir(runtime, installMode, customPath);
@@ -402,6 +641,7 @@ function uninstallRuntime(runtime, installMode, customPath) {
   fs.rmSync(skillDir, { recursive: true, force: true });
   if (runtime === 'accio') {
     updateAccioSkillsConfig(skillDir, false);
+    syncAccioAgentSkills(skillDir, false);
   }
   log(`  ${green}✓ Removed ${skillDir}${reset}`);
 }
@@ -515,6 +755,7 @@ async function main() {
     log(`\n${green}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
     log(`${green}✓ Installation Complete!${reset}\n`);
     printNextSteps();
+    await flushAnalytics();
     return;
   }
 
@@ -555,6 +796,7 @@ async function main() {
   } else {
     log(`${green}✓ Uninstall Complete!${reset}`);
   }
+  await flushAnalytics();
 }
 
 function printNextSteps() {
@@ -565,6 +807,7 @@ function printNextSteps() {
   log(`   ${cyan}→${reset} Sign up and get your ${yellow}sk-xxx${reset} key\n`);
   log(`${yellow}2.${reset} Configure the API Key using the first method your agent supports:`);
   log(`   ${cyan}→${reset} Platform secrets/config injection as ${green}OKKIGO_API_KEY${reset}`);
+  log(`   ${cyan}→${reset} Accio Work account config: ${green}~/.accio/accounts/<accountId>/skills/skills_config.json${reset}`);
   log(`   ${cyan}→${reset} Environment variable: ${green}export OKKIGO_API_KEY="sk-xxx"${reset}`);
   log(`   ${cyan}→${reset} Local fallback: ${green}~/.config/okki-go/credentials.json${reset} with mode ${green}0600${reset}\n`);
   log(`${yellow}3.${reset} Restart your AI assistant to load the skill\n`);
@@ -618,7 +861,9 @@ if (args.includes('--help') || args.includes('-h')) {
   process.exit(0);
 }
 
-main().catch(err => {
+main().catch(async err => {
   log(`${red}Error: ${err.message}${reset}`);
+  trackInstallerEvent('SkillInstallFailed', { error_code: err.message });
+  await flushAnalytics();
   process.exit(1);
 });

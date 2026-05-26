@@ -52,6 +52,19 @@ test('runInstallerMatrix installs codex and openclaw into temp config dirs', () 
 test('runInstallerMatrix installs accio into the selected account skill directory', () => {
   const tmpRoot = makeTempRoot();
   const accountId = 'test-account';
+  const agentId = 'DID-TEST-AGENT';
+  const agentCoreSkillsDir = path.join(
+    tmpRoot,
+    'accio',
+    'accounts',
+    accountId,
+    'agents',
+    agentId,
+    'agent-core',
+    'skills'
+  );
+  fs.mkdirSync(agentCoreSkillsDir, { recursive: true });
+  fs.writeFileSync(path.join(agentCoreSkillsDir, 'skills.jsonc'), JSON.stringify({ skills: [] }, null, 2));
 
   const results = runInstallerMatrix({ tmpRoot, runtimes: ['accio'], accioAccountId: accountId });
 
@@ -82,6 +95,30 @@ test('runInstallerMatrix installs accio into the selected account skill director
     enabled: true,
     installedVersion: JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')).version
   });
+
+  const agentSkillDir = path.join(
+    tmpRoot,
+    'accio',
+    'accounts',
+    accountId,
+    'agents',
+    agentId,
+    'skills',
+    'okki-go'
+  );
+  assert.ok(fs.existsSync(path.join(agentSkillDir, 'SKILL.md')));
+
+  const agentSkillsConfig = JSON.parse(
+    fs.readFileSync(path.join(agentCoreSkillsDir, 'skills.jsonc'), 'utf8')
+  );
+  assert.equal(agentSkillsConfig.skills.length, 1);
+  assert.equal(agentSkillsConfig.skills[0].name, 'OKKI Go');
+  assert.equal(agentSkillsConfig.skills[0].path, path.join(agentSkillDir, 'SKILL.md'));
+  assert.equal(agentSkillsConfig.skills[0].enabled, true);
+  assert.equal(
+    agentSkillsConfig.skills[0].installedVersion,
+    JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')).version
+  );
 });
 
 test('runInstallerMatrix rejects unsupported runtimes without installing', () => {

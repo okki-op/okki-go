@@ -88,12 +88,18 @@ test('parseArgs supports phase 3 local-agent options', () => {
     'codex,openclaw',
     '--models',
     'default,gpt-4.1',
+    '--agent-cli',
+    '/tmp/fake-agent',
+    '--agent-cli-args',
+    'agent,--message,{prompt},--json',
     '--use-real-agent-config'
   ]);
 
   assert.equal(args.mode, 'local-agent');
   assert.deepEqual(args.agents, ['codex', 'openclaw']);
   assert.deepEqual(args.models, ['default', 'gpt-4.1']);
+  assert.equal(args.agentCli, '/tmp/fake-agent');
+  assert.deepEqual(args.agentCliArgs, ['agent', '--message', '{prompt}', '--json']);
   assert.equal(args.useRealAgentConfig, true);
 });
 

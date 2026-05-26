@@ -45,13 +45,25 @@ Phase 2 reports include routing metrics, business quality aggregates, and `manua
 - prepares isolated profiles for Codex, Accio, OpenClaw, and Claude Code
 - installs OKKI Go Skill into that profile
 - executes Codex through `codex exec`, captures stdout/stderr as transcript evidence, parses routing/API markers, and runs the rule judge
-- keeps Accio, OpenClaw, and Claude Code at profile smoke coverage for now, with scenario execution marked `blocked`
+- executes OpenClaw through `openclaw agent --message {prompt} --local --json` when the CLI is installed
+- executes Accio through an explicitly configured CLI command because the desktop app does not expose a stable headless CLI in PATH
+- keeps Claude Code at profile smoke coverage for now, with scenario execution marked `blocked`
 
 ```bash
 node run.js --mode local-agent --suite routing --agents codex --scenarios trigger-company-search-industry-country --use-real-agent-config --report
 node run.js --mode local-agent --suite routing --agents accio --scenarios trigger-company-search-industry-country --report
 node run.js --mode local-agent --suite routing --agents openclaw --scenarios trigger-company-search-industry-country --report
 node run.js --mode local-agent --suite routing --agents claudecode --scenarios trigger-company-search-industry-country --report
+```
+
+For Accio, pass a real headless command once one is available in your environment:
+
+```bash
+node run.js --mode local-agent --suite routing --agents accio \
+  --scenarios trigger-company-search-industry-country \
+  --agent-cli /path/to/accio-cli \
+  --agent-cli-args 'agent,--message,{prompt},--json' \
+  --report
 ```
 
 For unsupported or unavailable Agents:
@@ -70,6 +82,7 @@ API_CALL: METHOD /api/path
 ```
 
 The raw stdout/stderr transcript is still stored in case results when those markers are missing or the run fails. For Codex, `--use-real-agent-config` copies only startup/auth files such as `auth.json` and `config.toml` into the isolated temporary profile so the real CLI can authenticate without writing to the user's real `~/.codex` directory.
+For OpenClaw, `--use-real-agent-config` seeds the isolated profile from `~/.openclaw/openclaw.json` and rewrites the workspace to the temporary profile. Without that flag, OpenClaw receives a minimal temporary config and may need provider credentials supplied by environment or the explicit `--agent-cli-args` model flags.
 
 ## Packaging Guard
 

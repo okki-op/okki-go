@@ -92,7 +92,7 @@ Accio Work 需要先打开桌面端并登录。安装器会自动检测 `~/.acci
 
 ### 配置 API Key
 
-OKKI Go Skill 使用三层凭证解析，优先使用平台注入，其次环境变量，最后使用本地安全 fallback 文件。
+OKKI Go Skill 使用多层凭证解析，优先使用平台注入；在 Accio Work 中还会读取账号级 Skill 配置；然后读取环境变量；最后使用本地安全 fallback 文件。
 
 **1. 平台 config/secrets 注入（推荐）**
 ```bash
@@ -101,14 +101,17 @@ openclaw config set skills.entries.okkigo.apiKey "sk-xxx"
 
 平台应在新 agent 会话中注入 `OKKIGO_API_KEY`。这是 OpenClaw / Accio 等有 Skill 配置能力的平台的首选方式。
 
-**2. 标准环境变量**
+**2. Accio Work 账号级配置**
+安装器会读取 `~/.accio/accounts/<accountId>/skills/skills_config.json` 中 `OKKI Go` 或 `okki-go` 条目的 `apiKey` / `OKKIGO_API_KEY` 字段。若在 Accio 中已保存过 API Key，新会话会自动识别。
+
+**3. 标准环境变量**
 ```bash
 export OKKIGO_API_KEY="sk-xxx"
 ```
 
 适合 Codex、Claude、Cursor、OpenCode、CI、终端启动的 agent。桌面应用不一定会读取 `.zshrc` 或 `.bashrc`，因此不要只依赖 shell profile。
 
-**3. 本地安全 fallback 文件**
+**4. 本地安全 fallback 文件**
 ```bash
 mkdir -p ~/.config/okki-go
 umask 077
@@ -119,7 +122,7 @@ chmod 600 ~/.config/okki-go/credentials.json
 适合无法注入 secrets 的平台。不要把 API Key 写进 `SKILL.md`、仓库、聊天记录或日志。
 
 **Accio Work:**
-安装器会同步更新 `~/.accio/accounts/<accountId>/skills/skills_config.json`，启用 `OKKI Go`。如 Accio Work 已打开，安装后建议重启 Accio Work 或新开会话以加载新 Skill。
+安装器会同步更新 `~/.accio/accounts/<accountId>/skills/skills_config.json`，并把 OKKI Go 写入现有 Agent 的 `agent-core/skills/skills.jsonc` 选中列表。如 Accio Work 已打开，安装后建议重启 Accio Work 或新开会话以加载新 Skill。
 
 ## 更新 Skill
 
@@ -301,6 +304,6 @@ okki-go-install --global --all
 
 ---
 
-**当前版本**: 1.0.9  
-**安装脚本**: bin/install.js  
+**当前版本**: 1.0.12
+**安装脚本**: bin/install.js
 **最后更新**: 2026-04-24

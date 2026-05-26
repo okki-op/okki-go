@@ -89,7 +89,7 @@ test('runStaticChecks fails when credential resolver guidance is missing', () =>
   assert.equal(result.status, 'failed');
   assert.equal(
     result.reason,
-    'skill must document three-tier credential resolution and include scripts/resolve-api-key.sh'
+    'skill must document credential resolution and include scripts/resolve-api-key.sh'
   );
 });
 
@@ -124,7 +124,7 @@ function makeOkkiRoot(overrides = {}) {
     overrides.skill || [
       'OKKIGO_API_KEY',
       'Do NOT use this skill',
-      'three-tier credential resolution',
+      'four-tier credential resolution',
       'platform config/secrets',
       'local credentials file',
       'scripts/resolve-api-key.sh'

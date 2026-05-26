@@ -165,19 +165,117 @@ test('CLI local-agent can prepare Accio profile when account id is configured', 
   assert.equal(summary.summary.blocked, 1);
 });
 
+test('CLI local-agent can execute Accio through an explicit agent CLI command', () => {
+  const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'okki-cli-accio-exec-config-'));
+  const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'okki-cli-accio-exec-out-'));
+  fs.mkdirSync(path.join(configRoot, 'accounts', 'account-1'), { recursive: true });
+
+  const result = runCommand(
+    process.execPath,
+    [
+      path.join(evalRoot, 'run.js'),
+      '--mode',
+      'local-agent',
+      '--suite',
+      'routing',
+      '--agents',
+      'accio',
+      '--scenarios',
+      'trigger-company-search-industry-country',
+      '--agent-cli',
+      process.execPath,
+      '--agent-cli-args',
+      `${path.join(evalRoot, 'test', 'fixtures', 'fake-agent-cli.js')},agent,--message,{prompt},--json`,
+      '--report',
+      '--output-dir',
+      outputDir
+    ],
+    {
+      cwd: evalRoot,
+      env: {
+        ACCIO_CONFIG_DIR: configRoot,
+        ACCIO_ACCOUNT_ID: 'account-1'
+      }
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const cases = readJson(path.join(outputDir, 'cases.json'));
+  assert.equal(cases[0].status, 'passed');
+  assert.equal(cases[0].agent, 'accio');
+  assert.match(cases[0].run.transcript, /payloads/);
+});
+
 test('runLocalAgent can use OpenClaw and Claude adapters from the registry', () => {
   const run = runLocalAgent({
     suite: 'routing',
     agents: ['openclaw', 'claudecode'],
     models: ['default'],
     scenarios: ['trigger-company-search-industry-country'],
-    commandExists: () => true
+    commandExists: (command) => command !== 'openclaw'
   });
 
   assert.deepEqual(run.agentCoverage.map((coverage) => coverage.agent), ['openclaw', 'claudecode']);
-  assert.deepEqual(run.agentCoverage.map((coverage) => coverage.installed), [true, true]);
-  assert.deepEqual(run.results.map((result) => result.status), ['blocked', 'blocked']);
+  assert.deepEqual(run.agentCoverage.map((coverage) => coverage.installed), [false, true]);
+  assert.deepEqual(run.results.map((result) => result.status), ['skipped', 'blocked']);
   assert.deepEqual(run.results.map((result) => result.agent), ['openclaw', 'claude']);
+});
+
+test('runLocalAgent can execute OpenClaw through an explicit agent CLI command', () => {
+  const run = runLocalAgent({
+    suite: 'routing',
+    agents: ['openclaw'],
+    models: ['default'],
+    scenarios: ['trigger-company-search-industry-country'],
+    commandExists: () => true,
+    agentCli: process.execPath,
+    agentCliArgs: [
+      path.join(evalRoot, 'test', 'fixtures', 'fake-agent-cli.js'),
+      'agent',
+      '--agent',
+      'main',
+      '--message',
+      '{prompt}',
+      '--local',
+      '--json'
+    ]
+  });
+
+  assert.equal(run.agentCoverage[0].installed, true);
+  assert.equal(run.results[0].status, 'passed');
+  assert.equal(run.results[0].agent, 'openclaw');
+  assert.equal(run.results[0].routingOutcome, 'triggered');
+});
+
+test('CLI local-agent accepts absolute --agent-cli paths for installed-agent detection', () => {
+  const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'okki-cli-openclaw-absolute-'));
+  const result = runCommand(
+    process.execPath,
+    [
+      path.join(evalRoot, 'run.js'),
+      '--mode',
+      'local-agent',
+      '--suite',
+      'routing',
+      '--agents',
+      'openclaw',
+      '--scenarios',
+      'trigger-company-search-industry-country',
+      '--agent-cli',
+      process.execPath,
+      '--agent-cli-args',
+      `${path.join(evalRoot, 'test', 'fixtures', 'fake-agent-cli.js')},agent,--agent,main,--message,{prompt},--local,--json`,
+      '--report',
+      '--output-dir',
+      outputDir
+    ],
+    { cwd: evalRoot }
+  );
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const cases = readJson(path.join(outputDir, 'cases.json'));
+  assert.equal(cases[0].status, 'passed');
+  assert.equal(cases[0].agent, 'openclaw');
 });
 
 function makeInstalledAdapter(name) {

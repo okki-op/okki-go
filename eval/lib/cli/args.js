@@ -38,6 +38,8 @@ function parseArgs(argv) {
     emailAllowlist: [],
     maxPaidCredits: 0,
     maxEdmSends: 0,
+    agentCli: null,
+    agentCliArgs: [],
     useRealAgentConfig: false
   };
 
@@ -98,6 +100,12 @@ function parseArgs(argv) {
       i += 1;
     } else if (token === '--output-dir') {
       parsed.outputDir = readOptionValue(argv, i, token);
+      i += 1;
+    } else if (token === '--agent-cli') {
+      parsed.agentCli = readOptionValue(argv, i, token);
+      i += 1;
+    } else if (token === '--agent-cli-args') {
+      parsed.agentCliArgs = splitCsv(readOptionValue(argv, i, token));
       i += 1;
     } else if (token === '--help' || token === '-h') {
       parsed.help = true;

@@ -5,6 +5,15 @@ const path = require('node:path');
 const { runInstallerMatrix } = require('../installer/install-matrix-runner');
 
 function defaultCommandExists(command) {
+  if (String(command).includes(path.sep) || (path.sep === '\\' && String(command).includes('/'))) {
+    try {
+      fs.accessSync(command, fs.constants.X_OK);
+      return fs.statSync(command).isFile();
+    } catch {
+      return false;
+    }
+  }
+
   const pathValue = process.env.PATH || '';
   const extensions = process.platform === 'win32' ? ['.exe', '.cmd', '.bat', ''] : [''];
 

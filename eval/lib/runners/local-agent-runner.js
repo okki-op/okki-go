@@ -19,7 +19,7 @@ function runLocalAgent(options = {}) {
   ensureDir(outputDir);
 
   const scenarios = loadScenarios({ suite, scenarios: options.scenarios || [] });
-  const adapterFactory = options.adapterFactory || ((agent) => createAdapter(agent, options));
+  const adapterFactory = options.adapterFactory || ((agent) => createAdapter(agent, adapterOptionsFor(agent, options)));
   const results = [];
   const agentCoverage = [];
 
@@ -109,3 +109,14 @@ function normalizeCoverage(agentCoverage) {
 }
 
 module.exports = { runLocalAgent };
+
+function adapterOptionsFor(agent, options) {
+  if (!options.agentCli) return options;
+
+  const normalized = { ...options };
+  normalized.executable = options.agentCli;
+  if (options.agentCliArgs && options.agentCliArgs.length > 0) {
+    normalized.commandArgs = options.agentCliArgs;
+  }
+  return normalized;
+}

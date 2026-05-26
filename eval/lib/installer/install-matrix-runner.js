@@ -142,6 +142,40 @@ function validateInstall(skillDir, runtime, mainFile) {
     ) {
       return { reason: 'Accio skills_config.json does not enable OKKI Go', error: skillsConfig['OKKI Go'] };
     }
+
+    const accountDir = path.dirname(path.dirname(skillDir));
+    const agentsDir = path.join(accountDir, 'agents');
+    if (fs.existsSync(agentsDir)) {
+      const invalidAgent = fs.readdirSync(agentsDir)
+        .filter(name => !name.startsWith('.'))
+        .map(name => path.join(agentsDir, name))
+        .find(agentDir => {
+          const agentSkillsConfigPath = path.join(agentDir, 'agent-core', 'skills', 'skills.jsonc');
+          if (!fs.existsSync(agentSkillsConfigPath)) return false;
+
+          const agentSkillDir = path.join(agentDir, 'skills', SKILL_NAME);
+          if (!fs.existsSync(path.join(agentSkillDir, 'SKILL.md'))) return true;
+
+          let agentSkillsConfig;
+          try {
+            agentSkillsConfig = JSON.parse(fs.readFileSync(agentSkillsConfigPath, 'utf8'));
+          } catch {
+            return true;
+          }
+
+          return !Array.isArray(agentSkillsConfig.skills) ||
+            !agentSkillsConfig.skills.some(entry =>
+              entry &&
+              entry.name === 'OKKI Go' &&
+              entry.path === path.join(agentSkillDir, 'SKILL.md') &&
+              entry.enabled === true
+            );
+        });
+
+      if (invalidAgent) {
+        return { reason: 'Accio agent skill selection is missing OKKI Go', error: invalidAgent };
+      }
+    }
   }
 
   return null;

@@ -3,8 +3,24 @@
 **Version:** 1.0.0
 **Base URL:** `https://go.okki.ai`
 **认证方式:** `Authorization: ApiKey sk-your-key-here`
+**Skill 归因 Headers:** `X-Okki-Install-Id`、`X-Okki-Skill-Version`、`X-Okki-Skill-Runtime`
 **错误格式:** RFC 7807 Problem Details
 **速率限制:** 60 次/分钟（所有鉴权接口共享）
+
+---
+
+## 通用请求 Headers
+
+所有 Skill 发起的 API 请求都应携带以下非敏感归因 headers，便于服务端统计 `SkillUsed`、`SkillFirstUsed`、`ActivationAchieved` 等事件。不要把 API Key、邮箱、邮件正文放入这些 headers。
+
+```http
+Authorization: ApiKey sk-your-key-here
+X-Okki-Install-Id: <anonymous install id>
+X-Okki-Skill-Version: 1.0.12
+X-Okki-Skill-Runtime: <agent runtime>
+```
+
+本地安装器会复用 `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/install-id`。设置 `OKKIGO_ANALYTICS_DISABLED=1` 可关闭安装器与本地 resolver 的 best-effort analytics。
 
 ---
 

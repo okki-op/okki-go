@@ -1,6 +1,6 @@
 ---
 name: OKKI Go
-version: 1.0.9
+version: 1.0.12
 description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine — only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
 homepage: "https://go.okki.ai"
 requires:
@@ -65,22 +65,26 @@ All endpoints use API Key authentication. Each user has an independent `sk-` pre
 
 ```
 Authorization: ApiKey <resolved API key>
+X-Okki-Install-Id: <anonymous install id>
+X-Okki-Skill-Version: 1.0.12
+X-Okki-Skill-Runtime: <agent runtime>
 X-Hostname: xxx
 ```
 
 ### Credential resolution
 
-Use three-tier credential resolution so this skill works across the widest range of agent platforms:
+Use four-tier credential resolution so this skill works across the widest range of agent platforms:
 
 1. **Platform config/secrets injection** — preferred. This is the platform config/secrets path. Agent platforms should inject the key into the session as `OKKIGO_API_KEY`, `OKKI_GO_API_KEY`, or `OKKIGO_SKILL_API_KEY`.
-2. **Standard environment variable** — `OKKIGO_API_KEY` is the public cross-platform contract for CLIs, CI, local shells, and hosted agents.
-3. **Local credentials file fallback** — `~/.config/okki-go/credentials.json` for platforms that cannot inject secrets. The file must be mode `0600` and contain JSON such as `{"apiKey":"sk-..."}`.
+2. **Accio Work account config** — when running in Accio, the resolver also checks `~/.accio/accounts/<accountId>/skills/skills_config.json` for the `OKKI Go` or `okki-go` entry.
+3. **Standard environment variable** — `OKKIGO_API_KEY` is the public cross-platform contract for CLIs, CI, local shells, and hosted agents.
+4. **Local credentials file fallback** — `~/.config/okki-go/credentials.json` for platforms that cannot inject secrets. The file must be mode `0600` and contain JSON such as `{"apiKey":"sk-..."}`.
 
 Do not store API Keys in `SKILL.md`, repositories, transcripts, logs, examples, or command history beyond the explicit user-approved save command.
 
 ### First-use check
 
-Before the first API call in each session, use the resolver script. It checks platform-injected secrets, standard environment variables, then the secure local credentials file:
+Before the first API call in each session, use the resolver script. It checks platform-injected secrets, Accio account config when applicable, standard environment variables, then the secure local credentials file:
 
 ```bash
 bash scripts/resolve-api-key.sh --check
@@ -89,14 +93,20 @@ bash scripts/resolve-api-key.sh --check
 - **`KEY_SET`** → Proceed directly with the user's request
 - **`NO_KEY`** → Follow the email verification flow below
 
+The resolver reports `ApiKeyConfigured` or `SkillInvokedWithoutApiKey` as best-effort analytics using only `install_id`, runtime, version, and credential source. Set `OKKIGO_ANALYTICS_DISABLED=1` to disable local Skill analytics.
+
 If `NO_KEY` but the user has explicitly provided an API Key in context, skip to **Step 3: Save the API Key** below.
 
 For API calls, resolve the key immediately before `curl` and avoid printing it:
 
 ```bash
 OKKIGO_API_KEY="$(bash scripts/resolve-api-key.sh --print)" && \
+OKKIGO_INSTALL_ID="${OKKIGO_INSTALL_ID:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/install-id" 2>/dev/null || true)}" && \
 curl -s -X GET "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
+  ${OKKIGO_INSTALL_ID:+-H "X-Okki-Install-Id: $OKKIGO_INSTALL_ID"} \
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.12}" \
+  -H "X-Okki-Skill-Runtime: ${OKKIGO_SKILL_RUNTIME:-agent}" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"}
 ```
 
@@ -104,7 +114,7 @@ For debugging configuration only, use `bash scripts/resolve-api-key.sh --source`
 
 ### Email Verification to Obtain API Key
 
-1. Show the legal documents and require explicit acceptance. **Do not ask for or submit the user's email before this confirmation.**
+1. Show the legal documents and require explicit acceptance. **Do not ask for or submit the user's email before this confirmation.** Report `AgentSignupLegalConsentShown` when the text is shown and `AgentSignupLegalConsentAccepted` only after the exact acceptance sentence is received.
 
    ```text
    Before creating an OKKI Go account and API Key, please read:
@@ -130,11 +140,15 @@ For debugging configuration only, use `bash scripts/resolve-api-key.sh --source`
 
    Only proceed after explicit acceptance. Do not treat vague replies such as "OK", "continue", "send the code", "好的", "继续", or "发验证码吧" as valid acceptance. If the reply is ambiguous, ask the user to reply with the exact confirmation sentence.
 
-2. After acceptance, ask the user for their email address.
+2. After acceptance, ask the user for their email address. Report `AgentSignupEmailSubmitted` with only `email_domain`, never the full email.
 3. Send verification code with `legalAcceptance`:
 
 ```bash
+OKKIGO_INSTALL_ID="${OKKIGO_INSTALL_ID:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/install-id" 2>/dev/null || true)}" && \
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-email" \
+  ${OKKIGO_INSTALL_ID:+-H "X-Okki-Install-Id: $OKKIGO_INSTALL_ID"} \
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.12}" \
+  -H "X-Okki-Skill-Runtime: ${OKKIGO_SKILL_RUNTIME:-agent}" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "Content-Type: application/json" \
   -d '{
@@ -146,7 +160,7 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-ema
       "termsUrl": "https://go.okki.ai/legal/terms",
       "privacyUrl": "https://go.okki.ai/legal/privacy",
       "channel": "agent",
-      "skillVersion": "1.0.9",
+      "skillVersion": "1.0.12",
       "locale": "en-US",
       "affirmationText": "I have read and agree to the Terms of Service and acknowledge the Privacy Policy."
     }
@@ -156,7 +170,11 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-ema
 4. After the user provides the 6-digit code, exchange it for an API Key:
 
 ```bash
+OKKIGO_INSTALL_ID="${OKKIGO_INSTALL_ID:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/install-id" 2>/dev/null || true)}" && \
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/verify-email" \
+  ${OKKIGO_INSTALL_ID:+-H "X-Okki-Install-Id: $OKKIGO_INSTALL_ID"} \
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.12}" \
+  -H "X-Okki-Skill-Runtime: ${OKKIGO_SKILL_RUNTIME:-agent}" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "X-OpenClaw-Provision-Api-Key: true" \
   -H "Content-Type: application/json" \
@@ -165,7 +183,7 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/verify-email
 
 ### Save the API Key
 
-After obtaining the `apiKey` (from verification or user input), persist it so future sessions skip re-verification. **Inform the user before saving and ask for explicit consent.**
+After obtaining the `apiKey` (from verification or user input), persist it so future sessions skip re-verification. **Inform the user before saving and ask for explicit consent.** Report `AgentApiKeySavePromptShown`, then `AgentApiKeySaveAccepted`, `AgentApiKeySaveSucceeded`, or `AgentApiKeySaveFailed` with save method only; never report the key.
 
 Saving the API Key is a separate confirmation from accepting the Terms of Service and acknowledging the Privacy Policy. Do not merge these confirmations.
 

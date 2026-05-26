@@ -62,7 +62,7 @@ function checkSkillCredentialResolutionPresent(okkiRoot) {
 
   if (
     fs.existsSync(resolverPath) &&
-    skill.includes('three-tier credential resolution') &&
+    (skill.includes('three-tier credential resolution') || skill.includes('four-tier credential resolution')) &&
     skill.includes('platform config/secrets') &&
     skill.includes('OKKIGO_API_KEY') &&
     skill.includes('local credentials file') &&
@@ -73,7 +73,7 @@ function checkSkillCredentialResolutionPresent(okkiRoot) {
 
   return fail(
     'skill-credential-resolution-present',
-    'skill must document three-tier credential resolution and include scripts/resolve-api-key.sh'
+    'skill must document credential resolution and include scripts/resolve-api-key.sh'
   );
 }
 

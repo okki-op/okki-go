@@ -13,8 +13,10 @@ It currently supports:
 - `replay` mode with fixed redacted fixture data.
 - `fixtures capture` safety-plan command.
 - `local-agent` mode with adapter-level detection/profile preparation for selected Agents.
+- Real CLI execution for Codex and OpenClaw.
+- Configurable explicit CLI execution for Accio when a headless Accio command is available.
 
-The tool still does not drive real Agent conversations. Agent adapters prepare isolated profiles and install the OKKI Go Skill, then return `blocked` with reason `agent_cli_execution_not_implemented`.
+The tool still does not drive every Agent conversation. Codex and OpenClaw can execute scenarios through their CLIs. Accio can execute through a caller-supplied CLI command, but the desktop app on the current machine did not expose a stable headless `accio` executable in PATH. Claude Code still prepares an isolated profile and returns `blocked` with reason `agent_cli_execution_not_implemented`.
 
 ## Implemented Files
 
@@ -75,6 +77,7 @@ Local Agent adapter smoke:
 ```bash
 node run.js --mode local-agent --suite routing --agents codex --scenarios trigger-company-search-industry-country --report
 node run.js --mode local-agent --suite routing --agents accio --scenarios trigger-company-search-industry-country --report
+node run.js --mode local-agent --suite routing --agents accio --scenarios trigger-company-search-industry-country --agent-cli /path/to/accio-cli --agent-cli-args 'agent,--message,{prompt},--json' --report
 node run.js --mode local-agent --suite routing --agents openclaw --scenarios trigger-company-search-industry-country --report
 node run.js --mode local-agent --suite routing --agents claudecode --scenarios trigger-company-search-industry-country --report
 node run.js --mode local-agent --suite routing --agents codex,accio,openclaw,claudecode --scenarios trigger-company-search-industry-country --report
@@ -96,11 +99,12 @@ Current adapter behavior:
 1. Detects local installation or account availability.
 2. Creates a temp isolated profile.
 3. Installs OKKI Go Skill to the temp profile.
-4. Returns `blocked` for scenario execution until real CLI driving is implemented.
+4. Executes scenario for implemented real CLI drivers.
+5. Returns `blocked` for scenario execution where real CLI driving is not implemented.
 
 Local environment observed on 2026-05-21:
 
-- `codex`: installed, returns `blocked`.
+- `codex`: installed, executes through `codex exec`.
 - `accio`: account detected at `/Users/carrie/.accio/accounts/1763281345`, returns `blocked`.
 - `openclaw`: not found in shell PATH, returns `skipped` with `agent_not_installed`.
 - `claudecode`: detected through `claude`, returns `blocked`.
@@ -147,8 +151,8 @@ The tool is useful now for static/local/replay checks and adapter profile smoke,
 
 Not implemented yet:
 
-- Real CLI driving for Codex, Accio, OpenClaw, or Claude Code.
-- Transcript capture from real Agent runs.
+- Real CLI driving for Claude Code.
+- Automatic Accio desktop/headless CLI discovery.
 - API call interception from real Agent runs.
 - Real replay/mock API injection into Agent runs.
 - Live API fixture capture execution.

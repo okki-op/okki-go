@@ -38,10 +38,12 @@ function runAgentCli({
   cwd,
   env,
   prompt,
-  timeoutMs
+  timeoutMs,
+  templateValues = {}
 }) {
   const startedAt = Date.now();
-  const result = runCommand(executable, [...args, prompt], {
+  const commandArgs = buildCommandArgs(args, prompt, templateValues);
+  const result = runCommand(executable, commandArgs, {
     cwd,
     env,
     timeoutMs
@@ -65,11 +67,12 @@ function runAgentCli({
 }
 
 function parseAgentTranscript(transcript) {
-  const routingDecision = parseRoutingDecision(transcript);
+  const parseText = extractAgentResponseText(transcript);
+  const routingDecision = parseRoutingDecision(parseText);
   return {
     routingDecision,
-    apiCalls: parseApiCalls(transcript),
-    confirmedEmailSend: parseBooleanMarker(transcript, 'CONFIRMED_EMAIL_SEND')
+    apiCalls: parseApiCalls(parseText),
+    confirmedEmailSend: parseBooleanMarker(parseText, 'CONFIRMED_EMAIL_SEND')
   };
 }
 
@@ -109,12 +112,73 @@ function preferredParseText(stdout, stderr) {
   return joinTranscript(stdout, stderr);
 }
 
+function buildCommandArgs(args, prompt, templateValues = {}) {
+  let insertedPrompt = false;
+  const values = {
+    ...templateValues,
+    prompt
+  };
+  const resolved = args.map((arg) => {
+    if (typeof arg !== 'string') return arg;
+    if (arg.includes('{prompt}')) insertedPrompt = true;
+    return replaceTemplateValues(arg, values);
+  });
+
+  return insertedPrompt ? resolved : [...resolved, prompt];
+}
+
+function replaceTemplateValues(value, values) {
+  return value.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key) => {
+    if (!Object.prototype.hasOwnProperty.call(values, key)) return match;
+    const replacement = values[key];
+    return replacement === undefined || replacement === null ? '' : String(replacement);
+  });
+}
+
+function extractAgentResponseText(raw) {
+  const text = String(raw || '');
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return text;
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    const texts = collectTextPayloads(parsed);
+    return texts.length > 0 ? texts.join('\n') : text;
+  } catch {
+    return text;
+  }
+}
+
+function collectTextPayloads(value) {
+  if (!value || typeof value !== 'object') return [];
+  if (Array.isArray(value)) return value.flatMap(collectTextPayloads);
+
+  const texts = [];
+  for (const key of ['text', 'content', 'response']) {
+    if (typeof value[key] === 'string') texts.push(value[key]);
+  }
+
+  for (const key of ['payloads', 'outputs']) {
+    if (Array.isArray(value[key])) {
+      texts.push(...value[key].flatMap(collectTextPayloads));
+    }
+  }
+
+  if (value.result && typeof value.result === 'object') {
+    texts.push(...collectTextPayloads(value.result));
+  }
+
+  return texts.filter((item) => item.trim().length > 0);
+}
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 module.exports = {
   buildScenarioPrompt,
+  buildCommandArgs,
+  extractAgentResponseText,
   parseAgentTranscript,
   runAgentCli
 };

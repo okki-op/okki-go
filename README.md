@@ -66,7 +66,9 @@ After installation, configure your API key:
 # 1. Preferred: platform secrets/config that injects OKKIGO_API_KEY
 openclaw config set skills.entries.okkigo.apiKey "sk-xxx"
 
-# 2. Standard environment variable, for CLI/CI/local agent sessions
+# 2. Accio Work: account skill config is detected automatically when present
+
+# 3. Standard environment variable, for CLI/CI/local agent sessions
 export OKKIGO_API_KEY="sk-xxx"
 ```
 
@@ -89,7 +91,7 @@ printf '%s\n' '{"apiKey":"sk-xxx"}' > ~/.config/okki-go/credentials.json
 chmod 600 ~/.config/okki-go/credentials.json
 ```
 
-The skill resolves credentials in this order: platform config/secrets, `OKKIGO_API_KEY`, then `~/.config/okki-go/credentials.json`.
+The skill resolves credentials in this order: platform config/secrets, Accio Work account skill config, `OKKIGO_API_KEY`, then `~/.config/okki-go/credentials.json`.
 
 ## Features
 
@@ -179,7 +181,7 @@ cp -r package/skill/* ~/.claude/skills/okki-go/
 
 ## Version
 
-**Current**: 1.0.9
+**Current**: 1.0.12
 
 ## Links
 

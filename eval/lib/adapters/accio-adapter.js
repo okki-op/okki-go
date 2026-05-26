@@ -3,6 +3,8 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { judgeScenarioRun } = require('../judge/rule-judge');
+const { buildScenarioPrompt, runAgentCli } = require('./agent-execution');
 const { copyDirectory, prepareInstalledProfile } = require('./profile-utils');
 
 function createAccioAdapter(options = {}) {
@@ -10,6 +12,8 @@ function createAccioAdapter(options = {}) {
   const configRoot = options.configRoot || process.env.ACCIO_CONFIG_DIR || path.join(os.homedir(), '.accio');
   const accountId = options.accountId || process.env.ACCIO_ACCOUNT_ID || null;
   const tmpRoot = options.tmpRoot || fs.mkdtempSync(path.join(os.tmpdir(), 'okki-eval-agents-'));
+  const commandArgs = options.commandArgs || null;
+  const timeoutMs = options.timeoutMs || 120000;
 
   return {
     name: 'accio',
@@ -45,14 +49,61 @@ function createAccioAdapter(options = {}) {
       };
     },
     runScenario(profile, scenario) {
+      if (!commandArgs) {
+        return {
+          caseId: scenario.id,
+          suite: scenario.suite,
+          agent: 'accio',
+          modelProfile: profile.modelProfile,
+          accountId: profile.accountId,
+          status: 'blocked',
+          reason: 'agent_cli_execution_not_implemented',
+          profileRoot: profile.profileRoot,
+          skillDir: profile.skillDir
+        };
+      }
+
+      const execution = runAgentCli({
+        executable,
+        args: commandArgs,
+        cwd: options.cwd,
+        env: profile.env,
+        prompt: buildScenarioPrompt(scenario),
+        timeoutMs,
+        templateValues: {
+          accountId: profile.accountId,
+          accountDir: profile.accountDir,
+          profileRoot: profile.profileRoot,
+          skillDir: profile.skillDir,
+          modelProfile: profile.modelProfile
+        }
+      });
+      if (execution.exitCode !== 0) {
+        return {
+          caseId: scenario.id,
+          suite: scenario.suite,
+          agent: 'accio',
+          modelProfile: profile.modelProfile,
+          accountId: profile.accountId,
+          status: 'blocked',
+          reason: 'agent_cli_execution_failed',
+          profileRoot: profile.profileRoot,
+          skillDir: profile.skillDir,
+          run: {
+            ...execution,
+            routingDecision: null,
+            apiCalls: []
+          }
+        };
+      }
+
+      const judged = judgeScenarioRun(scenario, execution);
+
       return {
-        caseId: scenario.id,
-        suite: scenario.suite,
+        ...judged,
         agent: 'accio',
         modelProfile: profile.modelProfile,
         accountId: profile.accountId,
-        status: 'blocked',
-        reason: 'agent_cli_execution_not_implemented',
         profileRoot: profile.profileRoot,
         skillDir: profile.skillDir
       };
