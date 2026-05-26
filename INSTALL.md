@@ -38,15 +38,15 @@ node bin/install.js --global --all
 
 | 运行时 | 参数 | 配置目录 | Skill 位置 | 主文件名 |
 |--------|------|----------|-----------|---------|
-| Claude Code | `--claude` | `~/.claude` | `skills/okki-go/` | skill.md |
+| Claude Code | `--claude` | `~/.claude` | `skills/okki-go/` | SKILL.md |
 | OpenClaw | `--openclaw` | `~/.openclaw/workspace` | `skills/okki-go/` | SKILL.md |
 | OpenCode | `--opencode` | `~/.config/opencode` | `skills/okki-go/` | SKILL.md |
-| Gemini | `--gemini` | `~/.gemini` | `skills/okki-go/` | skill.md |
-| Cursor | `--cursor` | `~/.cursor` | `skills/okki-go/` | skill.md |
-| Windsurf | `--windsurf` | `~/.codeium/windsurf` | `skills/okki-go/` | skill.md |
-| Codex | `--codex` | `~/.codex` | `skills/okki-go/` | skill.md |
+| Gemini | `--gemini` | `~/.gemini` | `skills/okki-go/` | SKILL.md |
+| Cursor | `--cursor` | `~/.cursor` | `skills/okki-go/` | SKILL.md |
+| Windsurf | `--windsurf` | `~/.codeium/windsurf` | `skills/okki-go/` | SKILL.md |
+| Codex | `--codex` | `~/.codex` | `skills/okki-go/` | SKILL.md |
 | Copilot | `--copilot` | `~/.copilot` | `skills/okki-go/` | instructions.md |
-| Cline | `--cline` | `~/.cline` | `skills/okki-go/` | skill.md |
+| Cline | `--cline` | `~/.cline` | `skills/okki-go/` | SKILL.md |
 | Accio Work | `--accio` | `~/.accio` | `accounts/<accountId>/skills/okki-go/` | SKILL.md |
 
 ## 环境变量支持
@@ -250,7 +250,7 @@ ls -la ~/.openclaw/workspace/skills/okki-go/
 ls -la ~/.accio/accounts/<accountId>/skills/okki-go/
 
 # 应该包含：
-# - SKILL.md (或 skill.md/instructions.md)
+# - SKILL.md (或 Copilot 的 instructions.md)
 # - references/
 # - scripts/
 # - VERSION
@@ -263,7 +263,7 @@ ls -la ~/.accio/accounts/<accountId>/skills/okki-go/
 
 ```
 okki-go/
-├── SKILL.md (或 skill.md/instructions.md)  # 主 skill 文件
+├── SKILL.md (或 Copilot 的 instructions.md)  # 主 skill 文件
 ├── references/
 │   └── api-reference.md                    # API 文档
 ├── scripts/

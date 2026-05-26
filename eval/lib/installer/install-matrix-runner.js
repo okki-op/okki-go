@@ -13,9 +13,9 @@ const SKILL_NAME = 'okki-go';
 const TIMEOUT_MS = 30000;
 
 const RUNTIME_META = {
-  codex: { envVar: 'CODEX_HOME', mainFile: 'skill.md' },
+  codex: { envVar: 'CODEX_HOME', mainFile: 'SKILL.md' },
   openclaw: { envVar: 'OPENCLAW_CONFIG_DIR', mainFile: 'SKILL.md' },
-  claude: { envVar: 'CLAUDE_CONFIG_DIR', mainFile: 'skill.md' },
+  claude: { envVar: 'CLAUDE_CONFIG_DIR', mainFile: 'SKILL.md' },
   copilot: { envVar: 'COPILOT_CONFIG_DIR', mainFile: 'instructions.md' },
   accio: { envVar: 'ACCIO_CONFIG_DIR', mainFile: 'SKILL.md', accountScoped: true }
 };

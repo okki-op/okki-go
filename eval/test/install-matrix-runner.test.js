@@ -11,6 +11,14 @@ function makeTempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'okki-eval-install-test-'));
 }
 
+function assertExactDirEntry(dir, entry) {
+  const entries = fs.readdirSync(dir);
+  assert.ok(
+    entries.includes(entry),
+    `Expected exact directory entry ${entry} in ${dir}; saw ${entries.join(', ')}`
+  );
+}
+
 test('runInstallerMatrix installs codex and openclaw into temp config dirs', () => {
   const tmpRoot = makeTempRoot();
 
@@ -21,9 +29,9 @@ test('runInstallerMatrix installs codex and openclaw into temp config dirs', () 
   const codex = results.find(result => result.runtime === 'codex');
   assert.equal(codex.status, 'passed');
   assert.equal(codex.id, 'install-codex');
-  assert.equal(codex.mainFile, 'skill.md');
+  assert.equal(codex.mainFile, 'SKILL.md');
   assert.equal(codex.skillDir, path.join(tmpRoot, 'codex', 'skills', 'okki-go'));
-  assert.ok(fs.existsSync(path.join(codex.skillDir, 'skill.md')));
+  assertExactDirEntry(codex.skillDir, 'SKILL.md');
   assert.ok(fs.existsSync(path.join(codex.skillDir, 'references', 'api-reference.md')));
   assert.ok(fs.statSync(path.join(codex.skillDir, 'scripts')).isDirectory());
   assert.ok(fs.existsSync(path.join(codex.skillDir, 'scripts', 'resolve-api-key.sh')));
@@ -38,7 +46,7 @@ test('runInstallerMatrix installs codex and openclaw into temp config dirs', () 
   assert.equal(openclaw.id, 'install-openclaw');
   assert.equal(openclaw.mainFile, 'SKILL.md');
   assert.equal(openclaw.skillDir, path.join(tmpRoot, 'openclaw', 'skills', 'okki-go'));
-  assert.ok(fs.existsSync(path.join(openclaw.skillDir, 'SKILL.md')));
+  assertExactDirEntry(openclaw.skillDir, 'SKILL.md');
   assert.ok(fs.existsSync(path.join(openclaw.skillDir, 'references', 'api-reference.md')));
   assert.ok(fs.statSync(path.join(openclaw.skillDir, 'scripts')).isDirectory());
   assert.ok(fs.existsSync(path.join(openclaw.skillDir, 'scripts', 'resolve-api-key.sh')));
@@ -78,7 +86,7 @@ test('runInstallerMatrix installs accio into the selected account skill director
     accio.skillDir,
     path.join(tmpRoot, 'accio', 'accounts', accountId, 'skills', 'okki-go')
   );
-  assert.ok(fs.existsSync(path.join(accio.skillDir, 'SKILL.md')));
+  assertExactDirEntry(accio.skillDir, 'SKILL.md');
   assert.ok(fs.existsSync(path.join(accio.skillDir, 'references', 'api-reference.md')));
   assert.ok(fs.statSync(path.join(accio.skillDir, 'scripts')).isDirectory());
   assert.ok(fs.existsSync(path.join(accio.skillDir, 'scripts', 'resolve-api-key.sh')));
@@ -106,7 +114,7 @@ test('runInstallerMatrix installs accio into the selected account skill director
     'skills',
     'okki-go'
   );
-  assert.ok(fs.existsSync(path.join(agentSkillDir, 'SKILL.md')));
+  assertExactDirEntry(agentSkillDir, 'SKILL.md');
 
   const agentSkillsConfig = JSON.parse(
     fs.readFileSync(path.join(agentCoreSkillsDir, 'skills.jsonc'), 'utf8')
@@ -184,7 +192,7 @@ test('installer --all skips accio when no Accio account is configured', () => {
 
   assert.equal(result.status, 0);
   assert.match(result.stdout, /Skipping Accio Work/);
-  assert.equal(fs.existsSync(path.join(tmpRoot, 'codex', 'skills', 'okki-go', 'skill.md')), true);
+  assertExactDirEntry(path.join(tmpRoot, 'codex', 'skills', 'okki-go'), 'SKILL.md');
   assert.equal(fs.existsSync(path.join(accioConfigDir, 'accounts')), false);
 });
 

@@ -9,6 +9,14 @@ const { createCodexAdapter } = require('../lib/adapters/codex-adapter');
 const { createNoopAdapter } = require('../lib/adapters/noop-adapter');
 const { createOpenClawAdapter } = require('../lib/adapters/openclaw-adapter');
 
+function assertExactDirEntry(dir, entry) {
+  const entries = fs.readdirSync(dir);
+  assert.ok(
+    entries.includes(entry),
+    `Expected exact directory entry ${entry} in ${dir}; saw ${entries.join(', ')}`
+  );
+}
+
 test('noop adapter reports skipped when an agent is unavailable', () => {
   const adapter = createNoopAdapter({ agent: 'missing-agent', reason: 'agent_not_installed' });
 
@@ -51,7 +59,7 @@ test('codex adapter prepares isolated profile and installs OKKI Go skill', () =>
   assert.equal(profile.modelProfile, 'default');
   assert.equal(profile.env.CODEX_HOME, path.join(tmpRoot, 'codex', 'default'));
   assert.equal(profile.skillDir, path.join(tmpRoot, 'codex', 'default', 'skills', 'okki-go'));
-  assert.ok(fs.existsSync(path.join(profile.skillDir, 'skill.md')));
+  assertExactDirEntry(profile.skillDir, 'SKILL.md');
   assert.ok(fs.existsSync(path.join(profile.skillDir, 'references', 'api-reference.md')));
 });
 
@@ -84,7 +92,7 @@ test('codex adapter can seed isolated profile from real config files', () => {
   );
   assert.equal(fs.existsSync(path.join(profile.env.CODEX_HOME, 'history.jsonl')), false);
   assert.equal(fs.existsSync(path.join(profile.env.CODEX_HOME, 'log')), false);
-  assert.ok(fs.existsSync(path.join(profile.skillDir, 'skill.md')));
+  assertExactDirEntry(profile.skillDir, 'SKILL.md');
 });
 
 test('codex adapter executes scenario through CLI and judges captured transcript', () => {
@@ -487,7 +495,7 @@ test('claude adapter prepares isolated profile and installs OKKI Go skill', () =
   assert.equal(profile.modelProfile, 'default');
   assert.equal(profile.env.CLAUDE_CONFIG_DIR, path.join(tmpRoot, 'claude', 'default'));
   assert.equal(profile.skillDir, path.join(tmpRoot, 'claude', 'default', 'skills', 'okki-go'));
-  assert.ok(fs.existsSync(path.join(profile.skillDir, 'skill.md')));
+  assertExactDirEntry(profile.skillDir, 'SKILL.md');
   assert.ok(fs.existsSync(path.join(profile.skillDir, 'references', 'api-reference.md')));
 });
 

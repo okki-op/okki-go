@@ -131,7 +131,7 @@ After installation, the skill files are located at:
 - **Custom**: `<your-path>/skills/okki-go/`
 
 The skill directory contains:
-- `skill.md` or `SKILL.md` - Main skill file (platform-dependent)
+- `SKILL.md` - Main skill file for most runtimes (`instructions.md` for GitHub Copilot)
 - `references/` - API documentation
 - `scripts/` - Helper scripts
 - `VERSION` - Version tracking
