@@ -159,3 +159,137 @@ Default inference rules:
   }
 }
 ```
+
+## 2. Trigger Modes and Lifecycle
+
+### Mode 1: Lite Onboarding
+
+Run Lite Onboarding when the user first enters Prospecting Brief Discovery and either `profile.json` does not exist or `completeness < 0.3`. The user must already have passed the normal API key setup flow before API calls are attempted; onboarding itself does not bypass authentication.
+
+Ask exactly five lightweight questions:
+
+1. **L0 company country, required:** "Which country or region does your company mainly operate from?" Write to `profile.company.country`. This is the anchor for future `trade_mode` derivation. Use the ISO table in `discovery-playbook.md` for country code normalization.
+2. **L1 company type, required:** manufacturer, trader, service provider, brand owner, or user-specified equivalent.
+3. **L2 primary product or service keywords, required:** one to three keywords.
+4. **L3 primary customer regions, required:** common options plus custom countries or regions.
+5. **L4 usual decision roles, optional:** common role options plus custom roles.
+
+Answers from Lite Onboarding are written as user-confirmed profile data. After L0 and L3 exist, the first `trade_mode` can be derived:
+
+- L3 contains only L0: `domestic`
+- L3 excludes L0: `cross_border`
+- L3 contains L0 and other markets: `mixed`
+- L0 missing: `unknown`
+
+### Mode 2: Progressive Enrichment
+
+At the start of each Prospecting Brief Discovery, compute completeness. If a field family is missing, ask at most one follow-up near the related Gray Area instead of launching another long onboarding flow.
+
+Example prompt:
+
+```text
+One quick profile question for future searches: what is the strongest reason customers choose you over alternatives? Examples include quality proof, delivery speed, custom capability, or industry experience. This will not block the current search.
+```
+
+When the user answers and agrees to reuse the value, write it as `user_confirmed` and recompute completeness.
+
+### Mode 2.5: Agent Inference Confirmation
+
+When the agent infers a B class value from conversation, it may store the value with `source: "agent_inferred"` and must ask for confirmation before using it as a Discovery default.
+
+Confirmation pattern:
+
+```text
+I inferred that your target markets may include SG and MY. Should I add them to your primary markets?
+(a) Add both
+(b) Add only SG
+(c) Do not add them
+(d) Let me choose manually
+```
+
+If the user accepts or edits the value, change the chosen entries to `user_confirmed`. If the user rejects them, remove the inferred entries. If the user does not answer, keep the inferred entries but exclude them from defaults and clearly mark them in profile views.
+
+### Mode 3: Management Workflow
+
+The skill must support a `Merchant Profile Management` workflow independent of a search request.
+
+Supported operations:
+
+- **View:** show a redacted profile with source labels. Do not print complete `sender_email` or other semi-sensitive fields unless the user explicitly asks to reveal them.
+- **Edit:** update any field and mark the new value according to its source state.
+- **Reset:** clear and rebuild the profile only after explicit confirmation.
+- **Export:** tell the user the local file path and show a redacted preview by default.
+- **Import:** accept profile data from a user-provided source and mark imported B class entries as `imported`.
+
+View output must make source status visible:
+
+```text
+regions_primary: US (confirmed), DE (confirmed), AU (agent_inferred; not used as default)
+sender_email: s***@example.com
+```
+
+## 3. Discovery Reuse Rules
+
+Prospecting Brief Discovery reads Profile defaults before asking Gray Area questions. It must prefer only confirmed or imported long-term data:
+
+- `user_confirmed`: may be presented as default.
+- `imported`: may be presented as default.
+- `user_provided`: may be used only when no confirmed/imported option exists for the same field, and the prompt must say it came from the current or prior conversation rather than the confirmed profile.
+- `agent_inferred`: must not be used as a default.
+
+Default mapping:
+
+| Discovery Area | Profile Source |
+|----------------|----------------|
+| Product anchor | `offerings.primary_products`, `offerings.product_keywords_en`, `offerings.product_keywords_zh` |
+| Company type | `target_baseline.company_types` |
+| Industry/application context | confirmed/imported `offerings.applications` |
+| Include geography | confirmed/imported `target_baseline.regions_primary` |
+| Exclude geography | `target_baseline.regions_excluded` and relevant `exclusions` |
+| Employee range | `target_baseline.employee_range` |
+| Decision roles | confirmed/imported `target_baseline.decision_roles` |
+
+When the user changes a Profile-derived default in the Brief, ask whether the change should update the Profile:
+
+```text
+You changed the target markets from US, DE to US, JP. Save this to your Merchant Profile for future defaults?
+(a) Yes, update the profile
+(b) No, only use it this time
+```
+
+Profile defaults never replace the session Brief. The Brief remains a session object described in `discovery-playbook.md`.
+
+## 4. Outreach Reuse Rules
+
+Outreach workflows may reuse Profile fields only after the search and contact discovery side of the workflow reaches the existing outreach stage.
+
+Allowed reuse:
+
+- `outreach_identity.signature_block` for email signatures.
+- `outreach_identity.sender_name`, `sender_title`, and redacted `sender_email` for draft context.
+- `offerings.primary_products` and confirmed/imported `offerings.usps` for value proposition language.
+- `outreach_identity.preferred_language`; if `null`, infer and confirm a default before writing it back.
+- `sales_context` to guide tone, channel, timing, and the Sales Journey Preview defined in `sales-mentor-playbook.md`.
+
+Safety boundary:
+
+- Profile reuse can help draft outreach content.
+- Profile reuse cannot skip recipient confirmation.
+- Profile reuse cannot skip email content confirmation.
+- Profile reuse cannot skip EDM quota confirmation or any paid-action confirmation.
+- Workflow C keeps the existing email confirmation and send flow after the company/contact discovery front half.
+
+## 5. Sensitive Fields and Privacy
+
+`profile.json` is local state and must be mode `0600`.
+
+Privacy rules:
+
+- Never store API keys in `profile.json`.
+- Never report `sender_email`, `sender_name`, email body, API key, or sensitive profile content in analytics.
+- In profile views, redact `outreach_identity.sender_email` and `sender_name` by default.
+- Reveal full semi-sensitive fields only when the user explicitly asks.
+- When exporting, default to a redacted preview and remind the user of the local file path.
+- Make every `agent_inferred` field obvious in profile views so the user can confirm or reject it.
+
+If a future workflow deletes the profile file, it must be an explicit reset action. It must not happen as a side effect of Discovery, Expansion, or outreach.
