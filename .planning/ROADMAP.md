@@ -10,7 +10,7 @@ This roadmap lands the merged discovery harness from rule contracts to tested re
 - Integer phases are planned milestone work.
 - Decimal phases are urgent insertions if needed.
 
-- [ ] **Phase 1: Rule Contract Playbooks** - Create the four reference playbooks and lock cross-document behavior rules.
+- [x] **Phase 1: Rule Contract Playbooks** - Create the four reference playbooks and lock cross-document behavior rules.
 - [ ] **Phase 2: State Helper and Unit Tests** - Implement okki-state.js and deterministic tests for profile/viewed state.
 - [ ] **Phase 3: Skill Workflow Integration** - Wire the harness into SKILL.md, preserving existing safety flows.
 - [ ] **Phase 4: Eval Coverage** - Add regression scenarios for high-risk harness behavior.
@@ -32,10 +32,10 @@ This roadmap lands the merged discovery harness from rule contracts to tested re
 **Plans**: 4 plans
 
 Plans:
-- [ ] 01-01: Merchant Profile playbook
-- [ ] 01-02: Discovery playbook
-- [ ] 01-03: Expansion playbook
-- [ ] 01-04: Sales Mentor playbook and cross-reference audit
+- [x] 01-01: Merchant Profile playbook
+- [x] 01-02: Discovery playbook
+- [x] 01-03: Expansion playbook
+- [x] 01-04: Sales Mentor playbook and cross-reference audit
 
 ### Phase 2: State Helper and Unit Tests
 **Goal**: Add a minimal, dependency-free Node helper for local profile/viewed state and prove it with unit tests.  
@@ -108,7 +108,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Rule Contract Playbooks | 0/4 | Not started | - |
+| 1. Rule Contract Playbooks | 4/4 | Complete | 2026-05-28 |
 | 2. State Helper and Unit Tests | 0/3 | Not started | - |
 | 3. Skill Workflow Integration | 0/4 | Not started | - |
 | 4. Eval Coverage | 0/3 | Not started | - |
