@@ -175,7 +175,13 @@ Forbidden reverse recommendation patterns:
 
 ## 4. Sales Journey Preview
 
-Run Sales Journey Preview after results have been classified and grouped as unlocked, seen, and new, and before asking the user what to do next.
+Run Sales Journey Preview after results have been classified and grouped as `unlocked`, `seen`, and `new` by `discovery-playbook.md` Section 6, and before asking the user what to do next.
+
+Group semantics:
+
+- `unlocked`: previously paid-unlocked within the active window; revisit is free under the OKKI Go 30-day unlock semantics.
+- `seen`: previously displayed within the active window but not unlocked.
+- `new`: not previously displayed in the active window.
 
 If `trade_mode = unknown`, use a country-neutral fallback and optionally ask for company country. Do not invent a trade mode.
 

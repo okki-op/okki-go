@@ -338,3 +338,31 @@ The Tier 2 template must include:
 - A clear yes/no or edit prompt.
 
 The template must not claim that a paid action will happen. Company search is free. Unlock, contact search, and email sending have separate confirmations.
+
+## 6. Result Classification and Viewed Lifecycle
+
+After `search-advanced` returns and any local-only filtering is complete, classify companies before display using the viewed-state helper planned for Phase 2. The model must not manually reimplement persisted deduplication logic when the helper exists.
+
+State file contract:
+
+- Path: `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/viewed.json`
+- Version: `1.1`
+- File mode: `0600`
+- Entry lifecycle: `status: "viewed"` by default, `status: "unlocked"` only after successful `/companies/unlock`
+- `unlocked_at` is set when unlock succeeds
+
+Display groups:
+
+1. `unlocked`: companies with `status = "unlocked"` and `unlocked_at` within the active window. Display as already unlocked and free to revisit.
+2. `seen`: companies with `status = "viewed"` and `shown_at` within the active window. Display as previously seen.
+3. `new`: companies not present in viewed state within the active window.
+
+Default window is 30 days, matching the OKKI Go company unlock deduplication window. Future helper commands may support 7, 30, or 90 days, reset, and "show seen" behavior, but Discovery should only consume the classification output.
+
+Write timing:
+
+- Before display: classify results into `unlocked`, `seen`, and `new`.
+- After display: mark displayed domains as shown.
+- After a successful unlock: mark that domain as unlocked with `unlocked_at = now`.
+
+Expansion decisions happen before final display but after effective result counts are known. If Expansion triggers another search, classify the final merged result set again before display.

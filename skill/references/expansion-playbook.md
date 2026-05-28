@@ -213,3 +213,22 @@ After each expansion search:
 Ladder does not count as a Full Expansion round. Lite Expansion does not count as a Full Expansion round unless the user selects a Lite candidate and starts an expanded search; that later search becomes Full Expansion round 1 for the current Brief.
 
 Expansion never implies paid unlock or contact retrieval. Paid-action and email-send confirmations remain governed by `discovery-playbook.md` Hard Guardrails and the main `SKILL.md`.
+
+## 7. Result Grouping After Expansion
+
+Expansion returns candidate directions and, after user selection, may produce another free company search. It does not own viewed-state persistence.
+
+After an expansion search finishes:
+
+- Reapply any local-only filters from `discovery-playbook.md`.
+- Recompute the effective total for stopping decisions.
+- Merge or present results according to the current session flow.
+- Re-run viewed classification from `discovery-playbook.md` Section 6 before final display.
+
+Final result labels must remain the same across non-expanded and expanded searches:
+
+- `unlocked`: previously paid-unlocked within the active window.
+- `seen`: previously displayed within the active window.
+- `new`: not seen in the active window.
+
+Do not create separate persistent states for "expanded", "saved", or "dismissed" in v1.2.0. If a result came from an expansion candidate, annotate it in the display as expansion-origin context only; do not mutate `viewed.json` beyond shown/unlocked lifecycle writes.
