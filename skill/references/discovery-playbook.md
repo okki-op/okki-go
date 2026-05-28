@@ -185,3 +185,156 @@ If the user asks to scan beyond these bounds, confirm before continuing to avoid
 ### Decision-Role Separation
 
 Never place `decision_roles` values such as "Procurement Manager" into `productKeywords`, `industryKeywords`, or `companyTypeKeywords`. Roles describe people, not companies. They are only used after company discovery for `profileEmails.keyword` or `contacts/search.title`.
+
+## 4.1. Country Code Table
+
+Use ISO 3166-1 alpha-2 codes for `includeCountry`, `excludeCountry`, Profile `company.country`, and `target_baseline.regions_primary`.
+
+| ISO | Chinese | English aliases |
+|-----|---------|-----------------|
+| US | 美国 | USA, United States, America |
+| CA | 加拿大 | Canada |
+| MX | 墨西哥 | Mexico |
+| BR | 巴西 | Brazil, Brasil |
+| AR | 阿根廷 | Argentina |
+| CL | 智利 | Chile |
+| CO | 哥伦比亚 | Colombia |
+| PE | 秘鲁 | Peru |
+| GB | 英国 | UK, United Kingdom, Britain, Great Britain |
+| DE | 德国 | Germany, Deutschland |
+| FR | 法国 | France |
+| IT | 意大利 | Italy, Italia |
+| ES | 西班牙 | Spain, España |
+| NL | 荷兰 | Netherlands, Holland |
+| BE | 比利时 | Belgium |
+| CH | 瑞士 | Switzerland |
+| AT | 奥地利 | Austria |
+| SE | 瑞典 | Sweden |
+| NO | 挪威 | Norway |
+| DK | 丹麦 | Denmark |
+| FI | 芬兰 | Finland |
+| IE | 爱尔兰 | Ireland |
+| PL | 波兰 | Poland |
+| PT | 葡萄牙 | Portugal |
+| GR | 希腊 | Greece |
+| CZ | 捷克 | Czech, Czech Republic, Czechia |
+| RU | 俄罗斯 | Russia |
+| UA | 乌克兰 | Ukraine |
+| TR | 土耳其 | Turkey, Türkiye |
+| JP | 日本 | Japan |
+| KR | 韩国 | South Korea, Korea, ROK |
+| KP | 朝鲜 | North Korea, DPRK |
+| CN | 中国 | China, PRC, Mainland China |
+| HK | 香港 | Hong Kong |
+| TW | 台湾 | Taiwan |
+| MO | 澳门 | Macau, Macao |
+| SG | 新加坡 | Singapore |
+| MY | 马来西亚 | Malaysia |
+| TH | 泰国 | Thailand |
+| VN | 越南 | Vietnam |
+| ID | 印度尼西亚 | Indonesia |
+| PH | 菲律宾 | Philippines |
+| IN | 印度 | India |
+| BD | 孟加拉国 | Bangladesh |
+| PK | 巴基斯坦 | Pakistan |
+| AE | 阿联酋 | UAE, United Arab Emirates |
+| SA | 沙特阿拉伯 | Saudi Arabia, KSA |
+| QA | 卡塔尔 | Qatar |
+| IL | 以色列 | Israel |
+| AU | 澳大利亚 | Australia |
+| NZ | 新西兰 | New Zealand |
+| ZA | 南非 | South Africa |
+| EG | 埃及 | Egypt |
+| NG | 尼日利亚 | Nigeria |
+| MA | 摩洛哥 | Morocco |
+
+Easy-mistake whitelist:
+
+- United Kingdom is `GB`, not `UK`.
+- South Korea is `KR`; North Korea is `KP`.
+- Mainland China is `CN`; Hong Kong, Taiwan, and Macau are distinct ISO entries: `HK`, `TW`, `MO`.
+- Switzerland is `CH`; Sweden is `SE`.
+- Czechia is `CZ`, not `CR`.
+- United Arab Emirates is `AE`, not `UAE`.
+
+Fallback rules:
+
+1. For countries outside the table, normalize to ISO 3166-1 alpha-2 if known.
+2. If uncertain, ask the user for confirmation instead of guessing.
+3. If spelling is likely wrong but intent is clear, normalize and mention the assumption briefly.
+
+## 5.0. Pre-Search Statement and Confirmation Tiers
+
+Before calling `search-advanced`, derive `trade_mode` and route through one of three confirmation tiers. Strict mode and direct-search override may change the tier, but Hard Guardrails still apply.
+
+Trade mode labels:
+
+| Value | Label | Rule |
+|-------|-------|------|
+| `domestic` | 本地市场开发 / domestic market | Profile country and target markets match. |
+| `cross_border` | 跨境市场开发 / cross-border market | Target markets exclude Profile country. |
+| `mixed` | 本地 + 跨境混合 / mixed market | Target markets include Profile country plus others. |
+| `unknown` | 场景未完整识别 / unknown | Profile country is missing or ambiguous. |
+
+### Tier 1: Efficiency Mode
+
+Use when `completeness > 0.7` or the user explicitly says "直接搜" / "skip confirmation" and a free search can be constructed.
+
+Do not wait for confirmation before free `search-advanced`, but show a short Pre-Search Statement:
+
+```text
+本次场景识别为 [trade_mode label]（公司所在国：[profile.company.country or unknown]，目标市场：[brief.geo_include]）。
+我将按 [product/company type/industry/geography/scale/target_count] 搜索。首次公司搜索免费；如后续需要解锁或找联系人，我会再单独确认。
+```
+
+If `trade_mode = unknown`, continue only for free search and skip trade-mode-dependent mentor hooks.
+
+### Tier 2: Standard Confirmation
+
+Use when `0.3 <= completeness <= 0.7`, or when the user asks for strict confirmation.
+
+Show the Brief Confirmation Template and wait for explicit confirmation before `search-advanced`:
+
+```text
+本次场景识别为 [trade_mode label]。
+
+我已经整理出您的潜客画像 brief：
+- 公司类型：[company_type]
+- 产品关键词：[product_anchor]
+- 行业：[industry or不限]
+- 地区：[geo_include]
+- 排除地区：[geo_exclude or无]
+- 规模：[employee_range or不限]
+- 是否要求邮箱：[with_emails_only]
+- 决策角色：[decision_roles or未指定]
+- 目标数量：[target_count] 家
+
+我将基于此调用公司搜索（首次搜索免费）。是否确认？
+```
+
+If the user changes the Brief, rebuild the Brief and derive `trade_mode` again.
+
+### Tier 3: First-Use Mode
+
+Use when `completeness < 0.3` and the user did not explicitly request direct free search.
+
+Run Lite Onboarding from `merchant-profile-playbook.md` first. It must include L0 company country. After onboarding, route to Tier 2 so the user sees and confirms the first real Brief.
+
+### Overrides
+
+- Strict override: "这次帮我严格确认" / "strict mode" forces Tier 2.
+- Direct-search override: "直接搜" / "skip confirmation" may force Tier 1 for free search, even when completeness is low, as long as enough search parameters exist.
+- Direct-search override cannot authorize paid unlock, paid contact search, or email sending.
+- If direct-search parameters are insufficient, ask only for product/category and target geography.
+
+## 5. Brief Confirmation Template Contract
+
+The Tier 2 template must include:
+
+- `trade_mode` label.
+- Search dimensions that will map to API parameters.
+- Unsupported/local-only dimensions such as `employee_range`.
+- `target_count` and the fact that Expansion may run when filtered results are below target.
+- A clear yes/no or edit prompt.
+
+The template must not claim that a paid action will happen. Company search is free. Unlock, contact search, and email sending have separate confirmations.
