@@ -11,7 +11,7 @@ This roadmap lands the merged discovery harness from rule contracts to tested re
 - Decimal phases are urgent insertions if needed.
 
 - [x] **Phase 1: Rule Contract Playbooks** - Create the four reference playbooks and lock cross-document behavior rules.
-- [ ] **Phase 2: State Helper and Unit Tests** - Implement okki-state.js and deterministic tests for profile/viewed state.
+- [x] **Phase 2: State Helper and Unit Tests** - Implement okki-state.js and deterministic tests for profile/viewed state.
 - [ ] **Phase 3: Skill Workflow Integration** - Wire the harness into SKILL.md, preserving existing safety flows.
 - [ ] **Phase 4: Eval Coverage** - Add regression scenarios for high-risk harness behavior.
 - [ ] **Phase 5: Verification and Release Readiness** - Run self-review, tests, version checks, and release notes.
@@ -49,9 +49,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: State helper CLI and schema migration
-- [ ] 02-02: Profile command tests
-- [ ] 02-03: Viewed lifecycle and corrupt-state tests
+- [x] 02-01: State helper CLI and schema migration
+- [x] 02-02: Profile command tests
+- [x] 02-03: Viewed lifecycle and corrupt-state tests
 
 ### Phase 3: Skill Workflow Integration
 **Goal**: Update SKILL.md to version 1.2.0 with harness sections, helper calls, and Workflow A/C changes while preserving safety.  
@@ -109,7 +109,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Rule Contract Playbooks | 4/4 | Complete | 2026-05-28 |
-| 2. State Helper and Unit Tests | 0/3 | Not started | - |
+| 2. State Helper and Unit Tests | 3/3 | Complete | 2026-05-28 |
 | 3. Skill Workflow Integration | 0/4 | Not started | - |
 | 4. Eval Coverage | 0/3 | Not started | - |
 | 5. Verification and Release Readiness | 0/2 | Not started | - |
