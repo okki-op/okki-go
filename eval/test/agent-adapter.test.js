@@ -131,6 +131,46 @@ test('codex adapter executes scenario through CLI and judges captured transcript
   assert.ok(result.run.durationMs >= 0);
 });
 
+test('codex adapter parses behavior markers from CLI transcript', () => {
+  const adapter = createCodexAdapter({
+    commandExists: () => true,
+    executable: process.execPath,
+    tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'okki-codex-behavior-')),
+    commandArgs: [path.join(__dirname, 'fixtures', 'fake-codex-cli.js')],
+    timeoutMs: 5000
+  });
+  const profile = adapter.prepareProfile({ modelProfile: 'default' });
+  profile.env.OKKI_FAKE_CODEX_MODE = 'BEHAVIOR_MARKERS';
+
+  const result = adapter.runScenario(profile, {
+    id: 'business-context-order',
+    suite: 'business',
+    userTurns: [
+      { role: 'user', content: '帮我找德国汽车零部件进口商，最好有联系人邮箱' }
+    ],
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustCall: [{ method: 'POST', path: '/api/v1/companies/search-advanced' }]
+      },
+      behavior: {
+        mustEmit: ['bc1_goal_before_brief', 'brief_built', 'trade_mode_derived'],
+        ordered: [
+          ['bc1_goal_before_brief', 'brief_built'],
+          ['brief_built', 'trade_mode_derived']
+        ]
+      }
+    }
+  });
+
+  assert.equal(result.status, 'passed');
+  assert.deepEqual(result.run.behaviorEvents, [
+    'bc1_goal_before_brief',
+    'brief_built',
+    'trade_mode_derived'
+  ]);
+});
+
 test('codex adapter preserves unparseable CLI output as failed transcript evidence', () => {
   const adapter = createCodexAdapter({
     commandExists: () => true,
@@ -313,13 +353,15 @@ test('accio adapter prepares isolated account profile and installs OKKI Go skill
   assert.equal(skillsConfig['OKKI Go'].enabled, true);
 });
 
-test('accio adapter returns blocked run result until real CLI execution is enabled', () => {
+test('accio adapter reports blocked run result when account exists but no CLI is available', () => {
   const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'okki-accio-run-config-'));
   fs.mkdirSync(path.join(configRoot, 'accounts', 'account-1'), { recursive: true });
   const adapter = createAccioAdapter({
     configRoot,
     tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'okki-accio-run-')),
-    accountId: 'account-1'
+    accountId: 'account-1',
+    commandExists: () => false,
+    candidateExecutables: ['missing-accio']
   });
 
   const profile = adapter.prepareProfile({ modelProfile: 'default' });
@@ -332,7 +374,8 @@ test('accio adapter returns blocked run result until real CLI execution is enabl
   assert.equal(result.agent, 'accio');
   assert.equal(result.modelProfile, 'default');
   assert.equal(result.status, 'blocked');
-  assert.equal(result.reason, 'agent_cli_execution_not_implemented');
+  assert.equal(result.reason, 'agent_cli_not_found');
+  assert.deepEqual(result.candidateExecutables, ['missing-accio']);
 });
 
 test('accio adapter executes scenario through configured CLI and judges captured JSON transcript', () => {
@@ -378,6 +421,55 @@ test('accio adapter executes scenario through configured CLI and judges captured
   ]);
   assert.equal(result.routingOutcome, 'triggered');
   assert.ok(result.run.args.includes('--message'));
+});
+
+test('accio adapter discovers an available CLI candidate and uses default agent args', () => {
+  const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'okki-accio-discover-config-'));
+  fs.mkdirSync(path.join(configRoot, 'accounts', 'account-1'), { recursive: true });
+  const adapter = createAccioAdapter({
+    configRoot,
+    tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'okki-accio-discover-run-')),
+    accountId: 'account-1',
+    commandExists: (command) => command === process.execPath,
+    candidateExecutables: ['missing-accio', process.execPath],
+    defaultCommandArgs: [
+      path.join(__dirname, 'fixtures', 'fake-agent-cli.js'),
+      'agent',
+      '--message',
+      '{prompt}',
+      '--json'
+    ],
+    timeoutMs: 5000
+  });
+
+  assert.deepEqual(adapter.detect(), {
+    installed: true,
+    executable: process.execPath,
+    accountId: 'account-1',
+    accountDir: path.join(configRoot, 'accounts', 'account-1'),
+    cliDiscovered: true
+  });
+
+  const profile = adapter.prepareProfile({ modelProfile: 'default' });
+  const result = adapter.runScenario(profile, {
+    id: 'trigger-company-search-industry-country',
+    suite: 'routing',
+    userTurns: [
+      { role: 'user', content: '帮我找德国汽车零部件进口商，最好有联系人邮箱' }
+    ],
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustCall: [{ method: 'POST', path: '/api/v1/companies/search-advanced' }]
+      }
+    }
+  });
+
+  assert.equal(result.status, 'passed');
+  assert.equal(result.run.command, process.execPath);
+  assert.deepEqual(result.run.apiCalls, [
+    { method: 'POST', path: '/api/v1/companies/search-advanced' }
+  ]);
 });
 
 test('openclaw adapter detects executable availability through injected command lookup', () => {
@@ -463,6 +555,34 @@ test('openclaw adapter executes scenario through CLI and judges captured JSON tr
   assert.equal(result.routingOutcome, 'triggered');
 });
 
+test('openclaw adapter default CLI args match the documented headless command', () => {
+  const fakeExecutable = makeFakeOpenClawExecutable();
+  const adapter = createOpenClawAdapter({
+    commandExists: () => true,
+    executable: fakeExecutable,
+    tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'okki-openclaw-default-args-')),
+    timeoutMs: 5000
+  });
+  const profile = adapter.prepareProfile({ modelProfile: 'default' });
+  const result = adapter.runScenario(profile, {
+    id: 'trigger-company-search-industry-country',
+    suite: 'routing',
+    userTurns: [
+      { role: 'user', content: '帮我找德国汽车零部件进口商，最好有联系人邮箱' }
+    ],
+    expected: {
+      routing: { expectedDecision: 'should_trigger' }
+    }
+  });
+
+  assert.equal(result.run.exitCode, 0);
+  assert.equal(result.run.args[0], 'agent');
+  assert.deepEqual(result.run.args.slice(-2), ['--local', '--json']);
+  assert.ok(result.run.args.includes('--agent'));
+  assert.ok(result.run.args.includes('main'));
+  assert.ok(result.run.args.includes('--message'));
+});
+
 test('claude adapter detects executable availability through injected command lookup', () => {
   const installed = createClaudeAdapter({
     commandExists: (command) => command === 'claude'
@@ -546,6 +666,17 @@ test('claude adapter returns blocked run result until CLI execution is enabled',
 function makeFakeCodexExecutable() {
   const scriptPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'okki-fake-codex-command-')), 'codex');
   const fixturePath = path.join(__dirname, 'fixtures', 'fake-codex-cli.js');
+  fs.writeFileSync(
+    scriptPath,
+    ['#!/bin/sh', `exec "${process.execPath}" "${fixturePath}" "$@"`, ''].join('\n')
+  );
+  fs.chmodSync(scriptPath, 0o755);
+  return scriptPath;
+}
+
+function makeFakeOpenClawExecutable() {
+  const scriptPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'okki-fake-openclaw-command-')), 'openclaw');
+  const fixturePath = path.join(__dirname, 'fixtures', 'fake-agent-cli.js');
   fs.writeFileSync(
     scriptPath,
     ['#!/bin/sh', `exec "${process.execPath}" "${fixturePath}" "$@"`, ''].join('\n')

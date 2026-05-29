@@ -8,6 +8,9 @@ const DEFAULT_COMPANY_SEARCH_CALL = {
 function runReferenceScenario(scenario) {
   const expected = scenario.expected || {};
   const expectedDecision = expected.routing && expected.routing.expectedDecision;
+  const behaviorEvents = expected.behavior && Array.isArray(expected.behavior.mustEmit)
+    ? expected.behavior.mustEmit.slice()
+    : [];
 
   if (expectedDecision === 'should_not_trigger') {
     return {
@@ -15,6 +18,7 @@ function runReferenceScenario(scenario) {
       suite: scenario.suite,
       routingDecision: 'not_triggered',
       apiCalls: [],
+      behaviorEvents,
       output: 'This request is outside the OKKI Go skill scope.'
     };
   }
@@ -25,7 +29,21 @@ function runReferenceScenario(scenario) {
       suite: scenario.suite,
       routingDecision: 'triggered_pending_prerequisite',
       apiCalls: [],
+      behaviorEvents,
       output: 'OKKI Go API key is required before making business API calls.'
+    };
+  }
+
+  if (expected.api && Array.isArray(expected.api.mustNotCallBeforeConfirmation) && expected.api.mustNotCallBeforeConfirmation.length > 0) {
+    const preConfirmationCalls = expected.api.mustCall ? expected.api.mustCall.map(normalizeCall) : [];
+    return {
+      caseId: scenario.id,
+      suite: scenario.suite,
+      routingDecision: 'triggered_pending_prerequisite',
+      apiCalls: preConfirmationCalls,
+      preConfirmationApiCalls: preConfirmationCalls,
+      behaviorEvents,
+      output: outputWithBehavior('OKKI Go reference agent stopped before paid or send actions that need confirmation.', behaviorEvents)
     };
   }
 
@@ -35,7 +53,8 @@ function runReferenceScenario(scenario) {
       suite: scenario.suite,
       routingDecision: 'triggered',
       apiCalls: [normalizeCall(expected.api.preferredFirstCall)],
-      output: 'OKKI Go reference agent triggered and made the preferred first API call.'
+      behaviorEvents,
+      output: outputWithBehavior('OKKI Go reference agent triggered and made the preferred first API call.', behaviorEvents)
     };
   }
 
@@ -45,7 +64,8 @@ function runReferenceScenario(scenario) {
       suite: scenario.suite,
       routingDecision: 'triggered',
       apiCalls: expected.api.mustCall.map(normalizeCall),
-      output: 'OKKI Go reference agent triggered and made the expected API calls.'
+      behaviorEvents,
+      output: outputWithBehavior('OKKI Go reference agent triggered and made the expected API calls.', behaviorEvents)
     };
   }
 
@@ -55,7 +75,8 @@ function runReferenceScenario(scenario) {
       suite: scenario.suite,
       routingDecision: 'triggered_pending_prerequisite',
       apiCalls: [],
-      output: 'This may require a paid contact search. Please confirm whether to proceed.'
+      behaviorEvents,
+      output: outputWithBehavior('This may require a paid contact search. Please confirm whether to proceed.', behaviorEvents)
     };
   }
 
@@ -64,7 +85,8 @@ function runReferenceScenario(scenario) {
     suite: scenario.suite,
     routingDecision: 'triggered',
     apiCalls: [DEFAULT_COMPANY_SEARCH_CALL],
-    output: 'OKKI Go reference agent triggered and searched companies.'
+    behaviorEvents,
+    output: outputWithBehavior('OKKI Go reference agent triggered and searched companies.', behaviorEvents)
   };
 }
 
@@ -80,6 +102,14 @@ function concretePath(call) {
   if (call.pathPattern) return call.pathPattern.replace(':companyHashId', 'hash-eval');
   if (call.pathPrefix) return call.pathPrefix;
   return '/api/v1/companies/search-advanced';
+}
+
+function outputWithBehavior(message, behaviorEvents) {
+  if (!Array.isArray(behaviorEvents) || behaviorEvents.length === 0) return message;
+  return [
+    message,
+    ...behaviorEvents.map((event) => `BEHAVIOR: ${event}`)
+  ].join('\n');
 }
 
 module.exports = { runReferenceScenario };

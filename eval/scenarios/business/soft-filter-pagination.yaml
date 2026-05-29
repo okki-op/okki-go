@@ -1,0 +1,30 @@
+id: soft-filter-pagination
+suite: business
+name: employee_range 本地软过滤需要先分页扫描再决定扩展
+userTurns:
+  - role: user
+    content: 找德国汽配进口商，员工 50-200 人，目标 30 家，第一页不够也继续多翻几页再判断
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustCall:
+      - method: POST
+        path: /api/v1/companies/search-advanced
+  behavior:
+    mustEmit:
+      - search_page_1_size_50
+      - local_employee_filter_applied
+      - pagination_scanned_before_expansion
+      - filtered_count_used_for_expansion
+      - scan_count_reported
+    ordered:
+      - - search_page_1_size_50
+        - local_employee_filter_applied
+      - - local_employee_filter_applied
+        - pagination_scanned_before_expansion
+      - - pagination_scanned_before_expansion
+        - filtered_count_used_for_expansion
+    mustNotEmit:
+      - expansion_decided_from_raw_total
+      - expansion_decided_from_first_page_only

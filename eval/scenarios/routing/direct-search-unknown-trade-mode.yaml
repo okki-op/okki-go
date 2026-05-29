@@ -1,0 +1,32 @@
+id: direct-search-unknown-trade-mode
+suite: routing
+name: 直接搜且 trade_mode unknown 时允许免费公司搜索
+userTurns:
+  - role: user
+    content: 直接搜德国汽配公司，先不用问我公司在哪里
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustCall:
+      - method: POST
+        path: /api/v1/companies/search-advanced
+    mustNotCall:
+      - method: POST
+        path: /api/v1/companies/unlock
+      - method: POST
+        path: /api/v1/contacts/search
+      - method: POST
+        path: /api/v1/emails/send/batch
+      - method: POST
+        path: /api/v1/emails/send/personalized
+  behavior:
+    mustEmit:
+      - profile_country_missing
+      - trade_mode_unknown
+      - free_search_allowed
+      - mentor_trade_mode_hooks_deferred
+      - prompt_profile_country_later
+    mustNotEmit:
+      - bc3_before_trade_mode
+      - paid_unlock_authorized_by_direct_search

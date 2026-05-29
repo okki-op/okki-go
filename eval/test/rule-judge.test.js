@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { runReferenceScenario } = require('../lib/runners/reference-agent');
-const { judgeScenarioRun } = require('../lib/judge/rule-judge');
+const { judgeScenarioRun, parseBehaviorEvents } = require('../lib/judge/rule-judge');
 
 test('positive trigger with preferred company search call passes and scores routing 100', () => {
   const scenario = {
@@ -264,5 +264,112 @@ test('reference agent follows explicit mustCall sequence for selected company co
     { method: 'POST', path: '/api/v1/companies/unlock' },
     { method: 'GET', path: '/api/v1/companies/hash-eval/profileEmails' }
   ]);
+  assert.equal(judgeScenarioRun(scenario, run).status, 'passed');
+});
+
+test('behavior marker expectations pass when emitted in order', () => {
+  const scenario = {
+    id: 'business-context-order',
+    suite: 'business',
+    expected: {
+      behavior: {
+        mustEmit: ['bc1_goal_before_brief', 'brief_built', 'trade_mode_derived'],
+        ordered: [
+          ['bc1_goal_before_brief', 'brief_built'],
+          ['brief_built', 'trade_mode_derived']
+        ],
+        mustNotEmit: ['bc3_before_trade_mode']
+      }
+    }
+  };
+
+  const result = judgeScenarioRun(scenario, {
+    routingDecision: 'triggered',
+    apiCalls: [],
+    behaviorEvents: ['bc1_goal_before_brief', 'brief_built', 'trade_mode_derived']
+  });
+
+  assert.equal(result.status, 'passed');
+  assert.deepEqual(result.failureReasons, []);
+  assert.equal(result.scores.behavior, 100);
+});
+
+test('behavior marker expectations fail missing, forbidden, and out-of-order events', () => {
+  const result = judgeScenarioRun(
+    {
+      id: 'bad-behavior',
+      suite: 'business',
+      expected: {
+        behavior: {
+          mustEmit: ['profile_read_before_discovery', 'brief_built'],
+          mustNotEmit: ['agent_inferred_used_as_default'],
+          ordered: [['profile_read_before_discovery', 'brief_built']]
+        }
+      }
+    },
+    {
+      routingDecision: 'triggered',
+      apiCalls: [],
+      behaviorEvents: ['brief_built', 'agent_inferred_used_as_default']
+    }
+  );
+
+  assert.equal(result.status, 'failed');
+  assert.ok(result.failureReasons.includes('missing_behavior:profile_read_before_discovery'));
+  assert.ok(result.failureReasons.includes('forbidden_behavior:agent_inferred_used_as_default'));
+  assert.ok(result.failureReasons.includes('behavior_out_of_order:profile_read_before_discovery->brief_built'));
+  assert.equal(result.scores.behavior, 0);
+});
+
+test('behavior markers can be parsed from transcript text', () => {
+  const transcript = [
+    'ROUTING_DECISION: triggered',
+    'BEHAVIOR: profile_read_before_discovery',
+    'BEHAVIOR: discovery_defaults_source_checked'
+  ].join('\n');
+
+  assert.deepEqual(parseBehaviorEvents(transcript), [
+    'profile_read_before_discovery',
+    'discovery_defaults_source_checked'
+  ]);
+
+  const result = judgeScenarioRun(
+    {
+      id: 'transcript-behavior',
+      suite: 'business',
+      expected: {
+        behavior: {
+          mustEmit: ['profile_read_before_discovery', 'discovery_defaults_source_checked']
+        }
+      }
+    },
+    {
+      routingDecision: 'triggered',
+      apiCalls: [],
+      transcript
+    }
+  );
+
+  assert.equal(result.status, 'passed');
+});
+
+test('reference agent emits deterministic behavior markers from scenario expectations', () => {
+  const scenario = {
+    id: 'profile-source-defaults',
+    suite: 'business',
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustCall: [{ method: 'POST', path: '/api/v1/companies/search-advanced' }]
+      },
+      behavior: {
+        mustEmit: ['profile_read_before_discovery', 'agent_inferred_defaults_excluded']
+      }
+    }
+  };
+
+  const run = runReferenceScenario(scenario);
+  assert.deepEqual(run.behaviorEvents, ['profile_read_before_discovery', 'agent_inferred_defaults_excluded']);
+  assert.match(run.output, /BEHAVIOR: profile_read_before_discovery/);
   assert.equal(judgeScenarioRun(scenario, run).status, 'passed');
 });

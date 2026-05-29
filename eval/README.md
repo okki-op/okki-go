@@ -46,7 +46,7 @@ Phase 2 reports include routing metrics, business quality aggregates, and `manua
 - installs OKKI Go Skill into that profile
 - executes Codex through `codex exec`, captures stdout/stderr as transcript evidence, parses routing/API markers, and runs the rule judge
 - executes OpenClaw through `openclaw agent --message {prompt} --local --json` when the CLI is installed
-- executes Accio through an explicitly configured CLI command because the desktop app does not expose a stable headless CLI in PATH
+- executes Accio through an explicitly configured CLI command, or an auto-discovered `accio`/`$ACCIO_CONFIG_DIR/bin/accio` executable when one exists
 - keeps Claude Code at profile smoke coverage for now, with scenario execution marked `blocked`
 
 ```bash
@@ -66,6 +66,8 @@ node run.js --mode local-agent --suite routing --agents accio \
   --report
 ```
 
+When an Accio account exists but no headless CLI is available, the case is reported as `blocked` with reason `agent_cli_not_found` and the attempted candidate executable list. The evaluator does not treat `/Applications/Accio.app/Contents/MacOS/Accio` as a headless CLI candidate because that binary is the desktop app entrypoint.
+
 For unsupported or unavailable Agents:
 
 ```bash
@@ -79,10 +81,21 @@ For Codex transcript scoring, the evaluator asks the CLI to include machine-read
 ```text
 ROUTING_DECISION: triggered|triggered_pending_prerequisite|not_triggered
 API_CALL: METHOD /api/path
+BEHAVIOR: workflow_or_guardrail_marker
 ```
 
 The raw stdout/stderr transcript is still stored in case results when those markers are missing or the run fails. For Codex, `--use-real-agent-config` copies only startup/auth files such as `auth.json` and `config.toml` into the isolated temporary profile so the real CLI can authenticate without writing to the user's real `~/.codex` directory.
 For OpenClaw, `--use-real-agent-config` seeds the isolated profile from `~/.openclaw/openclaw.json` and rewrites the workspace to the temporary profile. Without that flag, OpenClaw receives a minimal temporary config and may need provider credentials supplied by environment or the explicit `--agent-cli-args` model flags.
+
+## Phase 4 Discovery Harness Coverage
+
+Discovery Harness regression scenarios add deterministic `BEHAVIOR:` marker checks for workflow order and guardrails:
+
+```bash
+node run.js --mode local-core --suite all --scenarios direct-search-unknown-trade-mode,direct-search-paid-action-guardrail,business-context-order,soft-filter-pagination,viewed-lifecycle,profile-source-defaults
+```
+
+These scenarios cover direct-search unknown trade mode, paid-action guardrails, Business Context ordering, employee-range soft-filter pagination, viewed lifecycle grouping, and Profile source defaults.
 
 ## Packaging Guard
 

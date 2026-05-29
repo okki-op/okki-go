@@ -12,6 +12,8 @@ test('runStaticChecks passes required repository consistency checks', () => {
   assert.equal(resultById(results, 'skill-routing-and-env-present').status, 'passed');
   assert.equal(resultById(results, 'skill-credential-resolution-present').status, 'passed');
   assert.equal(resultById(results, 'installer-runtime-list-present').status, 'passed');
+  assert.equal(resultById(results, 'release-version-consistency').status, 'passed');
+  assert.equal(resultById(results, 'company-search-pagination-guardrail').status, 'passed');
 });
 
 test('runStaticChecks warns with relative file paths for legacy runtime flags', () => {
@@ -101,6 +103,65 @@ test('runStaticChecks fails when installer runtime list, codex, or accio is miss
   assert.equal(result.reason, 'installer must include SUPPORTED_RUNTIMES, codex, and accio');
 });
 
+test('runStaticChecks fails when release version references drift', () => {
+  const root = makeOkkiRoot({
+    packageVersion: '1.2.0',
+    skill: [
+      '---',
+      'version: 1.2.0',
+      '---',
+      'OKKIGO_API_KEY',
+      'Do NOT use this skill',
+      'four-tier credential resolution',
+      'platform config/secrets',
+      'local credentials file',
+      'scripts/resolve-api-key.sh'
+    ].join('\n'),
+    installer: [
+      'const VERSION = \'1.0.12\';',
+      'const SUPPORTED_RUNTIMES = [\'codex\', \'accio\'];'
+    ].join('\n'),
+    scripts: {
+      'resolve-api-key.sh': 'SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.0.12}"\n'
+    },
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.0.12\n'
+    },
+    readme: '**Current**: 1.0.12\n',
+    install: '**当前版本**: 1.0.12\n'
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'release-version-consistency');
+
+  assert.equal(result.status, 'failed');
+  assert.match(result.reason, /release version references must match package version 1\.2\.0/);
+  assert.deepEqual(result.files, [
+    'bin/install.js',
+    'skill/scripts/resolve-api-key.sh',
+    'skill/references/api-reference.md',
+    'README.md',
+    'INSTALL.md'
+  ]);
+});
+
+test('runStaticChecks fails when free company search pagination guardrail is missing', () => {
+  const root = makeOkkiRoot({
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n',
+      'discovery-playbook.md': [
+        'Call search-advanced.',
+        'Company search is free.'
+      ].join('\n')
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'company-search-pagination-guardrail');
+
+  assert.equal(result.status, 'failed');
+  assert.equal(
+    result.reason,
+    'skill must require free paginated company search for target_count above search-advanced page size'
+  );
+});
+
 function resultById(results, id) {
   const result = results.find((candidate) => candidate.id === id);
   assert.ok(result, `missing result ${id}`);
@@ -112,16 +173,21 @@ function makeOkkiRoot(overrides = {}) {
   fs.mkdirSync(path.join(root, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
   fs.mkdirSync(path.join(root, 'skill'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'skill', 'references'), { recursive: true });
 
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
     name: '@okki/go-skill',
+    version: overrides.packageVersion || '1.2.0',
     files: Object.hasOwn(overrides, 'files') ? overrides.files : ['bin/', 'skill/', 'README.md', 'INSTALL.md']
   }, null, 2));
-  fs.writeFileSync(path.join(root, 'README.md'), overrides.readme || 'Current README.\n');
-  fs.writeFileSync(path.join(root, 'INSTALL.md'), overrides.install || 'Current install docs.\n');
+  fs.writeFileSync(path.join(root, 'README.md'), overrides.readme || '**Current**: 1.2.0\n');
+  fs.writeFileSync(path.join(root, 'INSTALL.md'), overrides.install || '**当前版本**: 1.2.0\n');
   fs.writeFileSync(
     path.join(root, 'skill', 'SKILL.md'),
     overrides.skill || [
+      '---',
+      'version: 1.2.0',
+      '---',
       'OKKIGO_API_KEY',
       'Do NOT use this skill',
       'four-tier credential resolution',
@@ -132,13 +198,23 @@ function makeOkkiRoot(overrides = {}) {
   );
   fs.mkdirSync(path.join(root, 'skill', 'scripts'), { recursive: true });
   for (const [fileName, content] of Object.entries(overrides.scripts || {
-    'resolve-api-key.sh': '#!/bin/sh\n'
+    'resolve-api-key.sh': 'SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.2.0}"\n'
   })) {
     fs.writeFileSync(path.join(root, 'skill', 'scripts', fileName), content);
   }
+  for (const [fileName, content] of Object.entries(overrides.references || {
+    'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n',
+    'discovery-playbook.md': [
+      'search-advanced page size must never exceed 50.',
+      'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
+      'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.'
+    ].join('\n')
+  })) {
+    fs.writeFileSync(path.join(root, 'skill', 'references', fileName), content);
+  }
   fs.writeFileSync(
     path.join(root, 'bin', 'install.js'),
-    overrides.installer || 'const SUPPORTED_RUNTIMES = [\'codex\', \'accio\'];\n'
+    overrides.installer || 'const VERSION = \'1.2.0\';\nconst SUPPORTED_RUNTIMES = [\'codex\', \'accio\'];\n'
   );
 
   for (const [fileName, content] of Object.entries(overrides.docs || {})) {

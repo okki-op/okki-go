@@ -10,8 +10,8 @@
 
 **之前（自定义风格）:**
 ```bash
-node install.js --global --runtime=claude
-node install.js --global --runtime=openclaw
+node install.js --global --runtime claude
+node install.js --global --runtime openclaw
 ```
 
 **现在（简洁风格）:**

@@ -137,6 +137,62 @@ test('profile upsert preserves source metadata and recomputes completeness', (t)
   assert.equal(modeOf(profilePath(configHome)), '600');
 });
 
+test('profile completeness excludes agent-inferred B-class defaults until confirmed', (t) => {
+  const configHome = makeConfig(t);
+
+  let output = runState(configHome, [
+    'profile',
+    'upsert',
+    '--json',
+    JSON.stringify({
+      company: {
+        country: 'CN'
+      },
+      offerings: {
+        usps: [
+          { value: 'fast delivery', source: 'agent_inferred', updated_at: '2026-05-28' }
+        ]
+      },
+      target_baseline: {
+        regions_primary: [
+          { value: 'DE', source: 'agent_inferred', updated_at: '2026-05-28' }
+        ],
+        decision_roles: [
+          { value: 'Procurement Manager', source: 'agent_inferred', updated_at: '2026-05-28' }
+        ]
+      }
+    }),
+    '--now',
+    NOW
+  ]);
+
+  assert.equal(output.profile.completeness, 0.2);
+
+  output = runState(configHome, [
+    'profile',
+    'upsert',
+    '--json',
+    JSON.stringify({
+      offerings: {
+        usps: [
+          { value: 'fast delivery', source: 'user_confirmed', updated_at: '2026-05-28' }
+        ]
+      },
+      target_baseline: {
+        regions_primary: [
+          { value: 'DE', source: 'imported', updated_at: '2026-05-28' }
+        ]
+      }
+    }),
+    '--now',
+    NOW
+  ]);
+
+  assert.equal(output.profile.completeness, 0.6);
+  assert.equal(output.profile.offerings.usps[0].source, 'user_confirmed');
+  assert.equal(output.profile.target_baseline.regions_primary[0].source, 'imported');
+});
+
 test('profile redact hides sender email and sender name by default', (t) => {
   const configHome = makeConfig(t);
   runState(configHome, [

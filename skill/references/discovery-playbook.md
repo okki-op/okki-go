@@ -165,16 +165,28 @@ Map only supported company dimensions to `POST /api/v1/companies/search-advanced
 
 Do not invent API parameters beyond `api-reference.md`.
 
+### Company Search Pagination
+
+`POST /api/v1/companies/search-advanced` is free, but its page `size` must never exceed 50. Never send `size: 100` or any value above 50.
+
+When `target_count > 50`, satisfy the company-count target with free pagination:
+
+1. Call `search-advanced` with `size: 50` and `from: 0`.
+2. If more companies are needed and the API has more rows, call the next page with `size: 50` and `from: 50`.
+3. Continue with `from` increased by 50 until effective results reach `target_count`, the API has no more rows, local scan limits apply, or the user stops the search.
+
+Do not call `/contacts/search` or `/companies/unlock` to satisfy company-count targets. Those endpoints are for contact/person discovery or user-selected company details after the free company search phase.
+
 ### Local-Only Filter Pagination
 
 When `employee_range` or another unsupported field must be filtered locally, do not decide recall quality from the first page or raw API `total`.
 
 Procedure:
 
-1. Call `search-advanced` with `size: 50` and `from: 0`.
+1. Start from the free company-search pagination procedure above.
 2. Filter returned rows locally, producing `filtered_results`.
-3. If `filtered_results.length < min(target_count, 30)` and the API has more rows, scan more pages until one limit is reached:
-   - `filtered_results.length >= min(target_count, 30)`
+3. If `filtered_results.length < target_count` and the API has more rows, scan more pages until one limit is reached:
+   - `filtered_results.length >= target_count`
    - 150 raw rows scanned
    - user requested a smaller scan
 4. Use `filtered_results.length`, not raw `total`, to trigger Broadening Ladder, Full Expansion, or Lite Expansion.

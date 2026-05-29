@@ -12,9 +12,9 @@ This roadmap lands the merged discovery harness from rule contracts to tested re
 
 - [x] **Phase 1: Rule Contract Playbooks** - Create the four reference playbooks and lock cross-document behavior rules.
 - [x] **Phase 2: State Helper and Unit Tests** - Implement okki-state.js and deterministic tests for profile/viewed state.
-- [ ] **Phase 3: Skill Workflow Integration** - Wire the harness into SKILL.md, preserving existing safety flows.
-- [ ] **Phase 4: Eval Coverage** - Add regression scenarios for high-risk harness behavior.
-- [ ] **Phase 5: Verification and Release Readiness** - Run self-review, tests, version checks, and release notes.
+- [x] **Phase 3: Skill Workflow Integration** - Wire the harness into SKILL.md, preserving existing safety flows.
+- [x] **Phase 4: Eval Coverage** - Add regression scenarios for high-risk harness behavior.
+- [x] **Phase 5: Verification and Release Readiness** - Run self-review, tests, version checks, and release notes.
 
 ## Phase Details
 
@@ -66,10 +66,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 03-01: Add new SKILL.md harness sections
-- [ ] 03-02: Rewrite Workflow A and Workflow C boundaries
-- [ ] 03-03: Rewrite User Input Guidance and output/profile references
-- [ ] 03-04: Version bump and safety-preservation review
+- [x] 03-01: Add new SKILL.md harness sections
+- [x] 03-02: Rewrite Workflow A and Workflow C boundaries
+- [x] 03-03: Rewrite User Input Guidance and output/profile references
+- [x] 03-04: Version bump and safety-preservation review
 
 ### Phase 4: Eval Coverage
 **Goal**: Add deterministic and scenario-level coverage for the high-risk behavior changes.  
@@ -83,9 +83,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: Add high-risk YAML scenarios
-- [ ] 04-02: Extend evaluator only where necessary
-- [ ] 04-03: Run and stabilize regression checks
+- [x] 04-01: Add high-risk YAML scenarios
+- [x] 04-02: Extend evaluator only where necessary
+- [x] 04-03: Run and stabilize regression checks
 
 ### Phase 5: Verification and Release Readiness
 **Goal**: Complete the merged plan self-review and prepare the skill for release as 1.2.0.  
@@ -98,8 +98,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: Self-review and verification artifact
-- [ ] 05-02: Final test run and release readiness cleanup
+- [x] 05-01: Self-review and verification artifact
+- [x] 05-02: Final test run and release readiness cleanup
 
 ## Progress
 
@@ -110,6 +110,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Rule Contract Playbooks | 4/4 | Complete | 2026-05-28 |
 | 2. State Helper and Unit Tests | 3/3 | Complete | 2026-05-28 |
-| 3. Skill Workflow Integration | 0/4 | Not started | - |
-| 4. Eval Coverage | 0/3 | Not started | - |
-| 5. Verification and Release Readiness | 0/2 | Not started | - |
+| 3. Skill Workflow Integration | 4/4 | Complete | 2026-05-28 |
+| 4. Eval Coverage | 3/3 | Complete | 2026-05-28 |
+| 5. Verification and Release Readiness | 2/2 | Complete | 2026-05-29 |

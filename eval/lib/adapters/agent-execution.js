@@ -22,9 +22,11 @@ function buildScenarioPrompt(scenario) {
     '- triggered_pending_prerequisite: OKKI Go applies, but credentials, budget, confirmation, or other prerequisites are missing.',
     '- not_triggered: OKKI Go should not be used for this request.',
     'If OKKI Go should call an API, include one API_CALL line for each endpoint you would call or prepare next.',
+    'If the scenario depends on workflow behavior, include one BEHAVIOR line per observed step or guardrail.',
     'Use this exact machine-readable marker format in your final answer:',
     '- routing marker: write ROUTING_DECISION followed by a colon and one of triggered, triggered_pending_prerequisite, or not_triggered.',
     '- API marker: write API_CALL followed by a colon, then the HTTP method and API path.',
+    '- behavior marker: write BEHAVIOR followed by a colon and a lowercase marker from the scenario expectation.',
     'RESPONSE: brief natural-language answer to the user',
     '',
     'User turns:',
@@ -72,6 +74,7 @@ function parseAgentTranscript(transcript) {
   return {
     routingDecision,
     apiCalls: parseApiCalls(parseText),
+    behaviorEvents: parseBehaviorEvents(parseText),
     confirmedEmailSend: parseBooleanMarker(parseText, 'CONFIRMED_EMAIL_SEND')
   };
 }
@@ -94,6 +97,16 @@ function parseApiCalls(transcript) {
     });
   }
   return calls;
+}
+
+function parseBehaviorEvents(transcript) {
+  const events = [];
+  const pattern = /^BEHAVIOR:\s*([A-Za-z0-9_-]+)/gim;
+  let match;
+  while ((match = pattern.exec(String(transcript || ''))) !== null) {
+    events.push(match[1]);
+  }
+  return events;
 }
 
 function parseBooleanMarker(transcript, marker) {
@@ -180,5 +193,6 @@ module.exports = {
   buildCommandArgs,
   extractAgentResponseText,
   parseAgentTranscript,
+  parseBehaviorEvents,
   runAgentCli
 };

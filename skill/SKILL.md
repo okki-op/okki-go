@@ -1,6 +1,6 @@
 ---
 name: OKKI Go
-version: 1.0.12
+version: 1.2.0
 description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine — only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
 homepage: "https://go.okki.ai"
 requires:
@@ -66,7 +66,7 @@ All endpoints use API Key authentication. Each user has an independent `sk-` pre
 ```
 Authorization: ApiKey <resolved API key>
 X-Okki-Install-Id: <anonymous install id>
-X-Okki-Skill-Version: 1.0.12
+X-Okki-Skill-Version: 1.2.0
 X-Okki-Skill-Runtime: <agent runtime>
 X-Hostname: xxx
 ```
@@ -105,7 +105,7 @@ OKKIGO_INSTALL_ID="${OKKIGO_INSTALL_ID:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}
 curl -s -X GET "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
   ${OKKIGO_INSTALL_ID:+-H "X-Okki-Install-Id: $OKKIGO_INSTALL_ID"} \
-  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.12}" \
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.2.0}" \
   -H "X-Okki-Skill-Runtime: ${OKKIGO_SKILL_RUNTIME:-agent}" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"}
 ```
@@ -147,7 +147,7 @@ For debugging configuration only, use `bash scripts/resolve-api-key.sh --source`
 OKKIGO_INSTALL_ID="${OKKIGO_INSTALL_ID:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/install-id" 2>/dev/null || true)}" && \
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-email" \
   ${OKKIGO_INSTALL_ID:+-H "X-Okki-Install-Id: $OKKIGO_INSTALL_ID"} \
-  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.12}" \
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.2.0}" \
   -H "X-Okki-Skill-Runtime: ${OKKIGO_SKILL_RUNTIME:-agent}" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "Content-Type: application/json" \
@@ -160,7 +160,7 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-ema
       "termsUrl": "https://go.okki.ai/legal/terms",
       "privacyUrl": "https://go.okki.ai/legal/privacy",
       "channel": "agent",
-      "skillVersion": "1.0.12",
+      "skillVersion": "1.2.0",
       "locale": "en-US",
       "affirmationText": "I have read and agree to the Terms of Service and acknowledge the Privacy Policy."
     }
@@ -173,7 +173,7 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-ema
 OKKIGO_INSTALL_ID="${OKKIGO_INSTALL_ID:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/install-id" 2>/dev/null || true)}" && \
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/verify-email" \
   ${OKKIGO_INSTALL_ID:+-H "X-Okki-Install-Id: $OKKIGO_INSTALL_ID"} \
-  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.12}" \
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.2.0}" \
   -H "X-Okki-Skill-Runtime: ${OKKIGO_SKILL_RUNTIME:-agent}" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "X-OpenClaw-Provision-Api-Key: true" \
@@ -320,31 +320,197 @@ After confirmation, subsequent calls in the same session do not need re-confirma
 
 ---
 
+## Local State Helper
+
+Use `skill/scripts/okki-state.js` for all local OKKI Go state reads and writes. Do not hand-edit `profile.json` or `viewed.json` with ad hoc shell redirection, `jq`, or inline JSON file writes.
+
+State files:
+
+- Merchant Profile: `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/profile.json`, schema v1.1, mode `0600`
+- Viewed results: `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/viewed.json`, schema v1.1, mode `0600`
+
+Profile helper commands:
+
+```bash
+node skill/scripts/okki-state.js profile read
+node skill/scripts/okki-state.js profile redact
+node skill/scripts/okki-state.js profile upsert --json '<json patch>'
+node skill/scripts/okki-state.js profile update-history --json '<axes json>'
+node skill/scripts/okki-state.js profile reset
+```
+
+Viewed helper commands:
+
+```bash
+node skill/scripts/okki-state.js viewed classify --results-json '<api results json>' --window-days 30
+node skill/scripts/okki-state.js viewed mark-shown --results-json '<displayed results json>' --brief-summary '<brief summary>'
+node skill/scripts/okki-state.js viewed mark-unlocked --domain '<internal domain>' --country-code '<ISO>'
+node skill/scripts/okki-state.js viewed reset
+```
+
+The helper only manages local JSON state. It does not authenticate, call OKKI Go APIs, unlock companies, search contacts, or send emails. All API calls still require the Authentication & API Key Setup rules, Billing Confirmation Rules, contact-search confirmation rule, and email-send confirmation rule.
+
+---
+
+## Merchant Profile
+
+The Merchant Profile is the long-term, source-aware business profile for prospecting defaults. Full rules are in [merchant-profile-playbook.md](./references/merchant-profile-playbook.md).
+
+Core behavior:
+
+- Load Profile with `node skill/scripts/okki-state.js profile read` before Prospecting Brief Discovery unless the user is only checking balance, checking email status, or handling authentication.
+- Use Lite Onboarding when there is no profile or `completeness < 0.3`, unless the user explicitly requests direct free search and enough search parameters exist.
+- Lite Onboarding must collect L0 `profile.company.country`; it anchors dynamic `trade_mode`.
+- B class fields such as USPs, applications, certifications, target regions, decision roles, and industry blacklist carry `source` metadata.
+- Only `user_confirmed` and `imported` B class values can become Discovery defaults. `agent_inferred` values must be labeled, confirmed, or ignored as defaults.
+- Use `profile upsert --json` for confirmed Profile updates and `profile update-history --json` after completed searches to track axes such as geography, industry, and decision role.
+
+Management workflow:
+
+- View/export profiles with `profile redact` by default. Do not print full `sender_email` or other semi-sensitive Profile values unless the user explicitly asks.
+- Edit/import values with `profile upsert --json`, preserving source metadata rules.
+- Reset with `profile reset` only after explicit confirmation.
+
+Outreach reuse:
+
+- Profile fields may help draft outreach identity, signature, USP, preferred language, and sales context.
+- `outreach_identity.preferred_language` is lazy-loaded. Infer a default only when entering outreach, show it to the user, and save it only after confirmation.
+- Profile reuse cannot replace recipient/content confirmation and cannot authorize `/emails/send/batch` or `/emails/send/personalized`.
+
+---
+
+## Prospecting Brief Discovery
+
+Prospecting Brief Discovery is the soft gate that turns vague B2B prospecting requests into a session Brief. Full rules are in [discovery-playbook.md](./references/discovery-playbook.md).
+
+When to run:
+
+- Run the Sufficiency Check for company/customer discovery requests.
+- Enter Discovery by default when the request lacks clear product/category, geography, role, scale, industry, or target-count dimensions.
+- Skip full Discovery when the request already has at least three explicit dimensions, the user says "direct search" / "直接搜" / "skip discovery", or a current-session Brief is already complete.
+- If direct search lacks the minimum free-search fields, ask only for product/category and target geography.
+
+Discovery sequence:
+
+1. Load confirmed/imported Profile defaults with `profile read`.
+2. If Sales Mentor Mode is enabled, run Business Context BC1/BC2 before the Brief unless direct search defers them.
+3. Ask the Five Gray Areas in order: Product and Company Anchor, Industry Context, Geography, Scale and Result Shape, Decision Roles.
+4. Use Profile defaults only when source rules allow them.
+5. Build the session Brief and map only supported fields to `POST /api/v1/companies/search-advanced`.
+6. Derive `trade_mode` from `profile.company.country` and `brief.geo_include`; never persist it.
+7. Run Blind-Spot Checklist before the Pre-Search Statement when Sales Mentor Mode is enabled and `trade_mode` permits it.
+8. Route through Tier 1 Efficiency Mode, Tier 2 Standard Confirmation, or Tier 3 First-Use Mode.
+
+Hard Guardrails:
+
+- Discovery is a soft gate, not a safety gate.
+- Direct-search override can skip Brief questions for free company search only. It cannot authorize `/companies/unlock`, `/contacts/search`, or email sending.
+- Authentication, billing confirmation, contact-search confirmation, email-send confirmation, privacy rules, and legal/compliance warnings remain mandatory.
+- When `trade_mode = unknown`, free company search may continue if the request is direct and constructible; trade-mode-dependent mentor hooks are skipped or weakened.
+
+Local-only filters:
+
+- `employee_range` and other unsupported search dimensions must be filtered locally after `search-advanced`.
+- If local filters produce too few results, scan additional pages as described in `discovery-playbook.md` before deciding that recall is poor.
+- Use filtered result count, not raw API total, for Expansion decisions.
+
+---
+
+## Prospecting Expansion
+
+Prospecting Expansion broadens or diversifies company discovery after the first free company search. Full rules are in [expansion-playbook.md](./references/expansion-playbook.md).
+
+Every first-round company search must choose exactly one mode after local-only filtering:
+
+- **Broadening Ladder** when effective results are below 5 and the user did not request strict-only matching. It can make at most one extra free `search-advanced` call for the current Brief.
+- **Full Expansion** when effective results remain below `brief.target_count`. Show candidates across the fixed expansion dimensions and wait for user selection before any expanded search.
+- **Lite Expansion** when effective results meet or exceed `brief.target_count`. Show exactly two compact "you may not have considered" dimensions after the result table.
+
+Rules:
+
+- Expansion never implies paid unlock, paid contact search, or email sending.
+- Full Expansion must include at least 20% reverse recommendations under [sales-mentor-playbook.md](./references/sales-mentor-playbook.md).
+- Candidate selections append to a copied expanded Brief and use `crossFieldOperator: "or"`; do not destructively overwrite the original Brief.
+- Full Expansion has a maximum of 3 rounds per Brief. Ladder and Lite do not count as Full Expansion rounds unless a Lite candidate starts a later expanded search.
+
+---
+
+## Anti-Staleness Mechanisms
+
+Anti-Staleness prevents repetitive prospecting output and aligns with OKKI Go's 30-day company unlock semantics. Viewed-state rules are in [discovery-playbook.md](./references/discovery-playbook.md#6-result-classification-and-viewed-lifecycle).
+
+Before displaying final company results:
+
+```bash
+node skill/scripts/okki-state.js viewed classify --results-json '<final results json>' --window-days 30
+```
+
+Display companies in three groups:
+
+1. `unlocked`: paid-unlocked in the active window; free to revisit before the 30-day window expires.
+2. `seen`: shown in the active window but not unlocked.
+3. `new`: not shown in the active window.
+
+After displaying results:
+
+```bash
+node skill/scripts/okki-state.js viewed mark-shown --results-json '<displayed results json>' --brief-summary '<brief summary>'
+```
+
+After a successful `/companies/unlock` call:
+
+```bash
+node skill/scripts/okki-state.js viewed mark-unlocked --domain '<internal domain>' --country-code '<ISO>'
+```
+
+Rotation Hint:
+
+- Before Brief confirmation, compare the current Brief axes with `profile.history.last_used_axes`.
+- Suggest one alternate geography, industry/application, product wording, or decision-role axis when the current axis is repetitive.
+- Do not invent axes outside Profile, current-session user input, Brief, or Expansion candidates.
+- The user may ignore the hint; it is not a confirmation gate.
+
+Users may ask to reset viewed history. Run `viewed reset` only after explicit confirmation.
+
+---
+
+## Sales Mentor Mode
+
+Sales Mentor Mode adds practical B2B sales reasoning across Discovery, Expansion, and result review. Full rules are in [sales-mentor-playbook.md](./references/sales-mentor-playbook.md).
+
+Default mode:
+
+- Enabled for prospecting workflows unless the user says "关闭导师模式", "neutral search only", or equivalent.
+- Keep advice tied to Profile fields, current-session user statements, Brief fields, actual result fields, or fixed playbook logic.
+- Apply B'' protection: default sourced advice, at most two `personal inference` items per response, Must NOT Say self-check, and country-agnostic static rules.
+
+Execution hooks:
+
+- Run BC1/BC2 before Discovery unless direct search defers them. Save confirmed answers to `profile.sales_context` with `profile upsert --json`.
+- Derive `trade_mode` after the Brief exists.
+- Run BC3 only after `trade_mode` is derived and only when mentor mode is enabled.
+- Run Blind-Spot Checklist after Brief generation and before Pre-Search Statement or Tier 2 confirmation.
+- Enforce reverse recommendations during Full Expansion.
+- Run Sales Journey Preview after results are classified into `unlocked`, `seen`, and `new`, and before asking the user what to do next.
+
+When `trade_mode = unknown`, do not invent domestic/cross-border guidance. Continue direct free search when allowed, skip or weaken trade-mode-dependent mentor hooks, and ask for company country later if useful.
+
+---
+
 ## User Input Guidance
 
 **Language rule**: Always respond in the same language the user is using. If the user writes in Chinese, reply in Chinese. If the user writes in English, reply in English. This applies to all clarification prompts, result displays, and next-step suggestions.
 
-When user input is vague or incomplete, guide them to provide more specific information:
+Route user input by intent:
 
-### Common vague inputs and how to clarify
+- **Company/customer discovery:** Run the Sufficiency Check in `discovery-playbook.md`. If the request is vague, use Lite Onboarding, BC1/BC2, and Five Gray Areas instead of inventing ad hoc clarification questions.
+- **Direct free search:** Honor explicit direct-search wording when enough free-search fields exist. If not enough fields exist, ask only for product/category and target geography.
+- **Contact discovery for selected companies:** Use Workflow A/C company selection and unlock/profileEmails flow. If the user asks for cross-company contact search instead, follow Workflow B and Billing Rule 3.
+- **Outreach drafting or sending:** Reuse Profile and Sales Mentor context for drafting, but always confirm recipients and email content before sending.
+- **Balance, pricing, authentication, and email status:** Do not run Prospecting Brief Discovery. Execute the direct workflow after authentication where required.
+- **Merchant Profile management:** Use the Profile management workflow with redacted view/export by default.
 
-| User says | Clarify by asking |
-|-----------|-------------------|
-| Find companies | What industry, country, or keywords? |
-| Send email | Who should receive it? Any specific template or content? |
-| Check balance | No clarification needed — execute directly |
-| Find customers | What type of customers? Which industry or region? |
-| Find contacts | Which company? What job title or role? |
-
-### Suggest better phrasing
-
-When clarifying, offer a concrete example in the user's language to help them refine:
-
-- Vague: "Find companies" → Better: "Search for electronics suppliers in Japan with 100-500 employees"
-- Vague: "Send email" → Better: "Send outreach to procurement managers at these 5 companies"
-- Vague: "Find contacts" → Better: "Find email addresses for CEOs in the automotive industry"
-
-When users provide clear, specific requests, proceed directly without asking for clarification.
+When the user's prospecting request is clear enough, proceed through the appropriate workflow without asking extra questions. When asking a question, use compact options from the playbooks and keep the prompt focused on the next missing decision.
 
 ---
 
@@ -354,16 +520,30 @@ Present API results in user-friendly format, not raw JSON.
 
 ### Company search results
 
-Show key info in a table for quick scanning:
+Classify final company results before display with `viewed classify`. Show key info in grouped tables for quick scanning:
+
+### Unlocked
 
 | # | Company | Country | Industry | Employees |
 |---|---------|---------|----------|-----------|
 | 1 | Example Corp | CN | Manufacturing | 500-1000 |
+
+### Seen
+
+| # | Company | Country | Industry | Employees |
+|---|---------|---------|----------|-----------|
 | 2 | TechPrint AG | DE | Electronics | 100-500 |
+
+### New
+
+| # | Company | Country | Industry | Employees |
+|---|---------|---------|----------|-----------|
+| 3 | Northstar Components | US | Auto Parts | 100-500 |
 
 **Important**:
 - **DO NOT display the `domain` field to users** — it is an internal identifier used only for calling `/companies/unlock` to obtain `companyHashId`. Exposing it allows users to bypass the system.
 - Store the `domain` value internally for each company in the search results, but never include it in the displayed table or text output.
+- After displaying results, run `viewed mark-shown` for the displayed companies.
 - For 10+ results, show the first 10, state the total, and offer "say 'next page' to see more"
 - For zero results, suggest broadening criteria (different keywords, removing country filter, etc.)
 
@@ -371,6 +551,10 @@ Show key info in a table for quick scanning:
 - "Select a company to view detailed profile and contact information"
 - "I can unlock companies to get decision-maker emails (1 credit per domain)"
 - "Refine your search with different keywords or filters"
+
+### Merchant Profile output
+
+Use `profile redact` for profile view/export by default. Show source labels for B class fields and mark `agent_inferred` values as not used for Discovery defaults. Do not print full `sender_email` or other semi-sensitive values unless the user explicitly asks.
 
 ### Contact information
 
@@ -424,11 +608,26 @@ User requests often span multiple workflows. The Agent needs to understand when 
 
 ### Workflow A: Exploration — "Help me find target customers"
 
-1. **Search companies** (free, see [api-reference.md §2](./references/api-reference.md#2)) → display results table
-2. **Wait for user to select** companies of interest → do NOT proactively call paid APIs
-3. User selects → **Unlock company** (follow Billing Rule 1, see [api-reference.md §3](./references/api-reference.md#3)) to get `companyHashId`
-4. **Get contact emails** (free, see [api-reference.md §5](./references/api-reference.md#5)) using the `companyHashId`
-5. Display contacts → **proactively ask**: "Would you like to send outreach emails to these contacts, or continue searching for more companies?"
+1. **Profile load:** Run `node skill/scripts/okki-state.js profile read`. If needed, run Lite Onboarding from Merchant Profile before full Discovery unless the user explicitly requested direct free search.
+2. **BC1/BC2:** If Sales Mentor Mode is enabled, collect or reuse Business Context Lite BC1/BC2 before the Brief, unless direct search defers them.
+3. **Discovery:** Run the Sufficiency Check and Five Gray Areas from `discovery-playbook.md`, using only confirmed/imported Profile defaults.
+4. **Rotation Hint:** Compare current axes with `profile.history.last_used_axes`; show one concise alternate axis if useful.
+5. **Derive `trade_mode`:** Use `profile.company.country` plus `brief.geo_include`. Do not persist `trade_mode`.
+6. **BC3:** If Sales Mentor Mode is enabled and `trade_mode` is known, ask the trade-mode-aware BC3 channel/approach question.
+7. **Blind-Spot Checklist:** Run the Sales Mentor blind-spot check before the Pre-Search Statement or Tier 2 confirmation.
+8. **Tier/direct-search routing:** Apply Tier 1, Tier 2, or Tier 3. Direct search can proceed only for free company search and cannot bypass authentication, billing, contact-search, or email-send confirmations.
+9. **Search companies:** Call free `POST /api/v1/companies/search-advanced` (see [api-reference.md §2](./references/api-reference.md#2)) after the required tier routing. Request at most `size: 50` per page. For `target_count > 50`, use free pagination (`from: 0`, `from: 50`, then increment by 50) until the effective result target or scan limit is reached.
+10. **Local-only filters and pagination:** Apply unsupported filters such as employee range locally and scan extra free `search-advanced` pages within `discovery-playbook.md` limits before judging recall. Do not call `/contacts/search` or `/companies/unlock` to satisfy company-count targets.
+11. **Viewed classification:** Run `node skill/scripts/okki-state.js viewed classify --results-json '<effective results json>' --window-days 30` before result presentation.
+12. **Expansion decision:** Use the effective filtered result count to run Broadening Ladder, Full Expansion, or Lite Expansion from `expansion-playbook.md`. If Expansion adds or changes final results, run `viewed classify` again on the final merged result set.
+13. **Grouped display:** Show `unlocked`, `seen`, and `new` company groups. Keep internal `domain` hidden.
+14. **Mark shown:** After display, run `node skill/scripts/okki-state.js viewed mark-shown --results-json '<displayed results json>' --brief-summary '<brief summary>'`.
+15. **Sales Journey Preview:** If Sales Mentor Mode is enabled, summarize priority advice, approach advice, and first action using only sourced or bounded inference.
+16. **Update axes:** Run `node skill/scripts/okki-state.js profile update-history --json '<geo/industry/decision_role axes>'`.
+17. **Wait for user selection:** Do not proactively call paid APIs.
+18. **Unlock selected company:** When the user selects a company for details/contacts, follow Billing Rule 1, call `/companies/unlock` (see [api-reference.md §3](./references/api-reference.md#3)), and report charges under Billing Rule 2.
+19. **Mark unlocked:** After a successful unlock, run `node skill/scripts/okki-state.js viewed mark-unlocked --domain '<internal domain>' --country-code '<ISO>'`.
+20. **Get contact emails:** Use free profile/profileEmails endpoints after unlock (see [api-reference.md §5](./references/api-reference.md#5)), display contacts, then ask whether the user wants outreach or more searching.
 
 ### Workflow B: Contact Search — "Find a specific person"
 
@@ -440,11 +639,11 @@ User requests often span multiple workflows. The Agent needs to understand when 
 
 ### Workflow C: Precision — "Send outreach to procurement managers in German auto parts companies"
 
-1. Search companies → display results for user confirmation
-2. Unlock selected companies (confirm billing) → get `companyHashId` for each
-3. Get contacts (free) → filter by relevant titles
-4. Display contact list → **ask user to confirm recipients and email content**
-5. **Never send emails before user confirms** — use `POST /emails/send/batch` for same-template sends (see [api-reference.md §7](./references/api-reference.md#7))
+1. **Front half uses Workflow A discovery/contact finding:** Load Profile, run Discovery or direct-search fallback, apply Sales Mentor hooks, search companies, apply local filters/Expansion, classify with `viewed classify`, display grouped results, mark shown, and update axes.
+2. User selects companies → unlock each selected company under Billing Rule 1/2, then run `viewed mark-unlocked` for each successful unlock.
+3. Get contacts with the free profile/profileEmails flow and filter by relevant titles or roles from the Brief.
+4. Display contact list → **ask user to confirm recipients and email content**.
+5. **Never send emails before user confirms** — use `POST /emails/send/batch` for same-template sends (see [api-reference.md §7](./references/api-reference.md#7)).
 6. After sending, **proactively suggest**: "Emails submitted successfully. I can check delivery status in a few minutes, or help you search for additional prospects in other regions or industries."
 
 ### Workflow D: Personalized Outreach — "Send each company a tailored email"
@@ -500,3 +699,16 @@ When users ask about plans, upgrades, or credit packs, direct them to the pricin
 ## Advanced Reference
 
 For complete request/response schemas, all parameter constraints, and pagination details, see [references/api-reference.md](./references/api-reference.md).
+
+---
+
+## Changelog
+
+### 1.2.0 (2026-05-28)
+
+- Add Merchant Profile with source metadata, sales context, preferred-language lazy load, and local profile state helper support.
+- Add Prospecting Brief Discovery with five gray areas, three-tier routing, direct-search fallback, local-only pagination, and session-derived trade_mode.
+- Add Prospecting Expansion with Broadening Ladder, Full Expansion, Lite Expansion, reverse recommendations, and bounded multi-round rules.
+- Add Anti-Staleness viewed-state lifecycle with unlocked, seen, and new result groups aligned to the 30-day unlock window.
+- Add Sales Mentor Mode with country-agnostic rules, Business Context Lite, Blind-Spot Checklist, Sales Journey Preview, Must NOT Say rules, and B'' protection.
+- Rewrite Workflow A and the Workflow C discovery/contact-finding front half while preserving billing, contact-search, recipient/content, and email-send confirmations.

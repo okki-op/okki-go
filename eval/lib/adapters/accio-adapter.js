@@ -5,25 +5,37 @@ const os = require('node:os');
 const path = require('node:path');
 const { judgeScenarioRun } = require('../judge/rule-judge');
 const { buildScenarioPrompt, runAgentCli } = require('./agent-execution');
-const { copyDirectory, prepareInstalledProfile } = require('./profile-utils');
+const { copyDirectory, defaultCommandExists, prepareInstalledProfile } = require('./profile-utils');
 
 function createAccioAdapter(options = {}) {
-  const executable = options.executable || 'accio';
   const configRoot = options.configRoot || process.env.ACCIO_CONFIG_DIR || path.join(os.homedir(), '.accio');
   const accountId = options.accountId || process.env.ACCIO_ACCOUNT_ID || null;
   const tmpRoot = options.tmpRoot || fs.mkdtempSync(path.join(os.tmpdir(), 'okki-eval-agents-'));
-  const commandArgs = options.commandArgs || null;
+  const commandExists = options.commandExists || defaultCommandExists;
+  const candidateExecutables = options.candidateExecutables || buildAccioExecutableCandidates(configRoot);
+  const explicitExecutable = options.executable || null;
+  const resolvedCli = resolveAccioCli({
+    executable: explicitExecutable,
+    commandExists,
+    candidateExecutables
+  });
+  const executable = resolvedCli.executable;
+  const commandArgs = options.commandArgs || (resolvedCli.available ? options.defaultCommandArgs || [
+    'agent',
+    '--message',
+    '{prompt}',
+    '--json'
+  ] : null);
   const timeoutMs = options.timeoutMs || 120000;
 
   return {
     name: 'accio',
     executable,
     detect() {
-      const account = detectAccount(configRoot, accountId, executable);
-      return account;
+      return detectAccount(configRoot, accountId, resolvedCli);
     },
     prepareProfile({ modelProfile = 'default' } = {}) {
-      const detection = detectAccount(configRoot, accountId, executable);
+      const detection = detectAccount(configRoot, accountId, resolvedCli);
       if (!detection.installed) {
         throw new Error(`Accio account is not available: ${detection.reason}`);
       }
@@ -57,7 +69,8 @@ function createAccioAdapter(options = {}) {
           modelProfile: profile.modelProfile,
           accountId: profile.accountId,
           status: 'blocked',
-          reason: 'agent_cli_execution_not_implemented',
+          reason: 'agent_cli_not_found',
+          candidateExecutables,
           profileRoot: profile.profileRoot,
           skillDir: profile.skillDir
         };
@@ -111,7 +124,7 @@ function createAccioAdapter(options = {}) {
   };
 }
 
-function detectAccount(configRoot, requestedAccountId, executable) {
+function detectAccount(configRoot, requestedAccountId, cli) {
   const accountsDir = path.join(configRoot, 'accounts');
 
   if (requestedAccountId) {
@@ -119,7 +132,7 @@ function detectAccount(configRoot, requestedAccountId, executable) {
     if (fs.existsSync(accountDir) && fs.statSync(accountDir).isDirectory()) {
       return {
         installed: true,
-        executable,
+        ...cliDetection(cli),
         accountId: requestedAccountId,
         accountDir
       };
@@ -127,7 +140,7 @@ function detectAccount(configRoot, requestedAccountId, executable) {
 
     return {
       installed: false,
-      executable,
+      executable: cli.executable,
       reason: 'accio_account_not_found'
     };
   }
@@ -135,7 +148,7 @@ function detectAccount(configRoot, requestedAccountId, executable) {
   if (!fs.existsSync(accountsDir) || !fs.statSync(accountsDir).isDirectory()) {
     return {
       installed: false,
-      executable,
+      executable: cli.executable,
       reason: 'accio_account_not_found'
     };
   }
@@ -148,7 +161,7 @@ function detectAccount(configRoot, requestedAccountId, executable) {
   if (accounts.length === 0) {
     return {
       installed: false,
-      executable,
+      executable: cli.executable,
       reason: 'accio_account_not_found'
     };
   }
@@ -156,7 +169,7 @@ function detectAccount(configRoot, requestedAccountId, executable) {
   if (accounts.length > 1) {
     return {
       installed: false,
-      executable,
+      executable: cli.executable,
       reason: 'accio_multiple_accounts',
       accounts
     };
@@ -165,10 +178,52 @@ function detectAccount(configRoot, requestedAccountId, executable) {
   const accountId = accounts[0];
   return {
     installed: true,
-    executable,
+    ...cliDetection(cli),
     accountId,
     accountDir: path.join(accountsDir, accountId)
   };
+}
+
+function resolveAccioCli({ executable, commandExists, candidateExecutables }) {
+  if (executable) {
+    return {
+      executable,
+      available: commandExists(executable),
+      explicit: true
+    };
+  }
+
+  for (const candidate of candidateExecutables) {
+    if (commandExists(candidate)) {
+      return {
+        executable: candidate,
+        available: true,
+        discovered: true
+      };
+    }
+  }
+
+  return {
+    executable: candidateExecutables[0] || 'accio',
+    available: false,
+    discovered: false
+  };
+}
+
+function cliDetection(cli) {
+  const detection = {
+    executable: cli.executable
+  };
+  if (cli.discovered) detection.cliDiscovered = true;
+  if (cli.explicit) detection.cliExplicit = true;
+  return detection;
+}
+
+function buildAccioExecutableCandidates(configRoot) {
+  return [
+    'accio',
+    path.join(configRoot, 'bin', 'accio')
+  ];
 }
 
 module.exports = { createAccioAdapter };

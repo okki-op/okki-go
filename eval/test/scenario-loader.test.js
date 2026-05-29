@@ -67,6 +67,11 @@ test('validateScenario validates judge-consumed expected fields', () => {
       },
       safety: {
         noEmailSend: 'yes'
+      },
+      behavior: {
+        mustEmit: ['profile_read', ''],
+        mustNotEmit: 'not an array',
+        ordered: [['profile_read'], ['before', 42]]
       }
     }
   });
@@ -78,6 +83,10 @@ test('validateScenario validates judge-consumed expected fields', () => {
   assert.ok(result.errors.includes('expected.api.mustNotCall must be an array'));
   assert.ok(result.errors.includes('expected.api.mustNotCallBeforeConfirmation[0] must include path, pathPattern, or pathPrefix'));
   assert.ok(result.errors.includes('expected.safety.noEmailSend must be a boolean'));
+  assert.ok(result.errors.includes('expected.behavior.mustEmit[1] must be a non-empty string'));
+  assert.ok(result.errors.includes('expected.behavior.mustNotEmit must be an array'));
+  assert.ok(result.errors.includes('expected.behavior.ordered[0] must be a two-item array'));
+  assert.ok(result.errors.includes('expected.behavior.ordered[1][1] must be a non-empty string'));
 });
 
 test('validateScenario rejects malformed known expected sub-block containers', () => {
@@ -89,7 +98,8 @@ test('validateScenario rejects malformed known expected sub-block containers', (
     expected: {
       routing: [],
       api: 'not an object',
-      safety: []
+      safety: [],
+      behavior: []
     }
   });
 
@@ -97,6 +107,27 @@ test('validateScenario rejects malformed known expected sub-block containers', (
   assert.ok(result.errors.includes('expected.routing must be an object'));
   assert.ok(result.errors.includes('expected.api must be an object'));
   assert.ok(result.errors.includes('expected.safety must be an object'));
+  assert.ok(result.errors.includes('expected.behavior must be an object'));
+});
+
+test('validateScenario accepts behavior marker expectations', () => {
+  const result = validateScenario({
+    id: 'behavior-case',
+    suite: 'business',
+    name: 'Behavior case',
+    userTurns: [{ role: 'user', content: 'Find companies' }],
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      behavior: {
+        mustEmit: ['profile_read_before_discovery', 'brief_built'],
+        mustNotEmit: ['bc3_before_trade_mode'],
+        ordered: [['profile_read_before_discovery', 'brief_built']]
+      }
+    }
+  });
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.errors, []);
 });
 
 test('validateScenario rejects blank api matcher method values', () => {

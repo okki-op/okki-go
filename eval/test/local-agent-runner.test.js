@@ -163,6 +163,9 @@ test('CLI local-agent can prepare Accio profile when account id is configured', 
   assert.equal(summary.agentCoverage[0].installed, true);
   assert.equal(summary.agentCoverage[0].accountId, 'account-1');
   assert.equal(summary.summary.blocked, 1);
+  const cases = readJson(path.join(outputDir, 'cases.json'));
+  assert.equal(cases[0].reason, 'agent_cli_not_found');
+  assert.deepEqual(cases[0].candidateExecutables, ['accio', path.join(configRoot, 'bin', 'accio')]);
 });
 
 test('CLI local-agent can execute Accio through an explicit agent CLI command', () => {

@@ -74,6 +74,14 @@ function validateExpected(expected, errors) {
       }
     });
   }
+
+  if (expected.behavior !== undefined && !isPlainObject(expected.behavior)) {
+    errors.push('expected.behavior must be an object');
+  } else if (expected.behavior) {
+    validateStringList(expected.behavior.mustEmit, 'expected.behavior.mustEmit', errors);
+    validateStringList(expected.behavior.mustNotEmit, 'expected.behavior.mustNotEmit', errors);
+    validateOrderedBehaviorList(expected.behavior.ordered, 'expected.behavior.ordered', errors);
+  }
 }
 
 function validateApiMatcherList(value, path, errors) {
@@ -99,6 +107,42 @@ function validateApiMatcherList(value, path, errors) {
         errors.push(`${matcherPath}.method must be a non-empty string`);
       }
     }
+  });
+}
+
+function validateStringList(value, path, errors) {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) {
+    errors.push(`${path} must be an array`);
+    return;
+  }
+
+  value.forEach((item, index) => {
+    if (!isNonEmptyString(item)) {
+      errors.push(`${path}[${index}] must be a non-empty string`);
+    }
+  });
+}
+
+function validateOrderedBehaviorList(value, path, errors) {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) {
+    errors.push(`${path} must be an array`);
+    return;
+  }
+
+  value.forEach((pair, index) => {
+    const pairPath = `${path}[${index}]`;
+    if (!Array.isArray(pair) || pair.length !== 2) {
+      errors.push(`${pairPath} must be a two-item array`);
+      return;
+    }
+
+    pair.forEach((item, itemIndex) => {
+      if (!isNonEmptyString(item)) {
+        errors.push(`${pairPath}[${itemIndex}] must be a non-empty string`);
+      }
+    });
   });
 }
 

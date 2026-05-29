@@ -47,7 +47,7 @@ openclaw chat
 cd /path/to/okki-go
 
 # 2. 使用命令行参数安装
-node bin/install.js --global --runtime=claude
+node bin/install.js --global --claude
 
 # 输出：
 # 🌐 Okki Go Skill Installer
@@ -75,13 +75,13 @@ claude
 
 ```bash
 # 安装到 Claude Code
-node bin/install.js --global --runtime=claude
+node bin/install.js --global --claude
 
 # 安装到 OpenClaw
-node bin/install.js --global --runtime=openclaw
+node bin/install.js --global --openclaw
 
 # 安装到 Cursor
-node bin/install.js --global --runtime=cursor
+node bin/install.js --global --cursor
 
 # 现在可以在三个平台上使用同一个 skill
 ```
@@ -93,7 +93,7 @@ node bin/install.js --global --runtime=cursor
 cd ~/my-sales-project
 
 # 本地安装（仅在此项目中可用）
-node /path/to/okki-go/bin/install.js --local --runtime=openclaw
+node /path/to/okki-go/bin/install.js --local --openclaw
 
 # 安装位置：./openclaw/workspace/skills/okki-go/
 # 好处：不影响全局配置，项目特定的 API Key
@@ -107,7 +107,7 @@ cd /path/to/okki-go
 git pull origin main
 
 # 重新安装（会保留你的本地修改）
-node bin/install.js --global --runtime=openclaw
+node bin/install.js --global --openclaw
 
 # 输出：
 # ℹ️  Upgrading from v1.0.5 to v1.0.6
@@ -121,7 +121,7 @@ node bin/install.js --global --runtime=openclaw
 
 ```bash
 # 卸载（保留本地修改）
-node bin/install.js --uninstall --runtime=openclaw --global
+node bin/install.js --uninstall --global --openclaw
 
 # 输出：
 # 🗑️  Okki Go Skill Uninstaller
@@ -193,7 +193,7 @@ nvm install 18
 nvm use 18
 
 # 重新安装
-node bin/install.js --global --runtime=openclaw
+node bin/install.js --global --openclaw
 ```
 
 ### 问题：权限错误
@@ -208,7 +208,7 @@ echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 
 # 或使用 sudo（不推荐）
-sudo node bin/install.js --global --runtime=openclaw
+sudo node bin/install.js --global --openclaw
 ```
 
 ### 问题：找不到源文件
@@ -219,10 +219,10 @@ sudo node bin/install.js --global --runtime=openclaw
 
 # 正确做法：
 cd /path/to/okki-go  # 确保在 okki-go 根目录
-node bin/install.js --global --runtime=openclaw
+node bin/install.js --global --openclaw
 
 # 或使用绝对路径
-node /path/to/okki-go/bin/install.js --global --runtime=openclaw
+node /path/to/okki-go/bin/install.js --global --openclaw
 ```
 
 ## 场景 10: NPM 包安装（未来支持）
@@ -237,11 +237,11 @@ npm install -g @okki/go-skill
 okki-go-install
 
 # 或指定运行时
-okki-go-install --runtime=openclaw
+okki-go-install --openclaw
 
 # 更新
 npm update -g @okki/go-skill
-okki-go-install --runtime=openclaw
+okki-go-install --openclaw
 ```
 
 ## 高级配置
@@ -258,7 +258,7 @@ const RUNTIME_DIRS = {
 };
 
 // 使用自定义路径
-node bin/install.js --global --runtime=openclaw-custom
+node bin/install.js --global --custom=openclaw-custom
 ```
 
 ### 批量安装脚本
@@ -271,7 +271,7 @@ RUNTIMES=("claude" "openclaw" "cursor" "windsurf")
 
 for runtime in "${RUNTIMES[@]}"; do
     echo "Installing to $runtime..."
-    node bin/install.js --global --runtime="$runtime"
+    node bin/install.js --global "--$runtime"
 done
 
 echo "All installations complete!"
@@ -324,7 +324,7 @@ ls ~/.openclaw/workspace/skills/okki-go/
 ls ~/.claude/commands/okki-go/
 
 # 如果找不到，重新安装并注意输出的路径
-node bin/install.js --global --runtime=openclaw
+node bin/install.js --global --openclaw
 ```
 
 ### Q: 更新后 API Key 丢失？

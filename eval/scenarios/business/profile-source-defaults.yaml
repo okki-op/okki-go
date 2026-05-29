@@ -1,0 +1,27 @@
+id: profile-source-defaults
+suite: business
+name: Profile agent_inferred 字段不能作为 Discovery 默认值
+userTurns:
+  - role: user
+    content: 用我的商家画像找德国潜客，但画像里有些 USP 和目标区域只是你上次推测的，别直接当默认条件
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustCall:
+      - method: POST
+        path: /api/v1/companies/search-advanced
+  behavior:
+    mustEmit:
+      - profile_read_before_discovery
+      - discovery_defaults_source_checked
+      - agent_inferred_defaults_excluded
+      - confirmed_imported_defaults_allowed
+      - inferred_values_labeled_for_confirmation
+    ordered:
+      - - profile_read_before_discovery
+        - discovery_defaults_source_checked
+      - - discovery_defaults_source_checked
+        - agent_inferred_defaults_excluded
+    mustNotEmit:
+      - agent_inferred_used_as_default

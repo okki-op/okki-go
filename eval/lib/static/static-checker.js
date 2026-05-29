@@ -14,7 +14,9 @@ function runStaticChecks(options = {}) {
     checkSkillRoutingAndEnvPresent(okkiRoot),
     checkSkillCredentialResolutionPresent(okkiRoot),
     checkDocsLegacyRuntimeFlag(okkiRoot),
-    checkInstallerRuntimeListPresent(okkiRoot)
+    checkInstallerRuntimeListPresent(okkiRoot),
+    checkReleaseVersionConsistency(okkiRoot),
+    checkCompanySearchPaginationGuardrail(okkiRoot)
   ];
 }
 
@@ -107,6 +109,102 @@ function checkInstallerRuntimeListPresent(okkiRoot) {
     'installer-runtime-list-present',
     'installer must include SUPPORTED_RUNTIMES, codex, and accio'
   );
+}
+
+function checkReleaseVersionConsistency(okkiRoot) {
+  const packageJson = readJson(path.join(okkiRoot, 'package.json'));
+  const version = typeof packageJson.version === 'string' ? packageJson.version.trim() : '';
+  if (!version) {
+    return fail('release-version-consistency', 'package version must be set');
+  }
+
+  const references = [
+    {
+      file: 'skill/SKILL.md',
+      ok: () => frontmatterVersion(readText(path.join(okkiRoot, 'skill', 'SKILL.md'))) === version
+    },
+    {
+      file: 'bin/install.js',
+      ok: () => hasQuotedAssignment(readText(path.join(okkiRoot, 'bin', 'install.js')), 'VERSION', version)
+    },
+    {
+      file: 'skill/scripts/resolve-api-key.sh',
+      ok: () => fileIncludes(path.join(okkiRoot, 'skill', 'scripts', 'resolve-api-key.sh'), `OKKIGO_SKILL_VERSION:-${version}`)
+    },
+    {
+      file: 'skill/references/api-reference.md',
+      ok: () => fileIncludes(path.join(okkiRoot, 'skill', 'references', 'api-reference.md'), `X-Okki-Skill-Version: ${version}`)
+    },
+    {
+      file: 'README.md',
+      ok: () => readText(path.join(okkiRoot, 'README.md')).includes(`**Current**: ${version}`)
+    },
+    {
+      file: 'INSTALL.md',
+      ok: () => readText(path.join(okkiRoot, 'INSTALL.md')).includes(`**当前版本**: ${version}`)
+    }
+  ];
+
+  const mismatches = references
+    .filter((reference) => !reference.ok())
+    .map((reference) => reference.file);
+
+  if (mismatches.length > 0) {
+    return fail(
+      'release-version-consistency',
+      `release version references must match package version ${version}`,
+      { files: mismatches }
+    );
+  }
+
+  return pass('release-version-consistency');
+}
+
+function checkCompanySearchPaginationGuardrail(okkiRoot) {
+  const discoveryPath = path.join(okkiRoot, 'skill', 'references', 'discovery-playbook.md');
+  if (!fs.existsSync(discoveryPath)) {
+    return fail(
+      'company-search-pagination-guardrail',
+      'skill must require free paginated company search for target_count above search-advanced page size'
+    );
+  }
+
+  const discovery = readText(discoveryPath);
+
+  if (
+    discovery.includes('target_count > 50') &&
+    discovery.includes('size: 50') &&
+    discovery.includes('from: 0') &&
+    discovery.includes('from: 50') &&
+    discovery.includes('/contacts/search') &&
+    discovery.includes('/companies/unlock') &&
+    discovery.includes('company-count targets')
+  ) {
+    return pass('company-search-pagination-guardrail');
+  }
+
+  return fail(
+    'company-search-pagination-guardrail',
+    'skill must require free paginated company search for target_count above search-advanced page size'
+  );
+}
+
+function fileIncludes(filePath, value) {
+  return fs.existsSync(filePath) && readText(filePath).includes(value);
+}
+
+function frontmatterVersion(markdown) {
+  const match = String(markdown || '').match(/^---\n[\s\S]*?^version:\s*([^\s]+)\s*$/m);
+  return match ? match[1].trim() : null;
+}
+
+function hasQuotedAssignment(source, name, value) {
+  const pattern = new RegExp(`\\b${name}\\s*=\\s*['"]${escapeRegex(value)}['"]`);
+  return pattern.test(String(source || ''));
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function getDocumentationFiles(okkiRoot) {

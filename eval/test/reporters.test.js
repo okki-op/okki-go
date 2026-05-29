@@ -65,7 +65,7 @@ test('reporters treat missing and non-array results as empty lists', () => {
       manualReview: emptyManualReviewSummary()
     });
     assert.deepEqual(readJson(path.join(outputDir, 'cases.json')), []);
-    assert.match(readText(path.join(outputDir, 'report.md')), /\| total \| 0 \|/);
+    assert.match(readText(path.join(outputDir, 'report.md')), /\| 总计 \| 0 \|/);
   }
 });
 
@@ -144,22 +144,22 @@ test('summarize includes routing, business, and manual review phase 2 aggregates
   assert.equal(summary.manualReview.pending, 1);
 });
 
-test('writeMarkdownReport writes run metadata, summary, cases, and failure reasons', () => {
+test('writeMarkdownReport writes Chinese run metadata, summary, cases, and failure reasons by default', () => {
   const outputDir = makeOutputDir();
   const run = makeRun();
 
   writeMarkdownReport(outputDir, run);
 
   const report = readText(path.join(outputDir, 'report.md'));
-  assert.match(report, /# OKKI Go Evaluation Report/);
-  assert.match(report, /Run ID: run-123/);
-  assert.match(report, /Mode: local-core/);
-  assert.match(report, /Suite: smoke/);
-  assert.match(report, /\| Status \| Count \|/);
-  assert.match(report, /\| failed \| 1 \|/);
-  assert.match(report, /\| blocked \| 0 \|/);
-  assert.match(report, /\| Case \| Status \| Reason \|/);
-  assert.match(report, /\| scenario-fail \| failed \| missing required confirmation; timeout waiting for answer \|/);
+  assert.match(report, /# OKKI Go 评估报告/);
+  assert.match(report, /运行 ID：run-123/);
+  assert.match(report, /模式：local-core/);
+  assert.match(report, /套件：smoke/);
+  assert.match(report, /\| 状态 \| 数量 \|/);
+  assert.match(report, /\| 失败 \| 1 \|/);
+  assert.match(report, /\| 阻塞 \| 0 \|/);
+  assert.match(report, /\| 用例 \| 状态 \| 原因 \|/);
+  assert.match(report, /\| scenario-fail \| 失败 \| missing required confirmation; timeout waiting for answer \|/);
   assert.ok(fs.existsSync(path.join(outputDir, 'report.md')));
 });
 
@@ -175,11 +175,11 @@ test('writeMarkdownReport escapes markdown table cells', () => {
   });
 
   const report = readText(path.join(outputDir, 'report.md'));
-  assert.match(report, /Run ID: run\\\|pipe/);
-  assert.match(report, /\| case\\\|id \| failed \| line one line two; bad \\\| pipe \|/);
+  assert.match(report, /运行 ID：run\\\|pipe/);
+  assert.match(report, /\| case\\\|id \| 失败 \| line one line two; bad \\\| pipe \|/);
 });
 
-test('writeMarkdownReport includes phase 2 routing, business, and manual review sections', () => {
+test('writeMarkdownReport includes Chinese phase 2 routing, business, and manual review sections', () => {
   const outputDir = makeOutputDir();
   writeMarkdownReport(outputDir, {
     runId: 'phase2',
@@ -205,12 +205,12 @@ test('writeMarkdownReport includes phase 2 routing, business, and manual review 
   });
 
   const report = readText(path.join(outputDir, 'report.md'));
-  assert.match(report, /Fixture: vertical-auto-parts-de/);
-  assert.match(report, /## Routing Evaluation/);
-  assert.match(report, /positive recall/);
-  assert.match(report, /## Business Evaluation/);
-  assert.match(report, /average quality score/);
-  assert.match(report, /## Manual Review/);
+  assert.match(report, /回放夹具：vertical-auto-parts-de/);
+  assert.match(report, /## 路由评估/);
+  assert.match(report, /正例召回率/);
+  assert.match(report, /## 业务评估/);
+  assert.match(report, /平均质量分/);
+  assert.match(report, /## 人工复核/);
 });
 
 

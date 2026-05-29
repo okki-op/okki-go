@@ -16,7 +16,7 @@
 ```http
 Authorization: ApiKey sk-your-key-here
 X-Okki-Install-Id: <anonymous install id>
-X-Okki-Skill-Version: 1.0.12
+X-Okki-Skill-Version: 1.2.0
 X-Okki-Skill-Runtime: <agent runtime>
 ```
 

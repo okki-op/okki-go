@@ -30,6 +30,16 @@ if (process.env.OKKI_FAKE_CODEX_MODE === 'STDOUT_AND_STDERR_ECHO') {
   process.exit(0);
 }
 
+if (process.env.OKKI_FAKE_CODEX_MODE === 'BEHAVIOR_MARKERS') {
+  console.log('ROUTING_DECISION: triggered');
+  console.log('API_CALL: POST /api/v1/companies/search-advanced');
+  console.log('BEHAVIOR: bc1_goal_before_brief');
+  console.log('BEHAVIOR: brief_built');
+  console.log('BEHAVIOR: trade_mode_derived');
+  console.log('RESPONSE: OKKI Go should handle this request with ordered harness behavior.');
+  process.exit(0);
+}
+
 if (!prompt.includes('帮我找德国汽车零部件进口商')) {
   console.error('fake Codex CLI did not receive the scenario prompt');
   process.exit(2);

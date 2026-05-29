@@ -1,0 +1,34 @@
+id: business-context-order
+suite: business
+name: Business Context BC1/BC2 在 Brief 前，BC3 在 trade_mode 后
+userTurns:
+  - role: user
+    content: 我们是中国 DTF 打印机厂家，想找德国 50-500 人的服装印花设备进口商，目标是本季度开发新市场
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustCall:
+      - method: POST
+        path: /api/v1/companies/search-advanced
+  behavior:
+    mustEmit:
+      - bc1_goal_before_brief
+      - bc2_timeline_before_brief
+      - brief_built
+      - trade_mode_derived
+      - bc3_after_trade_mode
+      - blind_spot_after_trade_mode
+    ordered:
+      - - bc1_goal_before_brief
+        - brief_built
+      - - bc2_timeline_before_brief
+        - brief_built
+      - - brief_built
+        - trade_mode_derived
+      - - trade_mode_derived
+        - bc3_after_trade_mode
+      - - bc3_after_trade_mode
+        - blind_spot_after_trade_mode
+    mustNotEmit:
+      - bc3_before_trade_mode
