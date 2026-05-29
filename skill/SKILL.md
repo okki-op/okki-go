@@ -1,6 +1,6 @@
 ---
 name: OKKI Go
-version: 1.0.12
+version: 1.0.13
 description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine — only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
 homepage: "https://go.okki.ai"
 requires:
@@ -66,7 +66,7 @@ All endpoints use API Key authentication. Each user has an independent `sk-` pre
 ```
 Authorization: ApiKey <resolved API key>
 X-Okki-Install-Id: <anonymous install id>
-X-Okki-Skill-Version: 1.0.12
+X-Okki-Skill-Version: 1.0.13
 X-Okki-Skill-Runtime: <agent runtime>
 X-Hostname: xxx
 ```
@@ -105,7 +105,7 @@ OKKIGO_INSTALL_ID="${OKKIGO_INSTALL_ID:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}
 curl -s -X GET "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
   -H "Authorization: ApiKey $OKKIGO_API_KEY" \
   ${OKKIGO_INSTALL_ID:+-H "X-Okki-Install-Id: $OKKIGO_INSTALL_ID"} \
-  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.12}" \
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.13}" \
   -H "X-Okki-Skill-Runtime: ${OKKIGO_SKILL_RUNTIME:-agent}" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"}
 ```
@@ -147,7 +147,7 @@ For debugging configuration only, use `bash scripts/resolve-api-key.sh --source`
 OKKIGO_INSTALL_ID="${OKKIGO_INSTALL_ID:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/install-id" 2>/dev/null || true)}" && \
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-email" \
   ${OKKIGO_INSTALL_ID:+-H "X-Okki-Install-Id: $OKKIGO_INSTALL_ID"} \
-  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.12}" \
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.13}" \
   -H "X-Okki-Skill-Runtime: ${OKKIGO_SKILL_RUNTIME:-agent}" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "Content-Type: application/json" \
@@ -160,7 +160,7 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-ema
       "termsUrl": "https://go.okki.ai/legal/terms",
       "privacyUrl": "https://go.okki.ai/legal/privacy",
       "channel": "agent",
-      "skillVersion": "1.0.12",
+      "skillVersion": "1.0.13",
       "locale": "en-US",
       "affirmationText": "I have read and agree to the Terms of Service and acknowledge the Privacy Policy."
     }
@@ -173,7 +173,7 @@ curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/register-ema
 OKKIGO_INSTALL_ID="${OKKIGO_INSTALL_ID:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/install-id" 2>/dev/null || true)}" && \
 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/verify-email" \
   ${OKKIGO_INSTALL_ID:+-H "X-Okki-Install-Id: $OKKIGO_INSTALL_ID"} \
-  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.12}" \
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.0.13}" \
   -H "X-Okki-Skill-Runtime: ${OKKIGO_SKILL_RUNTIME:-agent}" \
   ${HOSTNAME:+-H "X-Hostname: $HOSTNAME"} \
   -H "X-OpenClaw-Provision-Api-Key: true" \

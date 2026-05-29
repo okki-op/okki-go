@@ -30,7 +30,7 @@ const bold   = '\x1b[1m';
 // ─── Skill metadata ───────────────────────────────────────────────────────────
 const SKILL_NAME = 'okki-go';
 const DISPLAY_NAME = 'OKKI Go';
-const VERSION    = '1.0.12';
+const VERSION    = '1.0.13';
 
 // Friendly display names for each runtime
 const RUNTIME_LABELS = {
@@ -904,7 +904,7 @@ function printNextSteps() {
   log(`      ${green}${t('step3Example')}${reset}\n`);
   log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
   log(`${cyan}${t('docLabel')}${reset} https://docs.okki.ai`);
-  log(`${cyan}${t('supportLabel')}${reset} support@okki.ai\n`);
+  log(`${cyan}${t('supportLabel')}${reset} go@okki.ai\n`);
 }
 
 function printHelp() {

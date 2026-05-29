@@ -181,13 +181,13 @@ cp -r package/skill/* ~/.claude/skills/okki-go/
 
 ## Version
 
-**Current**: 1.0.12
+**Current**: 1.0.13
 
 ## Links
 
 - Homepage: https://go.okki.ai
 - Documentation: https://docs.okki.ai
-- Support: support@okki.ai
+- Support: go@okki.ai
 - npm: https://www.npmjs.com/package/@okki-global/okki-go
 
 ## License

@@ -8,7 +8,7 @@ set -eu
 
 MODE="${1:---check}"
 ANALYTICS_URL="${OKKIGO_ANALYTICS_URL:-https://datasink-sensorsdata.okki.ai/sa?project=production}"
-SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.0.12}"
+SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.0.13}"
 SKILL_RUNTIME="${OKKIGO_SKILL_RUNTIME:-unknown}"
 
 if [ "$MODE" != "--check" ] && [ "$MODE" != "--source" ] && [ "$MODE" != "--print" ]; then
