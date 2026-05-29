@@ -187,7 +187,7 @@ cp -r package/skill/* ~/.claude/skills/okki-go/
 
 - Homepage: https://go.okki.ai
 - Documentation: https://docs.okki.ai
-- Support: support@okki.ai
+- Support: go@okki.ai
 - npm: https://www.npmjs.com/package/@okki-global/okki-go
 
 ## License

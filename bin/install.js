@@ -904,7 +904,7 @@ function printNextSteps() {
   log(`      ${green}${t('step3Example')}${reset}\n`);
   log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}`);
   log(`${cyan}${t('docLabel')}${reset} https://docs.okki.ai`);
-  log(`${cyan}${t('supportLabel')}${reset} support@okki.ai\n`);
+  log(`${cyan}${t('supportLabel')}${reset} go@okki.ai\n`);
 }
 
 function printHelp() {
