@@ -1,4 +1,4 @@
-# OKKI Go PMF Quick Profile Gate Design
+# OKKI Go PMF and Query Expansion Optimization Design
 
 Date: 2026-06-01
 
@@ -17,6 +17,14 @@ contracts: new or under-profiled users should be strongly guided to provide a
 company website or product page before the first prospect search, while still
 keeping an explicit skip path for rough free search.
 
+The current 1.2.0 expansion rules also create a second failure mode. Discovery
+builds a complete Brief, maps Brief fields directly to `search-advanced`
+parameters, and then uses `crossFieldOperator: "or"` as the first broadening
+move when results are too sparse. A richer Brief can therefore make the first
+query overly narrow, while the fallback can become overly broad and unrelated.
+The optimization must fix both sides: better PMF context before discovery, and a
+more controlled query-planning layer between the Brief and API calls.
+
 ## Goals
 
 - Make prospect discovery optimize for PMF fit, not only keyword matching.
@@ -27,6 +35,14 @@ keeping an explicit skip path for rough free search.
 - Preserve a clear skip path for users who insist on rough direct search.
 - Re-ask for a website or product page in future prospecting tasks when the
   Merchant Profile remains insufficient; a skip is not a permanent preference.
+- Separate PMF Brief generation from API query construction.
+- Replace default `AND -> OR` broadening with controlled query plans that keep
+  product/service and buyer-intent anchors.
+- Add relationship-based expansion so follow-up searches are based on buyer,
+  channel, use-case, project, or procurement relationships rather than loose
+  keyword similarity.
+- Make expansion reliable for weaker models through fixed relation types,
+  structured outputs, validation rules, and conservative zero-library behavior.
 - Keep all paid-action, contact-search, and email-send confirmations unchanged.
 
 ## Non-Goals
@@ -36,19 +52,28 @@ keeping an explicit skip path for rough free search.
 - Do not require every user to have a website.
 - Do not block free company search forever when the user explicitly skips.
 - Do not use unconfirmed website extraction as a long-term default.
+- Do not build a complete universal supply-chain graph in the first iteration.
+  The system starts with generic relationship templates and a small, auditable
+  relationship library that can grow over time.
 - Do not change OKKI Go API schemas unless implementation later discovers a
   required backend capability.
 
 ## Recommended Approach
 
-Implement **PMF Quick Profile Gate**.
+Implement **PMF Quick Profile Gate** plus **Query Plan Portfolio** and
+**Relationship Expansion Harness**.
 
 When a new or under-profiled user starts company/customer discovery, the agent
 first asks for a company website or product page. If the user provides one, the
 agent extracts a provisional Merchant Profile, shows it in a conversational
 confirmation message, waits for confirmation or edits, saves confirmed data to
-the local Merchant Profile, builds a PMF-aware search brief, and only then runs
-free company search.
+the local Merchant Profile, and builds a PMF-aware search brief.
+
+The PMF Brief is not sent to the API directly. The agent must turn it into a
+small portfolio of query plans. Each plan represents one buyer hypothesis or
+relationship path and maps to a bounded `search-advanced` payload. This avoids
+the current pattern where all Brief dimensions are packed into one overly strict
+query and then widened with a noisy `OR` fallback.
 
 If the user skips, the agent may run a free rough search, but must clearly label
 the result as under-profiled and ask again in future independent prospecting
@@ -206,14 +231,65 @@ choice before search:
 我建议先搜 a+b，匹配度更高、获客路径更直接。是否按这个方向开始？
 ```
 
-### 7. Free Search
+### 7. Query Plan Portfolio
+
+After PMF Brief generation, the agent builds a `query_plan_portfolio`. The
+portfolio is session memory and sits between the Brief and API calls. It is not
+persisted as Merchant Profile data.
+
+Each query plan must contain:
+
+```json
+{
+  "plan_id": "core-1",
+  "tier": "core",
+  "buyer_hypothesis": "German auto glass distributors may buy replacement glass from an overseas supplier.",
+  "relation_type": "channel_buyer",
+  "relation_path": "automotive glass supplier -> distributor/importer -> German repair and replacement market",
+  "required_anchors": ["automotive glass", "distributor/importer", "DE"],
+  "api_payload": {
+    "productKeywords": ["automotive glass", "windshield"],
+    "companyTypeKeywords": ["distributor", "importer"],
+    "industryKeywords": ["automotive aftermarket"],
+    "includeCountry": ["DE"],
+    "crossFieldOperator": "and",
+    "from": 0,
+    "size": 50
+  },
+  "fit_level": "high",
+  "risk": "May miss repair chains that describe themselves as service providers rather than distributors."
+}
+```
+
+Rules:
+
+- A PMF Brief can produce multiple query plans. It must not collapse every Brief
+  field into one payload.
+- Each plan should test one buyer hypothesis only.
+- Each plan must keep product/service context and target geography unless the
+  user explicitly asks for a geography-free exploration.
+- Decision roles remain contact-discovery context and must not be placed into
+  company-search keywords.
+- Query plans should be shown or summarized before search when they materially
+  change the user's requested direction.
+
+### 8. Free Search Execution
 
 After the PMF brief is confirmed or sufficiently clear under the existing tier
-rules, the agent calls the free company search endpoint. Result display should
-include concise "why this may fit you" reasoning where result fields and profile
-fields support it.
+rules, the agent runs the selected query plan or plans with the free company
+search endpoint. Result display should include concise "why this may fit you"
+reasoning where result fields and profile fields support it.
 
-### 8. Explicit Skip Path
+Default first search:
+
+- Run one high-fit core plan when the user requested a narrow target.
+- Run up to three high-fit core plans when the target is broad and the plans
+  represent distinct buyer hypotheses.
+- Keep results grouped by query plan or buyer hypothesis when multiple plans run.
+- Do not merge exploratory results into the core group without labeling their
+  origin.
+
+### 9. Explicit Skip Path
 
 If the user explicitly skips:
 
@@ -230,6 +306,218 @@ Same-session throttle:
   the website prompt on every small adjustment.
 - If the user starts a new product, market, or independent prospecting task, and
   the profile is still insufficient, ask again.
+
+## Query Expansion Rules
+
+### Problem To Eliminate
+
+The current 1.2.0 expansion flow can degrade from "too strict" to "too broad":
+
+```text
+complete Brief
+  -> one strict API payload
+  -> too few results
+  -> crossFieldOperator: and -> or
+  -> unrelated results
+```
+
+The new flow must avoid global OR broadening. Expansion is a portfolio of
+bounded query plans, not a single query that keeps getting looser.
+
+### Search Tiers
+
+Use four tiers:
+
+1. **L0 Core Query:** strict, high-fit plans derived from the PMF Brief.
+2. **L1 Controlled Relaxation:** one non-core constraint is relaxed at a time.
+3. **L2 Relationship Expansion:** new buyer hypotheses are generated from
+   supply-chain, channel, use-case, project, or procurement relationships.
+4. **L3 Exploration:** low-confidence ideas shown to the user for selection;
+   no automatic search.
+
+### L0 Core Query
+
+Core plans use:
+
+- Product or service anchor.
+- Target geography.
+- One buyer type or use-case scene.
+- Optional industry context only when it improves precision.
+
+Do not put every available Brief field into the first payload. For example,
+instead of one payload containing product, distributor, repair, wholesaler,
+replacement, and every application phrase, split into separate plans:
+
+```text
+Plan A: automotive glass + distributor/importer + DE
+Plan B: windshield replacement + repair chain + DE
+Plan C: auto glass + wholesaler + DE
+```
+
+### L1 Controlled Relaxation
+
+Controlled Relaxation replaces the old default `AND -> OR` Broadening Ladder.
+
+Allowed relaxations:
+
+- Swap to a close product synonym while preserving buyer type and geography.
+- Swap to a related buyer type while preserving product anchor and geography.
+- Remove the least important industry/application keyword.
+- Temporarily remove `withEmails`.
+- Broaden company type within the same relation class, such as importer to
+  importer/distributor.
+
+Hard rules:
+
+- Do not switch the whole payload from `and` to `or` as the default move.
+- Do not remove product/service anchor and target geography at the same time.
+- Do not combine unrelated buyer hypotheses into one OR-style payload.
+- Disclose the relaxation used and why it is still likely to match.
+
+### L2 Relationship Expansion
+
+Relationship Expansion generates new query plans from structured buyer
+relationships. It is not keyword-neighbor expansion.
+
+Allowed relation types:
+
+| Relation Type | Meaning |
+|---------------|---------|
+| `direct_buyer` | Companies that directly buy, use, or resell the product/service. |
+| `channel_buyer` | Importers, wholesalers, distributors, dealers, and other channel partners. |
+| `installer_integrator` | Installers, contractors, engineering firms, or system integrators that source the product for projects. |
+| `end_user_operator` | Asset operators with repeated or bulk use cases, such as hotels, apartments, schools, hospitals, factories, or fleets. |
+| `project_trigger` | Buyers connected to renovation, maintenance, replacement, expansion, opening, or upgrade events. |
+| `complementary_system` | Buyers of adjacent systems where the product is bundled, integrated, or specified. |
+| `procurement_category` | Standard procurement/category language from sources such as CPV, UNSPSC, HS, NAICS, or equivalent local terminology. |
+| `not_recommended` | Plausible-looking but weak or risky expansion directions that should not be searched by default. |
+
+Each relationship expansion candidate must include:
+
+- `candidate`
+- `relation_type`
+- `relation_path`
+- `required_anchors`
+- `query_plan`
+- `fit_level`
+- `why_this_matches`
+- `risk`
+
+Example:
+
+```json
+{
+  "candidate": "hotel renovation contractors",
+  "relation_type": "project_trigger",
+  "relation_path": "custom door locks -> hotel room renovation -> contractor procurement",
+  "required_anchors": ["door lock", "renovation", "hotel"],
+  "query_plan": "custom door lock + hotel renovation contractor + target country",
+  "fit_level": "medium_high",
+  "why_this_matches": "Hotel renovation contractors may source door locks in bulk during room upgrade projects.",
+  "risk": "Generic hotels are too broad unless renovation or procurement context is included."
+}
+```
+
+The important distinction is that "hotel" is not searched because it is
+semantically near "door lock". It is considered only when the relation path
+connects hotel operations to renovation, room maintenance, property management,
+or another procurement event.
+
+### L3 Zero-Library Mode
+
+The system does not need a large industry relationship library at launch. When
+no verified relationship library entry exists for the product/category:
+
+- Use generic relation templates to propose candidate directions.
+- Mark them as unverified or generic-controlled.
+- Ask the user to choose before search.
+- Do not automatically run exploratory searches.
+- Downgrade vague ideas to `not_recommended` when they lack product, buyer, or
+  procurement anchors.
+
+Example:
+
+```text
+我没有找到门锁行业的已验证扩展关系库。基于通用供应链关系，我建议尝试：
+(a) 渠道买家：门锁进口商/建材批发商
+(b) 安装集成：门窗安装商/安防集成商
+(c) 项目触发：酒店翻新承包商/公寓改造公司
+(d) 资产运营方：酒店运营商/公寓物业
+
+我建议先试 b+c，因为仍保留“门锁 + 安装/翻新”的采购场景。要执行哪个方向？
+```
+
+This keeps early expansion conservative even without a mature library.
+
+### Relationship Library
+
+Build a small, auditable library incrementally. It should be optional at first
+and should improve confidence, not be required for basic safety.
+
+Suggested record shape:
+
+```json
+{
+  "vertical_id": "custom_door_locks",
+  "aliases": ["door locks", "custom locks", "smart locks"],
+  "core_product_anchor": ["door lock", "custom lock"],
+  "relations": [
+    {
+      "type": "channel_buyer",
+      "buyer_types": ["building material wholesalers", "door hardware distributors"],
+      "query_template": "{product_anchor} {buyer_type} {geo}",
+      "fit_level": "high",
+      "required_anchors": ["product_anchor", "buyer_type", "geo"]
+    },
+    {
+      "type": "project_trigger",
+      "buyer_types": ["hotel renovation contractors", "apartment refurbishment companies"],
+      "query_template": "{product_anchor} {buyer_type} {geo}",
+      "fit_level": "medium_high",
+      "risk": "Do not search generic hotels without renovation/procurement context."
+    }
+  ],
+  "bad_expansions": ["generic hotels", "travel agencies", "real estate agencies"]
+}
+```
+
+Promotion path:
+
+- User-selected generic candidate starts as `candidate_relation`.
+- Result quality, user selection, unlock/contact behavior, and user feedback can
+  be recorded as signals.
+- A candidate becomes `verified` only after human or explicit review.
+
+### Query Validator
+
+Before running any expanded search, validate the plan:
+
+- It preserves a product/service anchor.
+- It preserves target geography unless the user asked otherwise.
+- It has a buyer role, channel, use-case, project trigger, or procurement
+  category.
+- It has a `relation_path`.
+- It does not put multiple unrelated hypotheses into one OR query.
+- It does not use decision-maker roles as company-search keywords.
+- It does not conflict with confirmed Merchant Profile constraints.
+- It avoids broad generic targets such as "hotels", "real estate companies", or
+  "repair companies" unless a procurement or product anchor is included.
+
+Invalid plans must be rewritten, downgraded to `not_recommended`, or shown for
+user confirmation without search.
+
+### Result Grouping
+
+Results from different plans must stay explainable:
+
+- `Core`
+- `Controlled Relaxation`
+- `Relationship Expansion`
+- `Exploration`
+- `Not Recommended` suggestions, if any
+
+The agent should not present all results as a single undifferentiated company
+list when they came from different hypotheses.
 
 ## Source and Profile Rules
 
@@ -274,6 +562,19 @@ If the user refuses confirmation:
 - Ask whether to edit the extracted profile, provide a short manual
   description, or skip to rough search.
 
+If the first query plans are too strict:
+
+- Do not conclude that OKKI Go lacks matching companies solely from one strict
+  plan.
+- Use L1 Controlled Relaxation before relationship exploration.
+- Report which anchor stayed fixed and which non-core field changed.
+
+If relationship expansion produces only invalid plans:
+
+- Show the strongest `not_recommended` reasons.
+- Ask the user to choose a direction or provide an industry clue.
+- Do not run broad fallback searches just to fill the target count.
+
 ## Evaluation Updates
 
 Existing scenarios that expect direct search with unknown `trade_mode` should be
@@ -298,6 +599,24 @@ Required coverage:
   profile remains insufficient: must strongly recommend website/product page
   again.
 - Provisional extraction must not be used as confirmed Profile defaults.
+- PMF Brief generation must be followed by `query_plan_portfolio_built` before
+  any free company search.
+- A rich PMF Brief must not be collapsed into a single all-fields API payload
+  when multiple buyer hypotheses are present.
+- First-round plans must preserve product/service anchor and target geography.
+- Result-sparse searches must not default to global `crossFieldOperator:
+  "or"`.
+- Controlled Relaxation must relax only one non-core constraint at a time and
+  must emit the retained anchor and relaxed field.
+- Relationship Expansion candidates must include `relation_type`,
+  `relation_path`, `required_anchors`, `fit_level`, `why_this_matches`, and
+  `risk`.
+- Zero-Library Mode must ask the user to choose before running unverified
+  exploratory relationship searches.
+- Query Validator must reject broad generic targets without product/procurement
+  anchors, such as generic hotels or generic repair companies.
+- Expanded results must be grouped by query plan, relation type, or search tier;
+  they must not be merged into a single undifferentiated list.
 - Paid unlock, paid contact search, and email send guardrails must still require
   separate explicit confirmations.
 
@@ -312,6 +631,21 @@ Suggested behavior markers:
 - `profile_extraction_confirmed`
 - `profile_confirmed_saved`
 - `pmf_brief_built`
+- `query_plan_portfolio_built`
+- `brief_not_sent_directly_as_single_payload`
+- `core_query_plan_selected`
+- `product_anchor_preserved`
+- `target_geo_preserved`
+- `global_or_broadening_blocked`
+- `controlled_relaxation_applied`
+- `relaxation_retained_anchor_reported`
+- `relationship_expansion_candidates_built`
+- `relationship_candidate_has_path`
+- `query_validator_passed`
+- `query_validator_rejected_generic_target`
+- `zero_library_mode_entered`
+- `zero_library_user_selection_required`
+- `results_grouped_by_query_plan`
 - `rough_search_after_explicit_skip`
 - `rough_search_labeled_under_profiled`
 - `skip_not_saved_as_preference`
