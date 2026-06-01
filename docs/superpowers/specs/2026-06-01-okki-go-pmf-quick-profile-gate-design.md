@@ -20,10 +20,19 @@ keeping an explicit skip path for rough free search.
 The current 1.2.0 expansion rules also create a second failure mode. Discovery
 builds a complete Brief, maps Brief fields directly to `search-advanced`
 parameters, and then uses `crossFieldOperator: "or"` as the first broadening
-move when results are too sparse. A richer Brief can therefore make the first
-query overly narrow, while the fallback can become overly broad and unrelated.
+move when results are too sparse. This assumes the user's own product keywords
+are the same terms that should appear in the target company's profile. For many
+prospecting tasks that is false. A custom door-lock manufacturer that searches
+`productKeywords: ["door lock"]` can easily retrieve peer manufacturers or
+brands instead of buyers, channels, installers, project contractors, or operators
+with procurement demand. A richer Brief can therefore make the first query
+competitor-heavy, while the fallback can become overly broad and unrelated.
+
 The optimization must fix both sides: better PMF context before discovery, and a
-more controlled query-planning layer between the Brief and API calls.
+target-side keyword modeling layer between the PMF Brief and API calls. The
+agent should reason from "what the merchant sells" to "what the target company
+should look like" before it chooses `productKeywords`, `companyTypeKeywords`,
+and `industryKeywords`.
 
 ## Goals
 
@@ -36,13 +45,16 @@ more controlled query-planning layer between the Brief and API calls.
 - Re-ask for a website or product page in future prospecting tasks when the
   Merchant Profile remains insufficient; a skip is not a permanent preference.
 - Separate PMF Brief generation from API query construction.
-- Replace default `AND -> OR` broadening with controlled query plans that keep
-  product/service and buyer-intent anchors.
-- Add relationship-based expansion so follow-up searches are based on buyer,
-  channel, use-case, project, or procurement relationships rather than loose
-  keyword similarity.
-- Make expansion reliable for weaker models through fixed relation types,
-  structured outputs, validation rules, and conservative zero-library behavior.
+- Treat the merchant's product/service terms as offer anchors for reasoning, not
+  as automatic `productKeywords` for target-company search.
+- Replace default `AND -> OR` broadening with target-side recovery plans that
+  preserve geography and target-route intent.
+- Add target-route expansion so follow-up searches are based on channel,
+  trade-category, installer/integrator, project-trigger, operator, or procurement
+  routes rather than loose keyword similarity.
+- Make expansion reliable for weaker models through fixed route types,
+  structured target-side keyword projection, validation rules, and conservative
+  handling of low-confidence routes.
 - Keep all paid-action, contact-search, and email-send confirmations unchanged.
 
 ## Non-Goals
@@ -52,16 +64,16 @@ more controlled query-planning layer between the Brief and API calls.
 - Do not require every user to have a website.
 - Do not block free company search forever when the user explicitly skips.
 - Do not use unconfirmed website extraction as a long-term default.
-- Do not build a complete universal supply-chain graph in the first iteration.
-  The system starts with generic relationship templates and a small, auditable
-  relationship library that can grow over time.
+- Do not build a complete universal supply-chain graph or target-keyword
+  ontology in the first iteration. The system starts with generic target-route
+  templates and a small, auditable route library that can grow over time.
 - Do not change OKKI Go API schemas unless implementation later discovers a
   required backend capability.
 
 ## Recommended Approach
 
-Implement **PMF Quick Profile Gate** plus **Query Plan Portfolio** and
-**Relationship Expansion Harness**.
+Implement **PMF Quick Profile Gate** plus **Target-Side Query Plan Portfolio**
+and **Target Route Expansion Harness**.
 
 When a new or under-profiled user starts company/customer discovery, the agent
 first asks for a company website or product page. If the user provides one, the
@@ -70,10 +82,14 @@ confirmation message, waits for confirmation or edits, saves confirmed data to
 the local Merchant Profile, and builds a PMF-aware search brief.
 
 The PMF Brief is not sent to the API directly. The agent must turn it into a
-small portfolio of query plans. Each plan represents one buyer hypothesis or
-relationship path and maps to a bounded `search-advanced` payload. This avoids
-the current pattern where all Brief dimensions are packed into one overly strict
-query and then widened with a noisy `OR` fallback.
+small portfolio of target-side query plans. Each plan represents one target
+route, such as channel buyer, trade-category buyer, installer/integrator,
+project-trigger contractor, operator, or procurement-category path. The plan
+keeps the merchant's offer anchors as internal reasoning context, then projects
+them into the current `search-advanced` API fields only when those terms describe
+the target company. This avoids the current pattern where all Brief dimensions
+are packed into one competitor-prone payload and then widened with a noisy `OR`
+fallback.
 
 If the user skips, the agent may run a free rough search, but must clearly label
 the result as under-profiled and ask again in future independent prospecting
@@ -191,6 +207,17 @@ The search brief is generated from both:
 The brief should answer: "Which target companies are most likely to buy, use,
 distribute, integrate, or influence demand for this user's offering?"
 
+The brief must separate offer-side facts from target-side search intent:
+
+- `merchant_offer_anchor`: what the user sells or provides. This is used for PMF
+  reasoning and result explanation, but it is not automatically copied into API
+  `productKeywords`.
+- `merchant_capabilities`: certifications, customization, delivery capability,
+  service scope, or other reasons a target may buy.
+- `target_routes`: the kinds of companies that may buy, distribute, install,
+  specify, operate, or procure the offering.
+- `target_geo`: the requested search geography.
+
 Example:
 
 User request:
@@ -208,9 +235,11 @@ Confirmed profile:
 PMF brief:
 
 - Target market: DE.
-- Preferred target types: auto parts importers, distributors, aftermarket
+- Merchant offer anchor: brake parts, brake system components.
+- Preferred target routes: auto parts importers, distributors, aftermarket
   channels, repair-chain suppliers, commercial vehicle maintenance suppliers.
-- Product keywords: brake parts, brake system, auto spare parts.
+- Target-side search terms: auto spare parts channels, automotive aftermarket,
+  commercial vehicle maintenance, distributor/importer wording.
 - Industry/application context: automotive aftermarket, commercial vehicle
   maintenance.
 - Deprioritize or exclude: pure vehicle brands or direct competitor
@@ -231,11 +260,16 @@ choice before search:
 我建议先搜 a+b，匹配度更高、获客路径更直接。是否按这个方向开始？
 ```
 
-### 7. Query Plan Portfolio
+### 7. Target-Side Query Plan Portfolio
 
 After PMF Brief generation, the agent builds a `query_plan_portfolio`. The
 portfolio is session memory and sits between the Brief and API calls. It is not
 persisted as Merchant Profile data.
+
+The portfolio must distinguish plan metadata from the API payload. Metadata can
+include offer anchors, target routes, rationale, risks, and local result rules.
+Only `api_payload` is sent to `POST /api/v1/companies/search-advanced`, and it
+must use only fields supported by `api-reference.md`.
 
 Each query plan must contain:
 
@@ -243,10 +277,16 @@ Each query plan must contain:
 {
   "plan_id": "core-1",
   "tier": "core",
-  "buyer_hypothesis": "German auto glass distributors may buy replacement glass from an overseas supplier.",
-  "relation_type": "channel_buyer",
-  "relation_path": "automotive glass supplier -> distributor/importer -> German repair and replacement market",
-  "required_anchors": ["automotive glass", "distributor/importer", "DE"],
+  "merchant_offer_anchor": ["automotive glass", "windshield"],
+  "target_route_type": "channel_route",
+  "target_hypothesis": "German automotive aftermarket distributors may buy replacement glass from an overseas supplier.",
+  "target_company_should_be": "Importer, distributor, or wholesaler serving the automotive aftermarket.",
+  "route_path": "automotive glass supplier -> aftermarket distributor/importer -> German repair and replacement market",
+  "target_side_projection": {
+    "product_terms": ["automotive glass", "windshield"],
+    "company_type_terms": ["distributor", "importer"],
+    "industry_terms": ["automotive aftermarket"]
+  },
   "api_payload": {
     "productKeywords": ["automotive glass", "windshield"],
     "companyTypeKeywords": ["distributor", "importer"],
@@ -257,6 +297,7 @@ Each query plan must contain:
     "size": 50
   },
   "fit_level": "high",
+  "competitor_risk": "medium",
   "risk": "May miss repair chains that describe themselves as service providers rather than distributors."
 }
 ```
@@ -265,13 +306,62 @@ Rules:
 
 - A PMF Brief can produce multiple query plans. It must not collapse every Brief
   field into one payload.
-- Each plan should test one buyer hypothesis only.
-- Each plan must keep product/service context and target geography unless the
-  user explicitly asks for a geography-free exploration.
+- Each plan should test one target route only.
+- Each plan must keep merchant offer context in metadata and target geography in
+  `api_payload` unless the user explicitly asks for geography-free exploration.
+- Merchant offer terms may be projected into API `productKeywords` only when
+  they plausibly describe the target company's own products, services, inventory,
+  categories, or procurement language. They must not be copied mechanically.
+- If direct use of the merchant offer term is likely to retrieve competitors,
+  the plan should project to target-side category, channel, use-case, project, or
+  procurement terms instead.
 - Decision roles remain contact-discovery context and must not be placed into
   company-search keywords.
 - Query plans should be shown or summarized before search when they materially
   change the user's requested direction.
+
+Supported target-route types:
+
+| Target Route Type | What It Searches For |
+|-------------------|----------------------|
+| `channel_route` | Importers, wholesalers, distributors, dealers, and other resale channels. |
+| `trade_category_route` | Companies organized around broader target-side categories such as building hardware, architectural hardware, auto aftermarket, industrial supplies, or medical consumables. |
+| `installer_integrator_route` | Installers, contractors, engineering firms, or system integrators that source products for projects. |
+| `project_trigger_route` | Companies connected to renovation, maintenance, replacement, expansion, opening, upgrade, or new-build events. |
+| `operator_route` | Asset operators with repeated or bulk use cases, such as hotels, apartments, schools, hospitals, factories, fleets, or property managers. |
+| `procurement_category_route` | Standard procurement/category language from CPV, UNSPSC, HS, NAICS, tenders, or equivalent local terminology. |
+| `not_recommended` | Plausible-looking but weak or risky target routes that should not be searched by default. |
+
+Door-lock example:
+
+```json
+{
+  "plan_id": "channel-1",
+  "tier": "core",
+  "merchant_offer_anchor": ["custom door locks", "smart locks"],
+  "target_route_type": "channel_route",
+  "target_hypothesis": "German building-hardware channels may resell or source custom locks.",
+  "target_company_should_be": "Importer, distributor, or wholesaler of building or architectural hardware.",
+  "route_path": "custom door lock manufacturer -> building hardware channel -> German construction/hardware market",
+  "target_side_projection": {
+    "product_terms": ["door hardware", "building hardware", "architectural hardware"],
+    "company_type_terms": ["importer", "distributor", "wholesaler"],
+    "industry_terms": ["construction materials"]
+  },
+  "api_payload": {
+    "productKeywords": ["door hardware", "building hardware", "architectural hardware"],
+    "companyTypeKeywords": ["importer", "distributor", "wholesaler"],
+    "industryKeywords": ["construction materials"],
+    "includeCountry": ["DE"],
+    "crossFieldOperator": "and",
+    "from": 0,
+    "size": 50
+  },
+  "fit_level": "high",
+  "competitor_risk": "medium",
+  "risk": "Some distributors may be brand owners or peer suppliers; result display should deprioritize obvious lock manufacturers when fields support it."
+}
+```
 
 ### 8. Free Search Execution
 
@@ -284,8 +374,8 @@ Default first search:
 
 - Run one high-fit core plan when the user requested a narrow target.
 - Run up to three high-fit core plans when the target is broad and the plans
-  represent distinct buyer hypotheses.
-- Keep results grouped by query plan or buyer hypothesis when multiple plans run.
+  represent distinct target routes.
+- Keep results grouped by query plan or target route when multiple plans run.
 - Do not merge exploratory results into the core group without labeling their
   origin.
 
@@ -311,96 +401,134 @@ Same-session throttle:
 
 ### Problem To Eliminate
 
-The current 1.2.0 expansion flow can degrade from "too strict" to "too broad":
+The current 1.2.0 expansion flow has two coupled problems:
 
 ```text
 complete Brief
+  -> Brief.product_anchor copied into API productKeywords
   -> one strict API payload
   -> too few results
   -> crossFieldOperator: and -> or
-  -> unrelated results
+  -> competitor-heavy or unrelated results
 ```
 
-The new flow must avoid global OR broadening. Expansion is a portfolio of
-bounded query plans, not a single query that keeps getting looser.
+The new flow must avoid both automatic product-keyword copying and global OR
+broadening. Expansion is target-side route modeling, not a single query that
+keeps getting looser.
 
 ### Search Tiers
 
 Use four tiers:
 
-1. **L0 Core Query:** strict, high-fit plans derived from the PMF Brief.
-2. **L1 Controlled Relaxation:** one non-core constraint is relaxed at a time.
-3. **L2 Relationship Expansion:** new buyer hypotheses are generated from
-   supply-chain, channel, use-case, project, or procurement relationships.
-4. **L3 Exploration:** low-confidence ideas shown to the user for selection;
-   no automatic search.
+1. **L0 Target-Side Core Query:** strict, high-fit target routes derived from
+   the PMF Brief.
+2. **L1 Target-Side Recovery Ladder:** recover sparse or competitor-heavy
+   results by changing target-side terms or route scope, not by global OR.
+3. **L2 Target Route Expansion:** generate additional target routes such as
+   trade category, installer/integrator, project trigger, operator, or
+   procurement category.
+4. **L3 Exploration:** low-confidence or long-path routes shown to the user for
+   selection; no automatic search unless the user explicitly chooses them.
 
-### L0 Core Query
+### L0 Target-Side Core Query
 
 Core plans use:
 
-- Product or service anchor.
+- Merchant offer anchor as internal reasoning context.
 - Target geography.
-- One buyer type or use-case scene.
+- One target route.
+- Target-side product/category, company-type, industry, or procurement terms.
 - Optional industry context only when it improves precision.
 
-Do not put every available Brief field into the first payload. For example,
-instead of one payload containing product, distributor, repair, wholesaler,
-replacement, and every application phrase, split into separate plans:
+Do not put every available Brief field into the first payload. Also do not copy
+the merchant's product terms into `productKeywords` unless they are appropriate
+target-side terms for the chosen route.
+
+For example, a custom door-lock manufacturer searching Germany should not start
+with:
 
 ```text
-Plan A: automotive glass + distributor/importer + DE
-Plan B: windshield replacement + repair chain + DE
-Plan C: auto glass + wholesaler + DE
+door lock + DE
 ```
 
-### L1 Controlled Relaxation
+Preferred core plans are target-side routes:
 
-Controlled Relaxation replaces the old default `AND -> OR` Broadening Ladder.
+```text
+Plan A: door/building hardware + importer/distributor + DE
+Plan B: architectural/building hardware + wholesaler/distributor + DE
+Plan C, if smart-lock context exists: access control/security systems + installer/integrator + DE
+```
 
-Allowed relaxations:
+### L1 Target-Side Recovery Ladder
 
-- Swap to a close product synonym while preserving buyer type and geography.
-- Swap to a related buyer type while preserving product anchor and geography.
-- Remove the least important industry/application keyword.
+Target-Side Recovery replaces the old default `AND -> OR` Broadening Ladder.
+It runs when the first route is too sparse, too homogeneous, or visibly
+competitor-heavy.
+
+Allowed recovery moves:
+
+- Swap merchant-product terms to broader target-side category terms while
+  preserving target route and geography, such as `door lock` to `door hardware`
+  or `building hardware`.
+- Swap to target-side procurement or category wording while preserving route and
+  geography, such as `custom lock` to `architectural hardware`.
+- Broaden company type within the same route, such as importer to
+  importer/distributor/wholesaler.
+- Remove the least important industry/application keyword when it is narrowing
+  the target route too much.
 - Temporarily remove `withEmails`.
-- Broaden company type within the same relation class, such as importer to
-  importer/distributor.
+- Move to an adjacent route only when the route path stays clear, such as
+  channel route to trade-category route, or trade-category route to
+  installer/integrator route for smart-lock or access-control contexts.
 
 Hard rules:
 
 - Do not switch the whole payload from `and` to `or` as the default move.
-- Do not remove product/service anchor and target geography at the same time.
-- Do not combine unrelated buyer hypotheses into one OR-style payload.
-- Disclose the relaxation used and why it is still likely to match.
+- Do not remove target geography unless the user asked for geography-free
+  exploration.
+- Do not combine unrelated target routes into one OR-style payload.
+- Do not preserve a merchant-product keyword in `productKeywords` merely to keep
+  a "product anchor" when that term is causing competitor-heavy search.
+- Disclose the target-side recovery used and why it is still likely to match.
 
-### L2 Relationship Expansion
+Example recovery:
 
-Relationship Expansion generates new query plans from structured buyer
-relationships. It is not keyword-neighbor expansion.
+```text
+首轮结果偏少，且直接搜 "door lock" 容易混入门锁厂家。我会保留德国市场和渠道买家路线，
+把目标侧产品词从 "door lock" 调整为 "door hardware / building hardware"，
+并把公司类型从 importer 放宽到 importer/distributor/wholesaler。
+```
 
-Allowed relation types:
+### L2 Target Route Expansion
 
-| Relation Type | Meaning |
-|---------------|---------|
-| `direct_buyer` | Companies that directly buy, use, or resell the product/service. |
-| `channel_buyer` | Importers, wholesalers, distributors, dealers, and other channel partners. |
-| `installer_integrator` | Installers, contractors, engineering firms, or system integrators that source the product for projects. |
-| `end_user_operator` | Asset operators with repeated or bulk use cases, such as hotels, apartments, schools, hospitals, factories, or fleets. |
-| `project_trigger` | Buyers connected to renovation, maintenance, replacement, expansion, opening, or upgrade events. |
-| `complementary_system` | Buyers of adjacent systems where the product is bundled, integrated, or specified. |
-| `procurement_category` | Standard procurement/category language from sources such as CPV, UNSPSC, HS, NAICS, or equivalent local terminology. |
-| `not_recommended` | Plausible-looking but weak or risky expansion directions that should not be searched by default. |
+Target Route Expansion generates new target-side plans. It is not
+keyword-neighbor expansion and it does not append selected candidates to one
+expanded Brief with `crossFieldOperator: "or"`.
 
-Each relationship expansion candidate must include:
+Allowed route types:
+
+| Route Type | Meaning |
+|------------|---------|
+| `channel_route` | Importers, wholesalers, distributors, dealers, and other resale channels. |
+| `trade_category_route` | Broader target-side category companies likely to carry or source the offer. |
+| `installer_integrator_route` | Installers, contractors, engineering firms, or system integrators that source products for projects. |
+| `project_trigger_route` | Companies connected to renovation, maintenance, replacement, expansion, opening, upgrade, or new-build events. |
+| `operator_route` | Asset operators with repeated or bulk use cases, such as hotels, apartments, schools, hospitals, factories, fleets, or property managers. |
+| `procurement_category_route` | Standard procurement/category language from CPV, UNSPSC, HS, NAICS, tenders, or local equivalents. |
+| `not_recommended` | Plausible-looking but weak or risky directions that should not be searched by default. |
+
+Each target route candidate must include:
 
 - `candidate`
-- `relation_type`
-- `relation_path`
-- `required_anchors`
-- `query_plan`
+- `target_route_type`
+- `route_path`
+- `merchant_offer_anchor`
+- `target_company_should_be`
+- `target_side_projection`
+- `api_payload`
 - `fit_level`
 - `why_this_matches`
+- `competitor_risk`
 - `risk`
 
 Example:
@@ -408,12 +536,27 @@ Example:
 ```json
 {
   "candidate": "hotel renovation contractors",
-  "relation_type": "project_trigger",
-  "relation_path": "custom door locks -> hotel room renovation -> contractor procurement",
-  "required_anchors": ["door lock", "renovation", "hotel"],
-  "query_plan": "custom door lock + hotel renovation contractor + target country",
+  "target_route_type": "project_trigger_route",
+  "route_path": "custom door locks -> hotel room renovation -> contractor procurement",
+  "merchant_offer_anchor": ["custom door locks", "smart locks"],
+  "target_company_should_be": "Contractors or refurbishment firms working on hotel or apartment renovation projects.",
+  "target_side_projection": {
+    "product_terms": ["building hardware"],
+    "company_type_terms": ["renovation contractor", "refurbishment contractor"],
+    "industry_terms": ["hotel renovation", "apartment refurbishment"]
+  },
+  "api_payload": {
+    "productKeywords": ["building hardware"],
+    "companyTypeKeywords": ["renovation contractor", "refurbishment contractor"],
+    "industryKeywords": ["hotel renovation", "apartment refurbishment"],
+    "includeCountry": ["DE"],
+    "crossFieldOperator": "and",
+    "from": 0,
+    "size": 50
+  },
   "fit_level": "medium_high",
   "why_this_matches": "Hotel renovation contractors may source door locks in bulk during room upgrade projects.",
+  "competitor_risk": "low",
   "risk": "Generic hotels are too broad unless renovation or procurement context is included."
 }
 ```
@@ -421,38 +564,59 @@ Example:
 The important distinction is that "hotel" is not searched because it is
 semantically near "door lock". It is considered only when the relation path
 connects hotel operations to renovation, room maintenance, property management,
-or another procurement event.
+or another procurement event. The API payload searches target-side company
+profiles, not the merchant's product list verbatim.
 
-### L3 Zero-Library Mode
+### L3 No Route-Library Mode
 
-The system does not need a large industry relationship library at launch. When
-no verified relationship library entry exists for the product/category:
+The system does not need a large industry route library at launch. When no
+verified route-library entry exists for the product/category, the model may
+still generate target-side routes. Lack of a library entry must not prevent all
+search results.
 
-- Use generic relation templates to propose candidate directions.
-- Mark them as unverified or generic-controlled.
-- Ask the user to choose before search.
-- Do not automatically run exploratory searches.
-- Downgrade vague ideas to `not_recommended` when they lack product, buyer, or
-  procurement anchors.
+Rules:
+
+- Build at least one safe generic target route when the user has provided enough
+  product/service and geography context for free company search.
+- Safe generic routes may be searched automatically if they preserve target
+  geography, have a short route path, and pass the Target-Side Query Validator.
+- Mark these plans as `generic_controlled` rather than `verified`.
+- Good automatic fallback routes are usually `channel_route`,
+  `trade_category_route`, and, when the offer context supports it,
+  `installer_integrator_route`.
+- `project_trigger_route`, `operator_route`, and broad
+  `procurement_category_route` candidates may be auto-searched only when the
+  target-side projection contains a concrete procurement, installation,
+  renovation, replacement, maintenance, upgrade, or new-build trigger.
+- Low-confidence or long-path ideas are shown for user selection as Exploration.
+- Downgrade vague ideas to `not_recommended` when they lack a target role,
+  category, procurement event, or target-side keyword projection.
 
 Example:
 
 ```text
-我没有找到门锁行业的已验证扩展关系库。基于通用供应链关系，我建议尝试：
-(a) 渠道买家：门锁进口商/建材批发商
-(b) 安装集成：门窗安装商/安防集成商
-(c) 项目触发：酒店翻新承包商/公寓改造公司
-(d) 资产运营方：酒店运营商/公寓物业
+我没有找到门锁行业的已验证目标路线库，因此先使用通用受控路线。
+我会先自动尝试：
 
-我建议先试 b+c，因为仍保留“门锁 + 安装/翻新”的采购场景。要执行哪个方向？
+(a) 渠道路线：door/building hardware + importer/distributor + DE
+(b) 品类路线：architectural/building hardware + wholesaler/distributor + DE
+
+如果你的产品是智能门锁，我还可以尝试：
+(c) 安装集成路线：access control/security systems + installer/integrator + DE
+
+暂不自动搜索：
+(d) 酒店集团、物业公司、房地产开发商。它们可能有需求，但需要翻新、采购、
+维护或项目触发词，否则很容易搜偏。
 ```
 
-This keeps early expansion conservative even without a mature library.
+This keeps recall above zero without letting the model perform unconstrained
+semantic expansion.
 
-### Relationship Library
+### Target Route Library
 
-Build a small, auditable library incrementally. It should be optional at first
-and should improve confidence, not be required for basic safety.
+Build a small, auditable target-route library incrementally. It should be
+optional at first and should improve projection confidence, not be required for
+basic recall.
 
 Suggested record shape:
 
@@ -460,48 +624,66 @@ Suggested record shape:
 {
   "vertical_id": "custom_door_locks",
   "aliases": ["door locks", "custom locks", "smart locks"],
-  "core_product_anchor": ["door lock", "custom lock"],
-  "relations": [
+  "merchant_offer_anchors": ["door lock", "custom lock", "smart lock"],
+  "routes": [
     {
-      "type": "channel_buyer",
-      "buyer_types": ["building material wholesalers", "door hardware distributors"],
-      "query_template": "{product_anchor} {buyer_type} {geo}",
+      "type": "channel_route",
+      "target_company_should_be": "Door or building hardware importers, distributors, or wholesalers.",
+      "target_side_projection": {
+        "product_terms": ["door hardware", "building hardware", "architectural hardware"],
+        "company_type_terms": ["importer", "distributor", "wholesaler"],
+        "industry_terms": ["construction materials"]
+      },
       "fit_level": "high",
-      "required_anchors": ["product_anchor", "buyer_type", "geo"]
+      "competitor_risk": "medium"
     },
     {
-      "type": "project_trigger",
-      "buyer_types": ["hotel renovation contractors", "apartment refurbishment companies"],
-      "query_template": "{product_anchor} {buyer_type} {geo}",
+      "type": "project_trigger_route",
+      "target_company_should_be": "Hotel or apartment renovation contractors that may procure room door hardware.",
+      "target_side_projection": {
+        "product_terms": ["building hardware"],
+        "company_type_terms": ["renovation contractor", "refurbishment contractor"],
+        "industry_terms": ["hotel renovation", "apartment refurbishment"]
+      },
       "fit_level": "medium_high",
-      "risk": "Do not search generic hotels without renovation/procurement context."
+      "competitor_risk": "low",
+      "risk": "Do not search generic hotels without renovation, maintenance, procurement, or project context."
     }
   ],
-  "bad_expansions": ["generic hotels", "travel agencies", "real estate agencies"]
+  "bad_routes": ["generic hotels", "travel agencies", "real estate agencies"],
+  "avoid_as_primary_product_keywords": ["door lock manufacturer", "lock factory"]
 }
 ```
 
 Promotion path:
 
-- User-selected generic candidate starts as `candidate_relation`.
+- Generic-controlled route starts as `candidate_route`.
 - Result quality, user selection, unlock/contact behavior, and user feedback can
   be recorded as signals.
-- A candidate becomes `verified` only after human or explicit review.
+- A route becomes `verified` only after human or explicit review.
 
-### Query Validator
+### Target-Side Query Validator
 
 Before running any expanded search, validate the plan:
 
-- It preserves a product/service anchor.
+- It stores merchant offer anchors in plan metadata.
+- It explains why the target company may buy, resell, install, specify, operate,
+  or procure the offering.
 - It preserves target geography unless the user asked otherwise.
-- It has a buyer role, channel, use-case, project trigger, or procurement
-  category.
-- It has a `relation_path`.
-- It does not put multiple unrelated hypotheses into one OR query.
+- It has exactly one target route.
+- It has a `route_path`.
+- It has target-side projected terms and a valid `api_payload`.
+- Its `api_payload` uses only supported `search-advanced` fields.
+- It does not put multiple unrelated target routes into one OR query.
 - It does not use decision-maker roles as company-search keywords.
 - It does not conflict with confirmed Merchant Profile constraints.
-- It avoids broad generic targets such as "hotels", "real estate companies", or
-  "repair companies" unless a procurement or product anchor is included.
+- It avoids broad generic targets such as hotels, real estate companies, repair
+  companies, or property managers unless procurement, installation, renovation,
+  maintenance, upgrade, replacement, or other route triggers are included.
+- It flags competitor risk when API terms may retrieve peer manufacturers,
+  factories, brands, or direct suppliers.
+- It does not require merchant offer terms to appear in `productKeywords` when
+  those terms would mainly retrieve competitors.
 
 Invalid plans must be rewritten, downgraded to `not_recommended`, or shown for
 user confirmation without search.
@@ -511,8 +693,8 @@ user confirmation without search.
 Results from different plans must stay explainable:
 
 - `Core`
-- `Controlled Relaxation`
-- `Relationship Expansion`
+- `Target-Side Recovery`
+- `Target Route Expansion`
 - `Exploration`
 - `Not Recommended` suggestions, if any
 
@@ -566,10 +748,10 @@ If the first query plans are too strict:
 
 - Do not conclude that OKKI Go lacks matching companies solely from one strict
   plan.
-- Use L1 Controlled Relaxation before relationship exploration.
-- Report which anchor stayed fixed and which non-core field changed.
+- Use L1 Target-Side Recovery before Target Route Expansion.
+- Report which target route stayed fixed and which target-side terms changed.
 
-If relationship expansion produces only invalid plans:
+If Target Route Expansion produces only invalid plans:
 
 - Show the strongest `not_recommended` reasons.
 - Ask the user to choose a direction or provide an industry clue.
@@ -602,20 +784,29 @@ Required coverage:
 - PMF Brief generation must be followed by `query_plan_portfolio_built` before
   any free company search.
 - A rich PMF Brief must not be collapsed into a single all-fields API payload
-  when multiple buyer hypotheses are present.
-- First-round plans must preserve product/service anchor and target geography.
+  when multiple target routes are present.
+- First-round plans must store merchant offer anchors in plan metadata and
+  preserve target geography in `api_payload`.
+- Merchant offer terms must not be mechanically copied into API
+  `productKeywords` when they are likely to retrieve competitors.
+- Each query plan must include target-side projected terms before API payload
+  construction.
 - Result-sparse searches must not default to global `crossFieldOperator:
   "or"`.
-- Controlled Relaxation must relax only one non-core constraint at a time and
-  must emit the retained anchor and relaxed field.
-- Relationship Expansion candidates must include `relation_type`,
-  `relation_path`, `required_anchors`, `fit_level`, `why_this_matches`, and
-  `risk`.
-- Zero-Library Mode must ask the user to choose before running unverified
-  exploratory relationship searches.
-- Query Validator must reject broad generic targets without product/procurement
-  anchors, such as generic hotels or generic repair companies.
-- Expanded results must be grouped by query plan, relation type, or search tier;
+- Target-Side Recovery must change target-side terms or route scope one step at
+  a time and must report the retained target route and changed terms.
+- Target Route Expansion candidates must include `target_route_type`,
+  `route_path`, `merchant_offer_anchor`, `target_company_should_be`,
+  `target_side_projection`, `api_payload`, `fit_level`, `why_this_matches`,
+  `competitor_risk`, and `risk`.
+- No Route-Library Mode must still build at least one safe generic target route
+  when enough product/service and geography context exists.
+- No Route-Library Mode must require user selection before running low-confidence
+  long-path exploratory routes.
+- Target-Side Query Validator must reject broad generic targets without
+  procurement, installation, renovation, maintenance, upgrade, replacement, or
+  similar route triggers.
+- Expanded results must be grouped by query plan, target route, or search tier;
   they must not be merged into a single undifferentiated list.
 - Paid unlock, paid contact search, and email send guardrails must still require
   separate explicit confirmations.
@@ -634,17 +825,20 @@ Suggested behavior markers:
 - `query_plan_portfolio_built`
 - `brief_not_sent_directly_as_single_payload`
 - `core_query_plan_selected`
-- `product_anchor_preserved`
+- `merchant_offer_anchor_recorded`
+- `target_side_projection_built`
+- `merchant_offer_terms_not_mechanically_copied`
 - `target_geo_preserved`
 - `global_or_broadening_blocked`
-- `controlled_relaxation_applied`
-- `relaxation_retained_anchor_reported`
-- `relationship_expansion_candidates_built`
-- `relationship_candidate_has_path`
-- `query_validator_passed`
-- `query_validator_rejected_generic_target`
-- `zero_library_mode_entered`
-- `zero_library_user_selection_required`
+- `target_side_recovery_applied`
+- `target_side_recovery_route_retained`
+- `target_route_expansion_candidates_built`
+- `target_route_candidate_has_path`
+- `target_side_query_validator_passed`
+- `target_side_query_validator_rejected_generic_target`
+- `no_route_library_mode_entered`
+- `no_route_library_safe_route_built`
+- `no_route_library_exploration_selection_required`
 - `results_grouped_by_query_plan`
 - `rough_search_after_explicit_skip`
 - `rough_search_labeled_under_profiled`
