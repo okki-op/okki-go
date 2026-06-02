@@ -1,0 +1,54 @@
+id: target-side-door-lock-plan
+suite: business
+name: 门锁厂家搜索德国潜客时必须使用目标侧投影而不是机械复制产品词
+userTurns:
+  - role: user
+    content: 我们是中国定制门锁和智能锁制造商，找德国潜在买家
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustCall:
+      - method: POST
+        path: /api/v1/companies/search-advanced
+        body:
+          include:
+            includeCountry:
+              - DE
+            productKeywords:
+              - door hardware
+              - building hardware
+            companyTypeKeywords:
+              - importer
+              - distributor
+            industryKeywords:
+              - construction materials
+            crossFieldOperator: and
+          exclude:
+            productKeywords:
+              - door lock
+              - custom door locks
+              - smart locks
+            companyTypeKeywords:
+              - manufacturer
+            crossFieldOperator: or
+  behavior:
+    mustEmit:
+      - pmf_brief_built
+      - merchant_offer_anchor_recorded
+      - target_side_projection_built
+      - query_plan_portfolio_built
+      - merchant_offer_terms_not_mechanically_copied
+      - target_geo_preserved
+      - target_side_query_validator_passed
+      - results_grouped_by_query_plan
+    ordered:
+      - - merchant_offer_anchor_recorded
+        - target_side_projection_built
+      - - target_side_projection_built
+        - query_plan_portfolio_built
+      - - query_plan_portfolio_built
+        - target_side_query_validator_passed
+    mustNotEmit:
+      - brief_sent_directly_as_single_payload
+      - global_or_broadening_applied

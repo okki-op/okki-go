@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-05-28)
 
 **Core value:** The skill must turn vague B2B prospecting requests into safe, repeatable, source-backed search and outreach preparation without bypassing paid-action or email-send confirmations.
-**Current focus:** v1.2.0 release-ready after Phase 5 verification
+**Current focus:** v1.2.x PMF Gate + Target-Side Expansion retrofit verified
 
 ## Current Position
 
 Phase: 5 of 5 (Verification and Release Readiness)
 Plan: 2 of 2 in current phase
 Status: Complete — release-ready
-Last activity: 2026-05-29 — Completed Phase 5 self-review, version cleanup, local-core regression, and full eval validation
+Last activity: 2026-06-02 - Completed quick task 1: OKKI Go PMF Gate + Target-Side Expansion complete retrofit from spec 27f42dd
 
 Progress: [██████████] 100%
 
@@ -77,6 +77,12 @@ Recent decisions affecting current work:
 - `okki-go` is not a git root; commit commands must be run from the parent worktree or with correct paths.
 - Existing worktree still has unrelated and prior-phase modified/untracked files; do not revert or overwrite them.
 - Live local-agent behavior and paid OKKI API flows were not exercised in Phase 5; coverage is deterministic local-core plus safety-rule review.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 1 | OKKI Go PMF Gate + Target-Side Expansion complete retrofit from spec 27f42dd | 2026-06-02 | uncommitted | Verified | [1-okki-go-pmf-gate-target-side-expansion-c](./quick/1-okki-go-pmf-gate-target-side-expansion-c/) |
 
 ## Session Continuity
 

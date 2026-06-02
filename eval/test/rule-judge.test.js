@@ -129,6 +129,75 @@ test('method-sensitive matcher does not let GET satisfy POST matcher', () => {
   assert.equal(result.scores.apiCorrectness, 0);
 });
 
+test('API body include and exclude expectations are enforced', () => {
+  const scenario = {
+    id: 'target-side-plan-payload',
+    suite: 'business',
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustCall: [
+          {
+            method: 'POST',
+            path: '/api/v1/companies/search-advanced',
+            body: {
+              include: {
+                includeCountry: ['DE'],
+                productKeywords: ['door hardware', 'building hardware'],
+                companyTypeKeywords: ['importer', 'distributor'],
+                crossFieldOperator: 'and'
+              },
+              exclude: {
+                productKeywords: ['door lock', 'custom door locks'],
+                crossFieldOperator: 'or'
+              }
+            }
+          }
+        ]
+      }
+    }
+  };
+
+  const passing = judgeScenarioRun(scenario, {
+    routingDecision: 'triggered',
+    apiCalls: [
+      {
+        method: 'POST',
+        path: '/api/v1/companies/search-advanced',
+        body: {
+          includeCountry: ['DE'],
+          productKeywords: ['door hardware', 'building hardware', 'architectural hardware'],
+          companyTypeKeywords: ['importer', 'distributor', 'wholesaler'],
+          crossFieldOperator: 'and'
+        }
+      }
+    ]
+  });
+
+  assert.equal(passing.status, 'passed');
+  assert.deepEqual(passing.failureReasons, []);
+
+  const failing = judgeScenarioRun(scenario, {
+    routingDecision: 'triggered',
+    apiCalls: [
+      {
+        method: 'POST',
+        path: '/api/v1/companies/search-advanced',
+        body: {
+          includeCountry: ['DE'],
+          productKeywords: ['door lock'],
+          companyTypeKeywords: ['manufacturer'],
+          crossFieldOperator: 'or'
+        }
+      }
+    ]
+  });
+
+  assert.equal(failing.status, 'failed');
+  assert.ok(failing.failureReasons.includes('missing_api_call:POST /api/v1/companies/search-advanced'));
+  assert.equal(failing.scores.apiCorrectness, 0);
+});
+
 test('pathPattern :companyHashId matches a non-slash path segment', () => {
   const result = judgeScenarioRun(
     {
@@ -371,5 +440,90 @@ test('reference agent emits deterministic behavior markers from scenario expecta
   const run = runReferenceScenario(scenario);
   assert.deepEqual(run.behaviorEvents, ['profile_read_before_discovery', 'agent_inferred_defaults_excluded']);
   assert.match(run.output, /BEHAVIOR: profile_read_before_discovery/);
+  assert.equal(judgeScenarioRun(scenario, run).status, 'passed');
+});
+
+test('reference agent can model a PMF gate stop before company search', () => {
+  const scenario = {
+    id: 'pmf-gate-new-user-direct-search-deferred',
+    suite: 'routing',
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustNotCall: [{ method: 'POST', path: '/api/v1/companies/search-advanced' }]
+      },
+      behavior: {
+        mustEmit: [
+          'pmf_gate_profile_insufficient',
+          'pmf_gate_website_prompted',
+          'pmf_gate_direct_search_deferred'
+        ]
+      }
+    }
+  };
+
+  const run = runReferenceScenario(scenario);
+  assert.equal(run.routingDecision, 'triggered_pending_prerequisite');
+  assert.deepEqual(run.apiCalls, []);
+  assert.match(run.output, /官网|website|product page/i);
+  assert.equal(judgeScenarioRun(scenario, run).status, 'passed');
+});
+
+test('reference agent includes target-side projected API payload when expected', () => {
+  const scenario = {
+    id: 'target-side-door-lock-channel-route',
+    suite: 'business',
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustCall: [
+          {
+            method: 'POST',
+            path: '/api/v1/companies/search-advanced',
+            body: {
+              include: {
+                includeCountry: ['DE'],
+                productKeywords: ['door hardware', 'building hardware'],
+                companyTypeKeywords: ['importer', 'distributor'],
+                industryKeywords: ['construction materials'],
+                crossFieldOperator: 'and'
+              },
+              exclude: {
+                productKeywords: ['door lock', 'custom door locks'],
+                crossFieldOperator: 'or'
+              }
+            }
+          }
+        ]
+      },
+      behavior: {
+        mustEmit: [
+          'pmf_brief_built',
+          'merchant_offer_anchor_recorded',
+          'target_side_projection_built',
+          'query_plan_portfolio_built',
+          'merchant_offer_terms_not_mechanically_copied',
+          'target_geo_preserved'
+        ]
+      }
+    }
+  };
+
+  const run = runReferenceScenario(scenario);
+  assert.deepEqual(run.apiCalls, [
+    {
+      method: 'POST',
+      path: '/api/v1/companies/search-advanced',
+      body: {
+        includeCountry: ['DE'],
+        productKeywords: ['door hardware', 'building hardware', 'architectural hardware'],
+        companyTypeKeywords: ['importer', 'distributor', 'wholesaler'],
+        industryKeywords: ['construction materials'],
+        crossFieldOperator: 'and',
+        from: 0,
+        size: 50
+      }
+    }
+  ]);
   assert.equal(judgeScenarioRun(scenario, run).status, 'passed');
 });

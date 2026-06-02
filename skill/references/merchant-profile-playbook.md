@@ -209,6 +209,21 @@ I inferred that your target markets may include SG and MY. Should I add them to 
 
 If the user accepts or edits the value, change the chosen entries to `user_confirmed`. If the user rejects them, remove the inferred entries. If the user does not answer, keep the inferred entries but exclude them from defaults and clearly mark them in profile views.
 
+### Mode 2.6: Website/Product Page Quick Profile
+
+When the PMF Gate in `discovery-playbook.md` asks for a company website or product page, any extracted data is provisional until the user confirms it.
+
+Rules:
+
+- Record source URL or pasted-source description where practical.
+- Extract company country/region, company type, primary products/services, applications, differentiators, certifications, delivery/customization capability, target-customer clues, and explicit exclusions only when supported by the source.
+- Represent unconfirmed extraction as `agent_inferred` or implementation-specific pending session state; do not use it as confirmed Profile defaults.
+- Show the extracted profile in a conversational confirmation message before search.
+- When the user confirms or edits the extraction, save the accepted fields with `profile upsert --json` and source `user_confirmed`.
+- If the user rejects the extraction, do not save rejected fields and do not use them as long-term defaults.
+
+Confirmation means "save locally and use for this search"; no second save prompt is needed when the confirmation text says that explicitly.
+
 ### Mode 3: Management Workflow
 
 The skill must support a `Merchant Profile Management` workflow independent of a search request.
@@ -241,13 +256,16 @@ Default mapping:
 
 | Discovery Area | Profile Source |
 |----------------|----------------|
-| Product anchor | `offerings.primary_products`, `offerings.product_keywords_en`, `offerings.product_keywords_zh` |
-| Company type | `target_baseline.company_types` |
-| Industry/application context | confirmed/imported `offerings.applications` |
+| Merchant offer anchor | `offerings.primary_products`, `offerings.product_keywords_en`, `offerings.product_keywords_zh` |
+| Merchant capabilities | confirmed/imported `offerings.usps`, `offerings.certifications`, `offerings.applications` |
+| Target route hints | `target_baseline.company_types`, `target_baseline.industries`, target-customer clues from confirmed website extraction |
+| Target geography | confirmed/imported `target_baseline.regions_primary` |
 | Include geography | confirmed/imported `target_baseline.regions_primary` |
 | Exclude geography | `target_baseline.regions_excluded` and relevant `exclusions` |
 | Employee range | `target_baseline.employee_range` |
 | Decision roles | confirmed/imported `target_baseline.decision_roles` |
+
+Merchant offer terms feed `merchant_offer_anchor` and PMF reasoning. They do not automatically become API `productKeywords`; `discovery-playbook.md` must project them through target-side routes first.
 
 When the user changes a Profile-derived default in the Brief, ask whether the change should update the Profile:
 

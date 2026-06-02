@@ -359,7 +359,7 @@ The Merchant Profile is the long-term, source-aware business profile for prospec
 Core behavior:
 
 - Load Profile with `node skill/scripts/okki-state.js profile read` before Prospecting Brief Discovery unless the user is only checking balance, checking email status, or handling authentication.
-- Use Lite Onboarding when there is no profile or `completeness < 0.3`, unless the user explicitly requests direct free search and enough search parameters exist.
+- Use the PMF Quick Profile Gate when there is no profile, `completeness < 0.3`, or company country / primary product-service / offer-fit context is missing. Direct-search wording does not bypass this gate; rough free search can continue only after an explicit skip.
 - Lite Onboarding must collect L0 `profile.company.country`; it anchors dynamic `trade_mode`.
 - B class fields such as USPs, applications, certifications, target regions, decision roles, and industry blacklist carry `source` metadata.
 - Only `user_confirmed` and `imported` B class values can become Discovery defaults. `agent_inferred` values must be labeled, confirmed, or ignored as defaults.
@@ -386,27 +386,29 @@ Prospecting Brief Discovery is the soft gate that turns vague B2B prospecting re
 When to run:
 
 - Run the Sufficiency Check for company/customer discovery requests.
-- Enter Discovery by default when the request lacks clear product/category, geography, role, scale, industry, or target-count dimensions.
-- Skip full Discovery when the request already has at least three explicit dimensions, the user says "direct search" / "直接搜" / "skip discovery", or a current-session Brief is already complete.
-- If direct search lacks the minimum free-search fields, ask only for product/category and target geography.
+- Load Merchant Profile first and run the PMF Quick Profile Gate when confirmed/imported context is insufficient for PMF matching.
+- Direct-search wording such as "direct search", "直接搜", or "先不用问我" defers search until the agent strongly recommends a website/product page and the user explicitly skips.
+- Continue an existing same-session Brief without repeating the PMF Gate on every small refinement.
+- If rough search after explicit skip lacks minimum free-search fields, ask only for product/category and target geography.
 
 Discovery sequence:
 
 1. Load confirmed/imported Profile defaults with `profile read`.
-2. If Sales Mentor Mode is enabled, run Business Context BC1/BC2 before the Brief unless direct search defers them.
-3. Ask the Five Gray Areas in order: Product and Company Anchor, Industry Context, Geography, Scale and Result Shape, Decision Roles.
-4. Use Profile defaults only when source rules allow them.
-5. Build the session Brief and map only supported fields to `POST /api/v1/companies/search-advanced`.
-6. Derive `trade_mode` from `profile.company.country` and `brief.geo_include`; never persist it.
-7. Run Blind-Spot Checklist before the Pre-Search Statement when Sales Mentor Mode is enabled and `trade_mode` permits it.
-8. Route through Tier 1 Efficiency Mode, Tier 2 Standard Confirmation, or Tier 3 First-Use Mode.
+2. If Profile is insufficient, ask for a company website/product page or one-sentence company/product description; allow explicit "skip" for rough free search.
+3. If a URL or pasted content is provided, extract a provisional Merchant Profile, request conversational confirmation, and save confirmed/edited fields as `user_confirmed`.
+4. If Sales Mentor Mode is enabled, run Business Context BC1/BC2 before the Brief unless the user is in the post-gate rough-search path.
+5. Build a PMF Brief that separates `merchant_offer_anchor` and `merchant_capabilities` from target-side intent.
+6. Build and validate a `query_plan_portfolio`; only plan `api_payload` is sent to `POST /api/v1/companies/search-advanced`.
+7. Derive `trade_mode` from `profile.company.country` and `brief.geo_include`; never persist it.
+8. Run Blind-Spot Checklist before the Pre-Search Statement when Sales Mentor Mode is enabled and `trade_mode` permits it.
+9. Route through Tier 1 Efficiency Mode, Tier 2 Standard Confirmation, or Tier 3 First-Use Mode.
 
 Hard Guardrails:
 
 - Discovery is a soft gate, not a safety gate.
-- Direct-search override can skip Brief questions for free company search only. It cannot authorize `/companies/unlock`, `/contacts/search`, or email sending.
+- Direct-search wording can only become rough free search after an explicit PMF Gate skip. It cannot authorize `/companies/unlock`, `/contacts/search`, or email sending.
 - Authentication, billing confirmation, contact-search confirmation, email-send confirmation, privacy rules, and legal/compliance warnings remain mandatory.
-- When `trade_mode = unknown`, free company search may continue if the request is direct and constructible; trade-mode-dependent mentor hooks are skipped or weakened.
+- When `trade_mode = unknown`, post-gate rough free company search may continue if constructible; trade-mode-dependent mentor hooks are skipped or weakened.
 
 Local-only filters:
 
@@ -418,20 +420,22 @@ Local-only filters:
 
 ## Prospecting Expansion
 
-Prospecting Expansion broadens or diversifies company discovery after the first free company search. Full rules are in [expansion-playbook.md](./references/expansion-playbook.md).
+Prospecting Expansion broadens or diversifies company discovery through target-side route modeling after PMF Brief generation and the first free company search. Full rules are in [expansion-playbook.md](./references/expansion-playbook.md).
 
 Every first-round company search must choose exactly one mode after local-only filtering:
 
-- **Broadening Ladder** when effective results are below 5 and the user did not request strict-only matching. It can make at most one extra free `search-advanced` call for the current Brief.
-- **Full Expansion** when effective results remain below `brief.target_count`. Show candidates across the fixed expansion dimensions and wait for user selection before any expanded search.
-- **Lite Expansion** when effective results meet or exceed `brief.target_count`. Show exactly two compact "you may not have considered" dimensions after the result table.
+- **L0 Target-Side Core Query** for strict, high-fit target routes derived from the PMF Brief.
+- **L1 Target-Side Recovery** when results are sparse, homogeneous, or competitor-heavy. Change target-side terms or route scope one step at a time; do not default to global `crossFieldOperator: "or"`.
+- **L2 Target Route Expansion** when effective results remain below `brief.target_count`. Generate additional route candidates and wait for user selection when confidence is low or route path is long.
+- **L3 Exploration** for low-confidence routes; no automatic search unless the user explicitly chooses them.
 
 Rules:
 
 - Expansion never implies paid unlock, paid contact search, or email sending.
-- Full Expansion must include at least 20% reverse recommendations under [sales-mentor-playbook.md](./references/sales-mentor-playbook.md).
-- Candidate selections append to a copied expanded Brief and use `crossFieldOperator: "or"`; do not destructively overwrite the original Brief.
-- Full Expansion has a maximum of 3 rounds per Brief. Ladder and Lite do not count as Full Expansion rounds unless a Lite candidate starts a later expanded search.
+- Target route candidates must include `target_route_type`, `route_path`, `merchant_offer_anchor`, `target_company_should_be`, `target_side_projection`, `api_payload`, `fit_level`, `why_this_matches`, `competitor_risk`, and `risk`.
+- No Route-Library Mode must still build at least one safe generic route when product/service and geography context are enough.
+- Results must stay grouped by query plan, target route, or search tier; do not merge hypotheses into one undifferentiated list.
+- L2 expansion has a maximum of 3 rounds per Brief. L1 recovery and Lite suggestions do not count unless a Lite suggestion starts a later expanded search.
 
 ---
 
@@ -486,14 +490,14 @@ Default mode:
 
 Execution hooks:
 
-- Run BC1/BC2 before Discovery unless direct search defers them. Save confirmed answers to `profile.sales_context` with `profile upsert --json`.
+- Run BC1/BC2 before Discovery unless the user is in a post-PMF-Gate rough-search path. Save confirmed answers to `profile.sales_context` with `profile upsert --json`.
 - Derive `trade_mode` after the Brief exists.
 - Run BC3 only after `trade_mode` is derived and only when mentor mode is enabled.
 - Run Blind-Spot Checklist after Brief generation and before Pre-Search Statement or Tier 2 confirmation.
-- Enforce reverse recommendations during Full Expansion.
+- Enforce source discipline and reverse recommendations for `not_recommended` target-route candidates.
 - Run Sales Journey Preview after results are classified into `unlocked`, `seen`, and `new`, and before asking the user what to do next.
 
-When `trade_mode = unknown`, do not invent domestic/cross-border guidance. Continue direct free search when allowed, skip or weaken trade-mode-dependent mentor hooks, and ask for company country later if useful.
+When `trade_mode = unknown`, do not invent domestic/cross-border guidance. Continue only post-gate rough free search when allowed, skip or weaken trade-mode-dependent mentor hooks, and ask for company country later if useful.
 
 ---
 
@@ -503,8 +507,8 @@ When `trade_mode = unknown`, do not invent domestic/cross-border guidance. Conti
 
 Route user input by intent:
 
-- **Company/customer discovery:** Run the Sufficiency Check in `discovery-playbook.md`. If the request is vague, use Lite Onboarding, BC1/BC2, and Five Gray Areas instead of inventing ad hoc clarification questions.
-- **Direct free search:** Honor explicit direct-search wording when enough free-search fields exist. If not enough fields exist, ask only for product/category and target geography.
+- **Company/customer discovery:** Run the PMF Quick Profile Gate and Discovery rules in `discovery-playbook.md`. If the request is vague, use the compact PMF/profile prompts, BC1/BC2, and target-side route planning instead of inventing ad hoc clarification questions.
+- **Direct free search:** Treat direct-search wording as a request to minimize friction, not as a PMF Gate bypass. Rough free search may run only after the website/product-page prompt and explicit skip; if fields are still missing, ask only for product/category and target geography.
 - **Contact discovery for selected companies:** Use Workflow A/C company selection and unlock/profileEmails flow. If the user asks for cross-company contact search instead, follow Workflow B and Billing Rule 3.
 - **Outreach drafting or sending:** Reuse Profile and Sales Mentor context for drafting, but always confirm recipients and email content before sending.
 - **Balance, pricing, authentication, and email status:** Do not run Prospecting Brief Discovery. Execute the direct workflow after authentication where required.
@@ -545,7 +549,7 @@ Classify final company results before display with `viewed classify`. Show key i
 - Store the `domain` value internally for each company in the search results, but never include it in the displayed table or text output.
 - After displaying results, run `viewed mark-shown` for the displayed companies.
 - For 10+ results, show the first 10, state the total, and offer "say 'next page' to see more"
-- For zero results, suggest broadening criteria (different keywords, removing country filter, etc.)
+- For zero results, suggest target-side recovery or route expansion. Do not default to removing country filters unless the user asked for geography-free exploration.
 
 **Next Steps Guidance**: After displaying search results, proactively suggest:
 - "Select a company to view detailed profile and contact information"
@@ -608,26 +612,29 @@ User requests often span multiple workflows. The Agent needs to understand when 
 
 ### Workflow A: Exploration — "Help me find target customers"
 
-1. **Profile load:** Run `node skill/scripts/okki-state.js profile read`. If needed, run Lite Onboarding from Merchant Profile before full Discovery unless the user explicitly requested direct free search.
-2. **BC1/BC2:** If Sales Mentor Mode is enabled, collect or reuse Business Context Lite BC1/BC2 before the Brief, unless direct search defers them.
-3. **Discovery:** Run the Sufficiency Check and Five Gray Areas from `discovery-playbook.md`, using only confirmed/imported Profile defaults.
-4. **Rotation Hint:** Compare current axes with `profile.history.last_used_axes`; show one concise alternate axis if useful.
-5. **Derive `trade_mode`:** Use `profile.company.country` plus `brief.geo_include`. Do not persist `trade_mode`.
-6. **BC3:** If Sales Mentor Mode is enabled and `trade_mode` is known, ask the trade-mode-aware BC3 channel/approach question.
-7. **Blind-Spot Checklist:** Run the Sales Mentor blind-spot check before the Pre-Search Statement or Tier 2 confirmation.
-8. **Tier/direct-search routing:** Apply Tier 1, Tier 2, or Tier 3. Direct search can proceed only for free company search and cannot bypass authentication, billing, contact-search, or email-send confirmations.
-9. **Search companies:** Call free `POST /api/v1/companies/search-advanced` (see [api-reference.md §2](./references/api-reference.md#2)) after the required tier routing. Request at most `size: 50` per page. For `target_count > 50`, use free pagination (`from: 0`, `from: 50`, then increment by 50) until the effective result target or scan limit is reached.
-10. **Local-only filters and pagination:** Apply unsupported filters such as employee range locally and scan extra free `search-advanced` pages within `discovery-playbook.md` limits before judging recall. Do not call `/contacts/search` or `/companies/unlock` to satisfy company-count targets.
-11. **Viewed classification:** Run `node skill/scripts/okki-state.js viewed classify --results-json '<effective results json>' --window-days 30` before result presentation.
-12. **Expansion decision:** Use the effective filtered result count to run Broadening Ladder, Full Expansion, or Lite Expansion from `expansion-playbook.md`. If Expansion adds or changes final results, run `viewed classify` again on the final merged result set.
-13. **Grouped display:** Show `unlocked`, `seen`, and `new` company groups. Keep internal `domain` hidden.
-14. **Mark shown:** After display, run `node skill/scripts/okki-state.js viewed mark-shown --results-json '<displayed results json>' --brief-summary '<brief summary>'`.
-15. **Sales Journey Preview:** If Sales Mentor Mode is enabled, summarize priority advice, approach advice, and first action using only sourced or bounded inference.
-16. **Update axes:** Run `node skill/scripts/okki-state.js profile update-history --json '<geo/industry/decision_role axes>'`.
-17. **Wait for user selection:** Do not proactively call paid APIs.
-18. **Unlock selected company:** When the user selects a company for details/contacts, follow Billing Rule 1, call `/companies/unlock` (see [api-reference.md §3](./references/api-reference.md#3)), and report charges under Billing Rule 2.
-19. **Mark unlocked:** After a successful unlock, run `node skill/scripts/okki-state.js viewed mark-unlocked --domain '<internal domain>' --country-code '<ISO>'`.
-20. **Get contact emails:** Use free profile/profileEmails endpoints after unlock (see [api-reference.md §5](./references/api-reference.md#5)), display contacts, then ask whether the user wants outreach or more searching.
+1. **Profile load:** Run `node skill/scripts/okki-state.js profile read`.
+2. **PMF Gate:** If confirmed/imported Merchant Profile context is insufficient, ask for a company website/product page or one-sentence company/product description. Direct-search wording only allows rough search after explicit skip.
+3. **Profile extraction confirmation:** If the user provides URL/content, extract provisional profile data, request confirmation or edits, then save confirmed values with `profile upsert --json`.
+4. **BC1/BC2:** If Sales Mentor Mode is enabled, collect or reuse Business Context Lite BC1/BC2 before the Brief unless the user is doing post-gate rough search.
+5. **Discovery:** Build the PMF Brief from confirmed Profile plus the prospecting request. Keep `merchant_offer_anchor` separate from target-side search intent.
+6. **Query plan portfolio:** Build validated target-side query plans. Do not send the Brief directly as one all-fields payload. Only send selected plan `api_payload`.
+7. **Rotation Hint:** Compare current axes with `profile.history.last_used_axes`; show one concise alternate axis if useful.
+8. **Derive `trade_mode`:** Use `profile.company.country` plus `brief.geo_include`. Do not persist `trade_mode`.
+9. **BC3:** If Sales Mentor Mode is enabled and `trade_mode` is known, ask the trade-mode-aware BC3 channel/approach question.
+10. **Blind-Spot Checklist:** Run the Sales Mentor blind-spot check before the Pre-Search Statement or Tier 2 confirmation.
+11. **Tier/skip routing:** Apply Tier 1, Tier 2, or Tier 3. Post-gate rough search can proceed only for free company search and cannot bypass authentication, billing, contact-search, or email-send confirmations.
+12. **Search companies:** Call free `POST /api/v1/companies/search-advanced` (see [api-reference.md §2](./references/api-reference.md#2)) with validated plan `api_payload`. Request at most `size: 50` per page. For `target_count > 50`, use free pagination (`from: 0`, `from: 50`, then increment by 50) until the effective result target or scan limit is reached.
+13. **Local-only filters and pagination:** Apply unsupported filters such as employee range locally and scan extra free `search-advanced` pages within `discovery-playbook.md` limits before judging recall. Do not call `/contacts/search` or `/companies/unlock` to satisfy company-count targets.
+14. **Expansion decision:** Use the effective filtered result count to run L1 Target-Side Recovery, L2 Target Route Expansion, or Lite target-route suggestions from `expansion-playbook.md`. If Expansion adds or changes final results, preserve query-plan grouping.
+15. **Viewed classification:** Run `node skill/scripts/okki-state.js viewed classify --results-json '<effective results json>' --window-days 30` before result presentation.
+16. **Grouped display:** Show route/search-tier groups plus `unlocked`, `seen`, and `new` company groups. Keep internal `domain` hidden.
+17. **Mark shown:** After display, run `node skill/scripts/okki-state.js viewed mark-shown --results-json '<displayed results json>' --brief-summary '<brief summary>'`.
+18. **Sales Journey Preview:** If Sales Mentor Mode is enabled, summarize priority advice, approach advice, and first action using only sourced or bounded inference.
+19. **Update axes:** Run `node skill/scripts/okki-state.js profile update-history --json '<geo/industry/decision_role axes>'`.
+20. **Wait for user selection:** Do not proactively call paid APIs.
+21. **Unlock selected company:** When the user selects a company for details/contacts, follow Billing Rule 1, call `/companies/unlock` (see [api-reference.md §3](./references/api-reference.md#3)), and report charges under Billing Rule 2.
+22. **Mark unlocked:** After a successful unlock, run `node skill/scripts/okki-state.js viewed mark-unlocked --domain '<internal domain>' --country-code '<ISO>'`.
+23. **Get contact emails:** Use free profile/profileEmails endpoints after unlock (see [api-reference.md §5](./references/api-reference.md#5)), display contacts, then ask whether the user wants outreach or more searching.
 
 ### Workflow B: Contact Search — "Find a specific person"
 
@@ -639,7 +646,7 @@ User requests often span multiple workflows. The Agent needs to understand when 
 
 ### Workflow C: Precision — "Send outreach to procurement managers in German auto parts companies"
 
-1. **Front half uses Workflow A discovery/contact finding:** Load Profile, run Discovery or direct-search fallback, apply Sales Mentor hooks, search companies, apply local filters/Expansion, classify with `viewed classify`, display grouped results, mark shown, and update axes.
+1. **Front half uses Workflow A discovery/contact finding:** Load Profile, run PMF Gate/Discovery or post-gate rough search, apply Sales Mentor hooks, build target-side query plans, search companies, apply local filters/Expansion, classify with `viewed classify`, display grouped results, mark shown, and update axes.
 2. User selects companies → unlock each selected company under Billing Rule 1/2, then run `viewed mark-unlocked` for each successful unlock.
 3. Get contacts with the free profile/profileEmails flow and filter by relevant titles or roles from the Brief.
 4. Display contact list → **ask user to confirm recipients and email content**.
@@ -707,8 +714,8 @@ For complete request/response schemas, all parameter constraints, and pagination
 ### 1.2.0 (2026-05-28)
 
 - Add Merchant Profile with source metadata, sales context, preferred-language lazy load, and local profile state helper support.
-- Add Prospecting Brief Discovery with five gray areas, three-tier routing, direct-search fallback, local-only pagination, and session-derived trade_mode.
-- Add Prospecting Expansion with Broadening Ladder, Full Expansion, Lite Expansion, reverse recommendations, and bounded multi-round rules.
+- Add Prospecting Brief Discovery with PMF Quick Profile Gate, target-side query plan portfolio, three-tier routing, local-only pagination, and session-derived trade_mode.
+- Add Prospecting Expansion with Target-Side Recovery, Target Route Expansion, L3 Exploration, No Route-Library Mode, and bounded multi-round rules.
 - Add Anti-Staleness viewed-state lifecycle with unlocked, seen, and new result groups aligned to the 30-day unlock window.
 - Add Sales Mentor Mode with country-agnostic rules, Business Context Lite, Blind-Spot Checklist, Sales Journey Preview, Must NOT Say rules, and B'' protection.
 - Rewrite Workflow A and the Workflow C discovery/contact-finding front half while preserving billing, contact-search, recipient/content, and email-send confirmations.

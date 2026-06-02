@@ -11,6 +11,7 @@ function runReferenceScenario(scenario) {
   const behaviorEvents = expected.behavior && Array.isArray(expected.behavior.mustEmit)
     ? expected.behavior.mustEmit.slice()
     : [];
+  const behaviorSet = new Set(behaviorEvents);
 
   if (expectedDecision === 'should_not_trigger') {
     return {
@@ -34,6 +35,20 @@ function runReferenceScenario(scenario) {
     };
   }
 
+  if (shouldStopAtPmfGate(scenario, behaviorSet, expected)) {
+    return {
+      caseId: scenario.id,
+      suite: scenario.suite,
+      routingDecision: 'triggered_pending_prerequisite',
+      apiCalls: [],
+      behaviorEvents,
+      output: outputWithBehavior(
+        '为了让潜客更匹配你的产品和服务能力，请先提供公司官网或 product page；也可以明确回复“跳过”做粗搜。',
+        behaviorEvents
+      )
+    };
+  }
+
   if (expected.api && Array.isArray(expected.api.mustNotCallBeforeConfirmation) && expected.api.mustNotCallBeforeConfirmation.length > 0) {
     const preConfirmationCalls = expected.api.mustCall ? expected.api.mustCall.map(normalizeCall) : [];
     return {
@@ -44,6 +59,20 @@ function runReferenceScenario(scenario) {
       preConfirmationApiCalls: preConfirmationCalls,
       behaviorEvents,
       output: outputWithBehavior('OKKI Go reference agent stopped before paid or send actions that need confirmation.', behaviorEvents)
+    };
+  }
+
+  if (hasTargetSidePlan(behaviorSet, expected)) {
+    return {
+      caseId: scenario.id,
+      suite: scenario.suite,
+      routingDecision: 'triggered',
+      apiCalls: [targetSideSearchCallFor(scenario, expected)],
+      behaviorEvents,
+      output: outputWithBehavior(
+        'OKKI Go reference agent built a PMF brief, query plan portfolio, and target-side projected search payload.',
+        behaviorEvents
+      )
     };
   }
 
@@ -90,10 +119,119 @@ function runReferenceScenario(scenario) {
   };
 }
 
+function shouldStopAtPmfGate(scenario, behaviorSet, expected) {
+  if (!behaviorSet.has('pmf_gate_profile_insufficient')) return false;
+  if (!behaviorSet.has('pmf_gate_website_prompted') && !behaviorSet.has('profile_extraction_confirmation_requested')) return false;
+  if (behaviorSet.has('rough_search_after_explicit_skip')) return false;
+  if (behaviorSet.has('profile_extraction_confirmed')) return false;
+  if (behaviorSet.has('query_plan_portfolio_built')) return false;
+  return expectedForbidsCompanySearch(expected) || String(scenario.id || '').includes('pmf-gate');
+}
+
+function expectedForbidsCompanySearch(expected) {
+  return Boolean(expected.api && Array.isArray(expected.api.mustNotCall) && expected.api.mustNotCall.some((call) => {
+    return String(call.method || '').toUpperCase() === 'POST' &&
+      (call.path || call.pathPattern || call.pathPrefix) === '/api/v1/companies/search-advanced';
+  }));
+}
+
+function hasTargetSidePlan(behaviorSet, expected) {
+  return behaviorSet.has('query_plan_portfolio_built') ||
+    behaviorSet.has('target_side_projection_built') ||
+    hasBodyMatcher(expected);
+}
+
+function hasBodyMatcher(expected) {
+  return Boolean(expected.api && Array.isArray(expected.api.mustCall) && expected.api.mustCall.some((call) => call.body));
+}
+
+function targetSideSearchCallFor(scenario, expected) {
+  const bodyMatcher = firstCompanySearchBodyMatcher(expected);
+  const id = String(scenario.id || '');
+  if (id.includes('recovery')) return withBody(DEFAULT_COMPANY_SEARCH_CALL, recoveryPayload());
+  if (id.includes('skip-rough')) return withBody(DEFAULT_COMPANY_SEARCH_CALL, roughSearchPayload(bodyMatcher));
+  if (id.includes('profile-confirmed')) return withBody(DEFAULT_COMPANY_SEARCH_CALL, automotiveAftermarketPayload());
+  if (id.includes('door-lock')) return withBody(DEFAULT_COMPANY_SEARCH_CALL, doorLockChannelPayload());
+  return withBody(DEFAULT_COMPANY_SEARCH_CALL, payloadFromMatcher(bodyMatcher));
+}
+
+function firstCompanySearchBodyMatcher(expected) {
+  const calls = expected.api && Array.isArray(expected.api.mustCall) ? expected.api.mustCall : [];
+  const companySearch = calls.find((call) => {
+    return String(call.method || '').toUpperCase() === 'POST' &&
+      (call.path || call.pathPattern || call.pathPrefix) === '/api/v1/companies/search-advanced' &&
+      call.body;
+  });
+  return companySearch ? companySearch.body : null;
+}
+
+function payloadFromMatcher(bodyMatcher) {
+  return {
+    ...(bodyMatcher && bodyMatcher.include ? bodyMatcher.include : {}),
+    from: 0,
+    size: 50
+  };
+}
+
+function withBody(call, body) {
+  return {
+    ...call,
+    body
+  };
+}
+
+function roughSearchPayload(bodyMatcher) {
+  return {
+    ...payloadFromMatcher(bodyMatcher),
+    includeCountry: ['DE'],
+    industryKeywords: ['automotive aftermarket'],
+    crossFieldOperator: 'and',
+    from: 0,
+    size: 50
+  };
+}
+
+function automotiveAftermarketPayload() {
+  return {
+    includeCountry: ['DE'],
+    productKeywords: ['auto spare parts', 'automotive aftermarket'],
+    companyTypeKeywords: ['importer', 'distributor', 'wholesaler'],
+    industryKeywords: ['automotive aftermarket'],
+    crossFieldOperator: 'and',
+    from: 0,
+    size: 50
+  };
+}
+
+function doorLockChannelPayload() {
+  return {
+    includeCountry: ['DE'],
+    productKeywords: ['door hardware', 'building hardware', 'architectural hardware'],
+    companyTypeKeywords: ['importer', 'distributor', 'wholesaler'],
+    industryKeywords: ['construction materials'],
+    crossFieldOperator: 'and',
+    from: 0,
+    size: 50
+  };
+}
+
+function recoveryPayload() {
+  return {
+    includeCountry: ['DE'],
+    productKeywords: ['architectural hardware', 'building hardware'],
+    companyTypeKeywords: ['importer', 'distributor', 'wholesaler'],
+    industryKeywords: ['construction materials'],
+    crossFieldOperator: 'and',
+    from: 0,
+    size: 50
+  };
+}
+
 function normalizeCall(call) {
   return {
     method: String(call.method || 'GET').toUpperCase(),
-    path: concretePath(call)
+    path: concretePath(call),
+    ...(call.body ? { body: call.body } : {})
   };
 }
 

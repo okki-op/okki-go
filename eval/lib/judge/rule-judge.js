@@ -141,10 +141,13 @@ function matchesApiCall(matcher, call) {
   }
 
   const callPath = call.path || '';
-  if (matcher.path) return callPath === matcher.path;
-  if (matcher.pathPrefix) return callPath.startsWith(matcher.pathPrefix);
-  if (matcher.pathPattern) return patternToRegex(matcher.pathPattern).test(callPath);
-  return false;
+  let pathMatches = false;
+  if (matcher.path) pathMatches = callPath === matcher.path;
+  else if (matcher.pathPrefix) pathMatches = callPath.startsWith(matcher.pathPrefix);
+  else if (matcher.pathPattern) pathMatches = patternToRegex(matcher.pathPattern).test(callPath);
+  if (!pathMatches) return false;
+
+  return matchesBodyMatcher(matcher.body, call.body);
 }
 
 function describeMatcher(matcher) {
@@ -166,6 +169,46 @@ function escapeRegex(value) {
 
 function isEmailSendCall(call) {
   return EMAIL_SEND_PATHS.has(call.path);
+}
+
+function matchesBodyMatcher(bodyMatcher, body) {
+  if (!bodyMatcher) return true;
+  const callBody = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+  if (bodyMatcher.include && !bodyShapeIncluded(bodyMatcher.include, callBody)) return false;
+  if (bodyMatcher.exclude && !bodyShapeExcluded(bodyMatcher.exclude, callBody)) return false;
+  return true;
+}
+
+function bodyShapeIncluded(expected, actual) {
+  for (const [key, expectedValue] of Object.entries(expected)) {
+    if (!valueIncluded(expectedValue, actual[key])) return false;
+  }
+  return true;
+}
+
+function bodyShapeExcluded(forbidden, actual) {
+  for (const [key, forbiddenValue] of Object.entries(forbidden)) {
+    if (valueIncluded(forbiddenValue, actual[key])) return false;
+  }
+  return true;
+}
+
+function valueIncluded(expected, actual) {
+  if (Array.isArray(expected)) {
+    const actualValues = Array.isArray(actual) ? actual : [actual];
+    return expected.every((value) => actualValues.some((actualValue) => looseEqual(actualValue, value)));
+  }
+
+  if (expected && typeof expected === 'object') {
+    if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return false;
+    return bodyShapeIncluded(expected, actual);
+  }
+
+  return looseEqual(actual, expected);
+}
+
+function looseEqual(actual, expected) {
+  return String(actual).toLowerCase() === String(expected).toLowerCase();
 }
 
 function behaviorEventsForRun(run) {

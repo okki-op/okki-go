@@ -1,234 +1,223 @@
 # Prospecting Expansion Playbook
 
-This playbook defines bounded prospecting expansion after the first free company search. It uses the session Brief from `discovery-playbook.md` and the Sales Mentor reverse-recommendation constraint from `sales-mentor-playbook.md`.
+This playbook defines target-side expansion after PMF Brief generation and free company search. It uses the PMF Brief and `query_plan_portfolio` from `discovery-playbook.md` and the Sales Mentor source-discipline rules from `sales-mentor-playbook.md`.
 
-Expansion is reasoning over the current Brief and search results. It does not call paid endpoints, does not unlock companies, and does not persist expansion history outside the session Brief.
+Expansion is target-route modeling. It does not call paid endpoints, does not unlock companies, does not search contacts, and does not persist expansion history outside session memory.
 
-## 1. Trigger Rules
+## 1. Search Tiers
 
-Every first-round `search-advanced` result must pass through exactly one expansion-mode decision after local-only filters have been applied. Use `filtered_results.length` when `employee_range` or another local-only filter exists; otherwise use the effective result count from the API response.
+Use four tiers:
+
+1. **L0 Target-Side Core Query:** strict, high-fit target routes derived from the PMF Brief.
+2. **L1 Target-Side Recovery:** recover sparse, homogeneous, or competitor-heavy results by changing target-side terms or route scope one step at a time.
+3. **L2 Target Route Expansion:** generate additional route plans such as trade category, installer/integrator, project trigger, operator, or procurement category.
+4. **L3 Exploration:** low-confidence or long-path ideas shown for user selection; no automatic search unless the user chooses them.
+
+Every first-round `search-advanced` result must pass through an expansion-mode decision after local-only filters have been applied. Use `filtered_results.length` when `employee_range` or another local-only filter exists; otherwise use the effective result count from the API response.
 
 ```text
-first search complete
-  -> effective_total < 5?
-       yes -> Broadening Ladder
-              if still below target_count -> Full Expansion
+validated L0 core plan(s) complete
+  -> effective_total < 5 OR competitor-heavy/homogeneous?
+       yes -> L1 Target-Side Recovery
+              if still below target_count -> L2 Target Route Expansion
        no  -> effective_total < brief.target_count?
-              yes -> Full Expansion
-              no  -> Lite Expansion
+              yes -> L2 Target Route Expansion
+              no  -> Lite target-route suggestions
 ```
 
-### Mode 0: Broadening Ladder
+Behavior markers:
 
-Trigger: `effective_total < 5`, unless the user requested strict-only matching before the search.
+- `global_or_broadening_blocked`
+- `target_side_recovery_applied`
+- `target_side_recovery_route_retained`
+- `target_route_expansion_candidates_built`
+- `target_route_candidate_has_path`
+- `results_grouped_by_query_plan`
 
-Purpose: recover from overly strict parameters before generating new prospect angles.
+## 2. L0 Target-Side Core Query
 
-Allowed relaxation plan:
+Core plans use:
 
-1. Change `crossFieldOperator` from `"and"` to `"or"`.
-2. If still likely under 5 and industry constraints are narrow, remove the least important `industryKeywords`.
-3. If still likely under 5 and `withEmails: true` was set, remove `withEmails` temporarily.
+- `merchant_offer_anchor` as internal reasoning context.
+- Target geography.
+- Exactly one target route.
+- Target-side product/category, company-type, industry, or procurement terms.
+- Optional industry context only when it improves precision.
 
-Constraints:
+Do not put every available Brief field into the first payload. Do not copy the merchant's product terms into `productKeywords` unless those terms are appropriate target-side terms for the chosen route.
 
-- Ladder runs at most one extra `search-advanced` call for the current Brief.
-- Ladder steps may be combined into that one call, but every relaxation must be disclosed to the user.
-- Ladder does not count toward the Full Expansion max of 3 rounds.
-- After Ladder runs, set `brief.ladder_applied = true` in session memory.
-- Do not run Ladder again for the same Brief.
-- If the user said "只要精确匹配" or "strict only", skip Ladder and go directly to Full Expansion if results are below target.
-
-Ladder message pattern:
+Example for a custom door-lock manufacturer searching Germany:
 
 ```text
-首轮只找到 [X] 家，条件可能过严。我会先放宽搜索条件：
-- crossFieldOperator: and -> or
-- 暂时移除最窄的行业限制：[industry]
+Preferred:
+Plan A: door/building hardware + importer/distributor + DE
+Plan B: architectural/building hardware + wholesaler/distributor + DE
+Plan C, if smart-lock context exists: access control/security systems + installer/integrator + DE
 
-这仍是免费公司搜索；如后续解锁或找联系人，我会单独确认。
+Avoid as default:
+door lock + DE
 ```
 
-### Mode 1: Full Expansion
+## 3. L1 Target-Side Recovery
 
-Trigger: `effective_total >= 5` and `effective_total < brief.target_count`, or Ladder finished and still remains below `target_count`.
+Trigger: the first route is too sparse, too homogeneous, or visibly competitor-heavy.
 
-Behavior:
+Target-Side Recovery replaces the old default global OR broadening. The recovery keeps route intent and geography unless the user explicitly asks for geography-free exploration.
 
-- Show candidates across all five expansion dimensions.
-- Generate 5-8 candidates per dimension.
-- Every candidate must include a one-sentence "why this could be a prospect" reason.
-- At least 20% of directions must be reverse recommendations, as defined in `sales-mentor-playbook.md`.
-- Wait for user selection before running the next expanded free search.
-- Maximum 3 Full Expansion rounds per Brief.
+Allowed recovery moves:
 
-Stop conditions:
+1. Swap merchant-product terms to broader target-side category terms while preserving target route and geography, such as `door lock` to `door hardware` or `building hardware`.
+2. Swap to procurement or category wording while preserving route and geography, such as `custom lock` to `architectural hardware`.
+3. Broaden company type within the same route, such as importer to importer/distributor/wholesaler.
+4. Remove the least important industry/application keyword when it is narrowing the target route too much.
+5. Temporarily remove `withEmails`.
+6. Move to an adjacent route only when the route path stays clear, such as channel route to trade-category route, or trade-category route to installer/integrator route for smart-lock or access-control contexts.
 
-- User says "够了", "stop", "不要了", or equivalent.
-- Full Expansion rounds reach 3.
-- Cumulative effective total reaches or exceeds `brief.target_count`.
+Hard rules:
 
-### Mode 2: Lite Expansion
+- Do not switch the whole payload from `and` to `or` as the default move.
+- Do not remove target geography unless the user asked for geography-free exploration.
+- Do not combine unrelated target routes into one OR-style payload.
+- Do not preserve a merchant-product keyword in `productKeywords` merely to keep an anchor when that term is causing competitor-heavy search.
+- Disclose the retained target route and changed target-side terms.
 
-Trigger: `effective_total >= brief.target_count`, unless the user disabled expansion suggestions.
+Message pattern:
 
-Behavior:
-
-- Do not interrupt the main result flow.
-- After the result table, show a compact "you may not have considered" section.
-- Pick exactly 2 of the five dimensions, defaulting to Value Chain + Application Scenarios.
-- Generate 2-3 candidates per selected dimension.
-- Each candidate must include a reason.
-- User may choose a Lite candidate to start a later expanded search, but no extra search should run without user selection.
-
-Lite dimension heuristics:
-
-- If `geo_include` has only one or two countries, consider Value Chain + Geo Adjacency.
-- If `product_anchor` is very narrow, consider Adjacent Products + Application Scenarios.
-- If the result set is plentiful but homogeneous, prefer Synonyms + Application Scenarios.
-
-User switches:
-
-- "关闭发散建议" disables Lite Expansion for the session.
-- "只要精确匹配" skips both Ladder and Lite for this Brief.
-
-## 2. Expansion Dimensions
-
-Each candidate belongs to one fixed dimension.
-
-| Code | Dimension | What It Generates |
-|------|-----------|-------------------|
-| A | Value Chain | Upstream suppliers, downstream users, adjacent buyers in the same chain. |
-| B | Adjacent Products | Substitute, complementary, upgrade/downgrade, or bundle-related products. |
-| C | Application Scenarios | End-use scenarios where the product/service is consumed. |
-| D | Synonyms | Alternate terms, abbreviations, translations, and industry wording variants. |
-| E | Geo Adjacency | Nearby markets, language-adjacent markets, and regionally adjacent demand pools. |
-
-Geo Adjacency must remain country-agnostic in static rules. Any runtime suggestion about a specific market must be based on the current Brief/Profile and, when speculative, follow `sales-mentor-playbook.md` source and inference limits.
-
-## 3. Candidate Output Formats
-
-### Broadening Ladder Template
-
-```markdown
-首轮搜索只找到 [X] 家公司。看起来条件比较严格，我先尝试放宽：
-
-**放宽 1:** `crossFieldOperator` 从 `and` 改为 `or`
-**放宽 2:** 暂时移除行业限制 `[industry]`
-
-我会再做一次免费公司搜索。若仍不足目标数，再进入发散候选。
+```text
+首轮结果偏少，且直接搜 "[merchant term]" 容易混入同类厂家。我会保留 [target geography] 和 [target route]，
+把目标侧产品词从 "[old terms]" 调整为 "[new target-side terms]"，
+并把公司类型从 "[old type]" 放宽到 "[new route-compatible types]"。
 ```
 
-### Full Expansion Template
+## 4. L2 Target Route Expansion
 
-```markdown
-首轮结果不足（找到 [effective_total] 家，目标 [target_count] 家）。我从 5 个维度生成候选，请勾选要尝试的方向：
+Target Route Expansion generates new target-side plans. It is not keyword-neighbor expansion and it does not append selected candidates to one expanded Brief with a global OR payload.
 
-### A. Value Chain
-- [ ] A1. [candidate] — [why this could be a prospect]
-- [ ] A2. [candidate] — [why this could be a prospect]
+Allowed route types:
 
-### B. Adjacent Products
-- [ ] B1. [candidate] — [why this could be a prospect]
+| Route Type | Meaning |
+|------------|---------|
+| `channel_route` | Importers, wholesalers, distributors, dealers, and resale channels. |
+| `trade_category_route` | Broader target-side category companies likely to carry or source the offer. |
+| `installer_integrator_route` | Installers, contractors, engineering firms, or system integrators that source products for projects. |
+| `project_trigger_route` | Companies connected to renovation, maintenance, replacement, expansion, opening, upgrade, or new-build events. |
+| `operator_route` | Asset operators with repeated or bulk use cases, such as hotels, apartments, schools, hospitals, factories, fleets, or property managers. |
+| `procurement_category_route` | Standard procurement/category language from CPV, UNSPSC, HS, NAICS, tenders, or local equivalents. |
+| `not_recommended` | Plausible-looking but weak or risky directions that should not be searched by default. |
 
-### Reverse Recommendations
-- [ ] R1. 不推荐：[candidate] — [source-backed reason]
+Each target route candidate must include:
 
-请回复编号（如 "A1, A2, B1"），或回复 "够了" 停止发散。
+- `candidate`
+- `target_route_type`
+- `route_path`
+- `merchant_offer_anchor`
+- `target_company_should_be`
+- `target_side_projection`
+- `api_payload`
+- `fit_level`
+- `why_this_matches`
+- `competitor_risk`
+- `risk`
+
+Candidate template:
+
+```json
+{
+  "candidate": "hotel renovation contractors",
+  "target_route_type": "project_trigger_route",
+  "route_path": "custom door locks -> hotel room renovation -> contractor procurement",
+  "merchant_offer_anchor": ["custom door locks", "smart locks"],
+  "target_company_should_be": "Contractors or refurbishment firms working on hotel or apartment renovation projects.",
+  "target_side_projection": {
+    "product_terms": ["building hardware"],
+    "company_type_terms": ["renovation contractor", "refurbishment contractor"],
+    "industry_terms": ["hotel renovation", "apartment refurbishment"]
+  },
+  "api_payload": {
+    "productKeywords": ["building hardware"],
+    "companyTypeKeywords": ["renovation contractor", "refurbishment contractor"],
+    "industryKeywords": ["hotel renovation", "apartment refurbishment"],
+    "includeCountry": ["DE"],
+    "crossFieldOperator": "and",
+    "from": 0,
+    "size": 50
+  },
+  "fit_level": "medium_high",
+  "why_this_matches": "Hotel renovation contractors may source door locks in bulk during room upgrade projects.",
+  "competitor_risk": "low",
+  "risk": "Generic hotels are too broad unless renovation or procurement context is included."
+}
 ```
 
-### Lite Expansion Template
+The important distinction is that "hotel" is not searched because it is semantically near "door lock". It is considered only when the relation path connects hotel operations to renovation, room maintenance, property management, or another procurement event.
 
-```markdown
-您可能没考虑过的角度：
+## 5. No Route-Library Mode
 
-### A. Value Chain
-- [ ] A1. [candidate] — [why this could be a prospect]
-- [ ] A2. [candidate] — [why this could be a prospect]
+A large industry route library is not required at launch. When no verified route-library entry exists for the product/category, the model may still generate target-side routes.
 
-### C. Application Scenarios
-- [ ] C1. [candidate] — [why this could be a prospect]
+Rules:
 
-想看其中某个方向的公司，回复编号即可；不需要可以直接进入下一步。
-```
+- Build at least one safe generic target route when product/service and geography context are enough for free company search.
+- Safe generic routes may be searched automatically if they preserve target geography, have a short route path, and pass the Target-Side Query Validator.
+- Mark these plans as `generic_controlled` rather than `verified`.
+- Good automatic fallback routes are usually `channel_route`, `trade_category_route`, and, when the offer context supports it, `installer_integrator_route`.
+- `project_trigger_route`, `operator_route`, and broad `procurement_category_route` candidates may be auto-searched only when projection contains a concrete procurement, installation, renovation, replacement, maintenance, upgrade, or new-build trigger.
+- Low-confidence or long-path ideas are L3 Exploration and require user selection before search.
+- Downgrade vague ideas to `not_recommended` when they lack a target role, category, procurement event, or target-side keyword projection.
 
-### Reverse Recommendation Requirement
+Behavior markers:
 
-In Full Expansion, at least 20% of recommendation directions must be reverse recommendations. For every 5 directions, include at least 1 "do not recommend" direction with a source-backed reason.
+- `no_route_library_mode_entered`
+- `no_route_library_safe_route_built`
+- `no_route_library_exploration_selection_required`
 
-Allowed reverse-recommendation sources:
+## 6. User Selection Format
 
-- A mismatch with a Profile field.
-- A mismatch with `profile.sales_context`.
-- A conflict with `profile.exclusions`.
-- A clearly marked inference that obeys the max-2 personal inference limit in `sales-mentor-playbook.md`.
-
-Forbidden reverse recommendations:
-
-- Unsupported claims about a country, industry, season, or buyer behavior.
-- Stereotypes about regional customers.
-- Live market or company claims without user-provided source data.
-
-## 4. User Selection Format
-
-Accept these input forms:
+Accept these input forms for L2/L3 candidates:
 
 - Number list: `A1, A2, B1`
-- Dimension-wide selection: `A 全选`, `all of B`
-- Natural language: `下游全要，相邻产品里的 DTG`
+- Route-wide selection: `channel 全选`, `all installer routes`
+- Natural language: `先试渠道和安装商，不要酒店`
 - Stop signal: `够了`, `stop`, `不要了`, `skip expansion`
-
-Selection parsing must preserve the candidate IDs selected by the user and record them in `brief.expansion_rounds[]`.
 
 If a selection is ambiguous, ask one clarifying question before another search.
 
-## 5. Candidate to Brief Field Mapping
+Selections create new query plans; they do not destructively overwrite the PMF Brief.
 
-Apply candidate selections to a copied expanded Brief. Do not destructively overwrite the original Brief.
+## 7. Multi-Round Limits
 
-| Candidate Dimension | Expanded Brief Field |
-|---------------------|----------------------|
-| Value Chain | Append `company_type` and/or `industry` terms. |
-| Adjacent Products | Append `product_anchor` terms. |
-| Application Scenarios | Append `industry` terms. |
-| Synonyms | Append to `product_anchor`. |
-| Geo Adjacency | Append to `geo_include` after ISO normalization. |
-
-Injection rules:
-
-- Append only; never delete original Brief fields.
-- Use `crossFieldOperator: "or"` for expansion rounds.
-- A single expansion round may include candidates from multiple dimensions, but it produces only one free `search-advanced` call.
-- Add a record to `brief.expansion_rounds[]` with selected candidate IDs, mapped fields, generated API parameters, effective count, and timestamp.
-
-## 6. Multi-Round Limits
-
-After each expansion search:
+After each expanded search:
 
 1. Recompute cumulative effective total after local-only filters.
-2. If cumulative total meets or exceeds `target_count`, stop Full Expansion and continue result grouping.
-3. If still below target and fewer than 3 Full Expansion rounds have run, ask whether the user wants another round.
+2. If cumulative total meets or exceeds `target_count`, stop expansion and continue result grouping.
+3. If still below target and fewer than 3 L2 expansion rounds have run, ask whether the user wants another round.
 4. If the user stops or the 3-round limit is reached, continue with available results and explain that expansion stopped.
 
-Ladder does not count as a Full Expansion round. Lite Expansion does not count as a Full Expansion round unless the user selects a Lite candidate and starts an expanded search; that later search becomes Full Expansion round 1 for the current Brief.
+L1 Target-Side Recovery does not count as an L2 expansion round. Lite target-route suggestions do not count unless the user selects one and starts a later expanded search.
 
 Expansion never implies paid unlock or contact retrieval. Paid-action and email-send confirmations remain governed by `discovery-playbook.md` Hard Guardrails and the main `SKILL.md`.
 
-## 7. Result Grouping After Expansion
+## 8. Result Grouping After Expansion
 
-Expansion returns candidate directions and, after user selection, may produce another free company search. It does not own viewed-state persistence.
+Results from different plans must stay explainable:
+
+- `Core`
+- `Target-Side Recovery`
+- `Target Route Expansion`
+- `Exploration`
+- `Not Recommended` suggestions, if any
 
 After an expansion search finishes:
 
-- Reapply any local-only filters from `discovery-playbook.md`.
+- Reapply local-only filters from `discovery-playbook.md`.
 - Recompute the effective total for stopping decisions.
-- Merge or present results according to the current session flow.
+- Keep results grouped by query plan, target route, or search tier.
 - Re-run viewed classification from `discovery-playbook.md` Section 6 before final display.
 
-Final result labels must remain the same across non-expanded and expanded searches:
+Final viewed-state labels remain:
 
 - `unlocked`: previously paid-unlocked within the active window.
 - `seen`: previously displayed within the active window.
 - `new`: not seen in the active window.
 
-Do not create separate persistent states for "expanded", "saved", or "dismissed" in v1.2.0. If a result came from an expansion candidate, annotate it in the display as expansion-origin context only; do not mutate `viewed.json` beyond shown/unlocked lifecycle writes.
+Do not present all results as a single undifferentiated company list when they came from different hypotheses. Do not create separate persistent states for expanded, saved, or dismissed results in v1.2.x.

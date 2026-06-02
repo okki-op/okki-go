@@ -1,9 +1,9 @@
-id: direct-search-unknown-trade-mode
+id: direct-search-pmf-gate
 suite: routing
-name: 直接搜且 trade_mode unknown 时必须先触发 PMF Gate
+name: 新用户直接搜时必须先触发 PMF Gate
 userTurns:
   - role: user
-    content: 直接搜德国汽配公司，先不用问我公司在哪里
+    content: 直接搜德国汽配公司，先不用问我，马上开始
 expected:
   routing:
     expectedDecision: should_trigger
@@ -25,8 +25,11 @@ expected:
       - pmf_gate_profile_insufficient
       - pmf_gate_website_prompted
       - pmf_gate_direct_search_deferred
-      - mentor_trade_mode_hooks_deferred
+    ordered:
+      - - profile_read_before_discovery
+        - pmf_gate_profile_insufficient
+      - - pmf_gate_profile_insufficient
+        - pmf_gate_website_prompted
     mustNotEmit:
       - free_search_allowed
-      - bc3_before_trade_mode
-      - paid_unlock_authorized_by_direct_search
+      - query_plan_portfolio_built

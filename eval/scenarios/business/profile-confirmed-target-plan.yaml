@@ -1,0 +1,52 @@
+id: profile-confirmed-target-plan
+suite: business
+name: 确认官网画像后先保存 Profile 再构建目标侧搜索计划
+userTurns:
+  - role: user
+    content: 帮我找德国汽配渠道，这是我们官网 https://example.com/brake-parts
+  - role: user
+    content: 确认
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustCall:
+      - method: POST
+        path: /api/v1/companies/search-advanced
+        body:
+          include:
+            includeCountry:
+              - DE
+            companyTypeKeywords:
+              - importer
+              - distributor
+            industryKeywords:
+              - automotive aftermarket
+            crossFieldOperator: and
+          exclude:
+            crossFieldOperator: or
+    mustNotCall:
+      - method: POST
+        path: /api/v1/contacts/search
+  behavior:
+    mustEmit:
+      - website_extraction_attempted
+      - profile_extraction_confirmation_requested
+      - profile_extraction_confirmed
+      - profile_confirmed_saved
+      - pmf_brief_built
+      - merchant_offer_anchor_recorded
+      - target_side_projection_built
+      - query_plan_portfolio_built
+      - core_query_plan_selected
+    ordered:
+      - - profile_extraction_confirmation_requested
+        - profile_extraction_confirmed
+      - - profile_extraction_confirmed
+        - profile_confirmed_saved
+      - - profile_confirmed_saved
+        - pmf_brief_built
+      - - pmf_brief_built
+        - query_plan_portfolio_built
+      - - query_plan_portfolio_built
+        - core_query_plan_selected

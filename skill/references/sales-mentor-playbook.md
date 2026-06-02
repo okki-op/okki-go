@@ -56,11 +56,11 @@ Business Context Lite has two phases.
 
 ### Phase 1: BC1 and BC2 Before the Brief
 
-Run BC1/BC2 before the Five Gray Areas in `discovery-playbook.md`, unless the user explicitly requested direct search. If direct search is requested, BC1/BC2 may be deferred until after free results.
+Run BC1/BC2 before the PMF Brief in `discovery-playbook.md`, unless the user explicitly skipped the PMF Gate and is doing a rough free search. In the rough-search path, BC1/BC2 may be deferred until after free results.
 
 If `profile.sales_context` already has confirmed BC1/BC2 values, ask whether to keep or adjust them.
 
-**BC1, required when not direct-search deferred:** sales objective.
+**BC1, required when not rough-search deferred:** sales objective.
 
 ```text
 本次潜客开发的核心目的？
@@ -90,9 +90,9 @@ Run BC3 only after:
 - the Brief exists,
 - `trade_mode` has been derived from `profile.company.country` and `brief.geo_include`,
 - the user has not disabled mentor mode,
-- the user has not requested direct search all the way through.
+- the user is not in a post-PMF-Gate rough-search path.
 
-If `trade_mode = unknown` and the user requested direct free search, skip BC3 and avoid blocking the search. After results, ask whether the user wants to add company country for better future guidance.
+If `trade_mode = unknown` and the user explicitly skipped into rough free search, skip BC3 and avoid blocking the search. After results, ask whether the user wants to add company country for better future guidance.
 
 **BC3, optional:** channel or approach preference. Use abstract options only.
 
@@ -146,7 +146,7 @@ Checklist output rules:
 
 ## 3. Reverse Recommendations
 
-Expansion must include reverse recommendations in Full Expansion: at least 1 out of every 5 directions, or 20%, must be "not recommended" directions.
+Target Route Expansion should include `not_recommended` directions when plausible-looking routes are weak or risky. For every 5 L2/L3 directions, include at least 1 not-recommended direction when the Brief/Profile reveals a real mismatch or unsafe inference risk.
 
 Legal reverse recommendation structure:
 
@@ -171,7 +171,7 @@ Forbidden reverse recommendation patterns:
 - live claims about companies or competitors without a source
 - stereotypes about buyer culture, language, bargaining style, or speed
 
-`expansion-playbook.md` owns the output format and candidate-to-Brief mapping; this playbook owns the 20% reverse-recommendation and source-discipline constraint.
+`expansion-playbook.md` owns the target-route candidate fields and query-plan mapping; this playbook owns source discipline for `not_recommended` route rationale.
 
 ## 4. Sales Journey Preview
 
@@ -243,7 +243,7 @@ Does every experience-style claim have a source?
 If not sourced, is it marked as personal inference and within the max-2 limit?
 Does it contain any Must NOT Say category?
 Does it assume country, channel, culture, legal, or certification context not present in Profile/Brief/results?
-Does trade_mode unknown degrade instead of blocking direct free search?
+Does trade_mode unknown degrade without bypassing the PMF Gate or inventing company country?
 ```
 
 If any answer fails, rewrite or remove the claim.

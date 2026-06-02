@@ -107,7 +107,26 @@ function validateApiMatcherList(value, path, errors) {
         errors.push(`${matcherPath}.method must be a non-empty string`);
       }
     }
+    validateApiBodyMatcher(matcher.body, `${matcherPath}.body`, errors);
   });
+}
+
+function validateApiBodyMatcher(value, path, errors) {
+  if (value === undefined) return;
+  if (!isPlainObject(value)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+
+  validateBodyShape(value.include, `${path}.include`, errors);
+  validateBodyShape(value.exclude, `${path}.exclude`, errors);
+}
+
+function validateBodyShape(value, path, errors) {
+  if (value === undefined) return;
+  if (!isPlainObject(value)) {
+    errors.push(`${path} must be an object`);
+  }
 }
 
 function validateStringList(value, path, errors) {

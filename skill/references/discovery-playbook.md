@@ -4,32 +4,90 @@ This playbook defines the session-level Discovery contract for turning vague B2B
 
 ## 1. When to Run Discovery
 
-Discovery is a soft gate, not a safety gate. It decides whether to ask structured Brief questions before free company search.
+Discovery is a soft gate, not a safety gate. The PMF Quick Profile Gate runs before free company search when a company/customer discovery request does not have enough confirmed merchant context to reason about product-market fit.
 
-### Sufficiency Check
+### PMF Quick Profile Gate
 
-Skip Discovery when any condition is true:
+Before prospecting discovery, load Merchant Profile with `node skill/scripts/okki-state.js profile read`. The PMF Gate runs when all conditions are true:
 
-- The first user request already contains at least three explicit dimensions across product/category, geography, role, scale, industry, or target count.
-- The user uses explicit skip wording such as "直接搜", "先试一下", "skip discovery", or "go directly".
-- The current request clearly continues a Brief already completed in the same session.
+- The user intent is company/customer discovery.
+- Merchant Profile lacks enough confirmed/imported context for PMF matching. At minimum, company country, primary product/service, and offer/fit context must be usable.
+- The request is a new independent prospecting task, not a small refinement of the same brief where the user has just explicitly skipped.
 
-Enter Discovery by default when none of those conditions is true.
+Direct-search wording such as "direct search", "直接搜", "先不用问我", or "go directly" no longer bypasses the PMF Gate. It only allows rough free search after the agent has strongly recommended a company website/product page and the user explicitly skips.
+
+If the profile is insufficient, ask one compact question:
+
+```text
+为了让潜客更匹配你的产品和服务能力，强烈建议先发我你的公司官网或产品介绍页。
+如果暂时没有，也可以用一句话描述：你的公司在哪、主要卖什么、核心优势是什么。
+如果你只想先粗搜，也可以回复“跳过”。
+```
+
+If the user skipped in a previous independent task and the profile is still insufficient, mention that prior results were under-profiled before asking again.
+
+Behavior markers:
+
+- `pmf_gate_profile_insufficient`
+- `pmf_gate_website_prompted`
+- `pmf_gate_direct_search_deferred`
 
 Calibration examples:
 
 | User Request | Decision | Reason |
 |--------------|----------|--------|
-| "找一些公司" | Enter | No usable search dimensions. |
-| "找电子产品采购商" | Enter | Only product/category is clear. |
-| "找美国和德国 100-500 人的 DTF printer 制造商采购总监" | Skip | Product, geography, scale, company type, and role are explicit. |
-| "直接搜德国汽配公司" | Skip | User explicitly asked for direct search. |
+| "找一些公司" | Ask | No usable search dimensions or merchant context. |
+| "帮我找些德国汽配公司" | PMF Gate | Target is clear enough, but merchant offer/fit context is missing. |
+| "直接搜德国汽配公司" | PMF Gate first | Direct-search wording is deferred until explicit skip. |
+| "我们是中国制动系统配件制造商，有 IATF 16949，找德国汽配进口商" | Build Brief | Product, merchant context, target route, and geography are usable. |
+| "继续按刚才那个德国汽配方向加 20 家" | Continue | Same-session refinement of a current Brief. |
 
-If direct search still lacks the minimum fields needed for a free `search-advanced` call, ask only for the minimum missing fields: product/category and target geography. Do not launch full Lite Onboarding unless the user accepts guided setup or `completeness < 0.3` and there is no direct-search override.
+### Website/Product Page Extraction
+
+If the user provides a URL, try to read it when runtime access is available. If the page cannot be read, ask the user to paste the core page content or provide a one-sentence description. Both paths feed the same provisional extraction flow.
+
+Extract only what the source supports:
+
+- Company country or operating region.
+- Company type, such as manufacturer, trader, service provider, or brand owner.
+- Primary products or services.
+- Applications, industries, use cases, differentiators, certifications, delivery/customization capability, and service scope.
+- Target-customer clues and explicit exclusions.
+- Source URL or source description where practical.
+
+Website-extracted values are provisional. Show a structured confirmation message and wait. Do not save them or use them as confirmed long-term defaults before confirmation.
+
+Behavior markers:
+
+- `website_extraction_attempted`
+- `website_extraction_fallback_requested`
+- `profile_extraction_confirmation_requested`
+- `profile_extraction_confirmed`
+- `profile_confirmed_saved`
+
+If the user confirms, save confirmed or edited values with `profile upsert --json` as `user_confirmed`. If the user rejects extraction, do not save rejected fields; ask whether to edit, provide a manual description, or skip to rough search.
+
+### Explicit Skip Path
+
+After the PMF Gate prompt, an explicit skip may continue only with free company search when enough search parameters exist. Label the result as a rough initial scan because Merchant Profile context is missing.
+
+Rules:
+
+- Do not save skip as a long-term preference.
+- Do not suppress future PMF Gate prompts for new independent prospecting tasks while the profile remains insufficient.
+- Same-session refinements of the same rough brief do not repeat the website prompt on every small adjustment.
+- Paid unlock, contact search, and email send confirmations remain separate.
+
+Behavior markers:
+
+- `rough_search_after_explicit_skip`
+- `rough_search_labeled_under_profiled`
+- `skip_not_saved_as_preference`
+- `pmf_gate_reprompted_future_task`
 
 ## 1.1. Hard Guardrails
 
-Direct search only skips Brief Discovery questions. It never skips safety, authentication, billing, or sending confirmations.
+Post-gate rough search only skips full PMF enrichment after the explicit skip. It never skips safety, authentication, billing, or sending confirmations.
 
 The following checks remain mandatory even when Discovery is skipped:
 
@@ -47,14 +105,12 @@ If the same request asks for unlock, contacts, or email, have I separated the re
 If authentication is missing, have I stopped before any API call?
 ```
 
-## 1.2. Direct Search With Unknown trade_mode
-
-`trade_mode = unknown` is a mentor downgrade state, not a blocker for user-requested free company search.
+## 1.2. Unknown trade_mode After PMF Gate
 
 Priority order:
 
 1. Authentication, billing confirmation, and email confirmation always win.
-2. If the user explicitly asks for direct free company search and `search-advanced` can be constructed, continue even when `profile.company.country` is missing.
+2. If the user explicitly skips the PMF Gate and `search-advanced` can be constructed, rough free company search may continue even when `profile.company.country` is missing.
 3. When `trade_mode = unknown`, skip or weaken trade-mode-dependent Sales Mentor hooks:
    - Business Context BC3
    - Blind-Spot classes that require market/country assumptions
@@ -66,7 +122,7 @@ Rules:
 - Do not invent the user's company country.
 - Do not treat "skip confirmation" as unlock/contact/email authorization.
 - If the request includes free search plus paid actions, split the flow: run or plan the free search, then ask for the relevant paid confirmation before paid endpoints.
-- If only "找客户" or equivalent is provided, ask for product/category and target geography before searching.
+- If only "找客户" or equivalent is provided, ask for product/category and target geography before searching after the PMF Gate path is resolved.
 
 ## 2. Five Gray Areas
 
@@ -109,10 +165,12 @@ The Brief is session memory. It is not persisted to `profile.json`.
 
 ```json
 {
-  "product_anchor": ["DTF printer"],
-  "company_type": ["manufacturer", "trading"],
-  "industry": ["textile printing"],
-  "cross_field_operator": "and",
+  "merchant_offer_anchor": ["brake system components"],
+  "merchant_capabilities": ["IATF 16949", "customization", "small-batch delivery"],
+  "target_routes": ["channel_route", "trade_category_route"],
+  "target_company_should_be": ["auto parts importer", "aftermarket distributor"],
+  "target_side_terms": ["auto spare parts", "automotive aftermarket"],
+  "target_industry_context": ["commercial vehicle maintenance"],
   "geo_include": ["US", "DE", "GB"],
   "geo_exclude": [],
   "employee_range": "50-500",
@@ -122,12 +180,26 @@ The Brief is session memory. It is not persisted to `profile.json`.
   "target_count": 30,
   "confidence": 0.85,
   "skipped_areas": ["B"],
-  "expansion_rounds": [],
-  "ladder_applied": false
+  "query_plan_portfolio_built": false,
+  "search_tiers_run": []
 }
 ```
 
-`target_count` comes from D3. `expansion_rounds` and `ladder_applied` are written by `expansion-playbook.md`.
+The Brief must answer: "Which target companies are most likely to buy, use, distribute, integrate, specify, operate, or procure the merchant's offering?"
+
+Field meanings:
+
+- `merchant_offer_anchor`: what the user sells or provides. This is PMF reasoning context, not an automatic API `productKeywords` source.
+- `merchant_capabilities`: certifications, customization, delivery capability, service scope, proof points, and constraints.
+- `target_routes`: route types from Section 4, such as channel buyers, installers/integrators, operators, procurement categories, or project-trigger paths.
+- `target_side_terms`: terms that describe target-company products, inventory, categories, services, procurement language, or industry positioning.
+- `decision_roles`: people to find later; never company-search keywords.
+
+Behavior markers:
+
+- `pmf_brief_built`
+- `merchant_offer_anchor_recorded`
+- `brief_not_sent_directly_as_single_payload`
 
 ### Session-Derived trade_mode
 
@@ -146,19 +218,104 @@ Values:
 
 If the Brief changes, derive `trade_mode` again.
 
-## 4. Brief to API Mapping
+## 4. Target-Side Query Plan Portfolio
 
-Map only supported company dimensions to `POST /api/v1/companies/search-advanced`.
+The PMF Brief must not be sent directly as one all-fields API payload. Build a `query_plan_portfolio` in session memory between Brief generation and `POST /api/v1/companies/search-advanced`.
 
-| Brief Field | API Field | Rule |
-|-------------|-----------|------|
-| `product_anchor` | `productKeywords` | Product/category terms only. |
-| `company_type` | `companyTypeKeywords` | Company type terms only. |
-| `industry` | `industryKeywords` | Industry/application terms only. |
-| `cross_field_operator` | `crossFieldOperator` | `"and"` or `"or"`. |
-| `geo_include` | `includeCountry` | ISO alpha-2 codes. |
-| `geo_exclude` | `excludeCountry` | ISO alpha-2 codes. |
-| `with_emails_only` | `withEmails` | Boolean. |
+Each plan tests exactly one target route:
+
+```json
+{
+  "plan_id": "channel-1",
+  "tier": "core",
+  "merchant_offer_anchor": ["custom door locks", "smart locks"],
+  "target_route_type": "channel_route",
+  "target_hypothesis": "German building-hardware channels may resell or source custom locks.",
+  "target_company_should_be": "Importer, distributor, or wholesaler of building or architectural hardware.",
+  "route_path": "custom door lock manufacturer -> building hardware channel -> German construction/hardware market",
+  "target_side_projection": {
+    "product_terms": ["door hardware", "building hardware", "architectural hardware"],
+    "company_type_terms": ["importer", "distributor", "wholesaler"],
+    "industry_terms": ["construction materials"]
+  },
+  "api_payload": {
+    "productKeywords": ["door hardware", "building hardware", "architectural hardware"],
+    "companyTypeKeywords": ["importer", "distributor", "wholesaler"],
+    "industryKeywords": ["construction materials"],
+    "includeCountry": ["DE"],
+    "crossFieldOperator": "and",
+    "from": 0,
+    "size": 50
+  },
+  "fit_level": "high",
+  "competitor_risk": "medium",
+  "risk": "Some distributors may also be brand owners; deprioritize obvious peer manufacturers when result fields support it."
+}
+```
+
+Only `api_payload` is sent to `search-advanced`, and it must use only supported fields from `api-reference.md`.
+
+Supported target-route types:
+
+| Target Route Type | What It Searches For |
+|-------------------|----------------------|
+| `channel_route` | Importers, wholesalers, distributors, dealers, and resale channels. |
+| `trade_category_route` | Broader target-side categories such as building hardware, auto aftermarket, industrial supplies, or medical consumables. |
+| `installer_integrator_route` | Installers, contractors, engineering firms, or system integrators that source products for projects. |
+| `project_trigger_route` | Renovation, maintenance, replacement, expansion, opening, upgrade, or new-build events. |
+| `operator_route` | Asset operators with repeated or bulk use cases, such as hotels, apartments, hospitals, factories, fleets, or property managers. |
+| `procurement_category_route` | CPV, UNSPSC, HS, NAICS, tender, or local procurement/category language. |
+| `not_recommended` | Plausible-looking but weak or risky routes that should not be searched by default. |
+
+Projection rules:
+
+- Merchant offer terms may be projected into `productKeywords` only when they plausibly describe the target company's own products, services, inventory, categories, or procurement language.
+- If direct use of the merchant offer term is likely to retrieve competitors, project to target-side category, channel, use-case, project, or procurement terms instead.
+- Preserve target geography in every `api_payload` unless the user explicitly asks for geography-free exploration.
+- Do not put multiple unrelated target routes into one OR-style payload.
+- Decision roles remain contact-discovery context and must not appear in company-search keywords.
+
+Behavior markers:
+
+- `query_plan_portfolio_built`
+- `target_side_projection_built`
+- `core_query_plan_selected`
+- `merchant_offer_terms_not_mechanically_copied`
+- `target_geo_preserved`
+
+### Target-Side Query Validator
+
+Before running any plan, validate that it:
+
+- Stores merchant offer anchors in plan metadata.
+- Explains why the target company may buy, resell, install, specify, operate, or procure the offering.
+- Preserves target geography unless the user asked otherwise.
+- Has exactly one `target_route_type`, a `route_path`, `target_side_projection`, and valid `api_payload`.
+- Uses only supported `search-advanced` fields.
+- Does not use decision-maker roles as company-search keywords.
+- Does not conflict with confirmed Merchant Profile constraints.
+- Avoids broad generic targets such as hotels, real estate companies, repair companies, or property managers unless procurement, installation, renovation, maintenance, upgrade, replacement, or similar route triggers are included.
+- Flags competitor risk when terms may retrieve peer manufacturers, factories, brands, or direct suppliers.
+
+Invalid plans must be rewritten, downgraded to `not_recommended`, or shown for user confirmation without search.
+
+Behavior markers:
+
+- `target_side_query_validator_passed`
+- `target_side_query_validator_rejected_generic_target`
+
+### Brief to API Mapping
+
+Map only `target_side_projection` into `api_payload`:
+
+| Plan Field | API Field | Rule |
+|------------|-----------|------|
+| `target_side_projection.product_terms` | `productKeywords` | Target-company category/inventory/service terms only. |
+| `target_side_projection.company_type_terms` | `companyTypeKeywords` | Route-specific target company types only. |
+| `target_side_projection.industry_terms` | `industryKeywords` | Target industry/application/procurement context only. |
+| plan geography | `includeCountry` / `excludeCountry` | ISO alpha-2 codes. |
+| route strictness | `crossFieldOperator` | Default `"and"`; do not switch to global `"or"` as recovery. |
+| `with_emails_only` | `withEmails` | Boolean, optional. |
 | `employee_range` | none | Filter locally from result `employees_count`. |
 | `decision_roles` | none | Use later in `profileEmails.keyword` or `contacts/search.title`. |
 | `target_count` | none | Controls pagination and Expansion thresholds. |
@@ -189,7 +346,7 @@ Procedure:
    - `filtered_results.length >= target_count`
    - 150 raw rows scanned
    - user requested a smaller scan
-4. Use `filtered_results.length`, not raw `total`, to trigger Broadening Ladder, Full Expansion, or Lite Expansion.
+4. Use `filtered_results.length`, not raw `total`, to trigger Target-Side Recovery, Target Route Expansion, or Lite target-route suggestions.
 5. Tell the user how many raw rows were scanned and how many matched the local filter.
 
 If the user asks to scan beyond these bounds, confirm before continuing to avoid uncontrolled loops.
@@ -277,7 +434,7 @@ Fallback rules:
 
 ## 5.0. Pre-Search Statement and Confirmation Tiers
 
-Before calling `search-advanced`, derive `trade_mode` and route through one of three confirmation tiers. Strict mode and direct-search override may change the tier, but Hard Guardrails still apply.
+Before calling `search-advanced`, derive `trade_mode`, build and validate the query plan portfolio, then route through one of three confirmation tiers. Strict mode and explicit post-gate skip may change the tier, but Hard Guardrails still apply.
 
 Trade mode labels:
 
@@ -290,16 +447,16 @@ Trade mode labels:
 
 ### Tier 1: Efficiency Mode
 
-Use when `completeness > 0.7` or the user explicitly says "直接搜" / "skip confirmation" and a free search can be constructed.
+Use when confirmed/imported profile completeness is high enough and a validated target-side core plan can be constructed, or when the user explicitly skipped the PMF Gate and rough free search can be constructed.
 
 Do not wait for confirmation before free `search-advanced`, but show a short Pre-Search Statement:
 
 ```text
 本次场景识别为 [trade_mode label]（公司所在国：[profile.company.country or unknown]，目标市场：[brief.geo_include]）。
-我将按 [product/company type/industry/geography/scale/target_count] 搜索。首次公司搜索免费；如后续需要解锁或找联系人，我会再单独确认。
+我将按 [target route / target-side product-category terms / company type / industry / geography / target_count] 搜索。首次公司搜索免费；如后续需要解锁或找联系人，我会再单独确认。
 ```
 
-If `trade_mode = unknown`, continue only for free search and skip trade-mode-dependent mentor hooks.
+If `trade_mode = unknown`, continue only for post-gate rough free search and skip trade-mode-dependent mentor hooks.
 
 ### Tier 2: Standard Confirmation
 
@@ -312,14 +469,16 @@ Show the Brief Confirmation Template and wait for explicit confirmation before `
 
 我已经整理出您的潜客画像 brief：
 - 公司类型：[company_type]
-- 产品关键词：[product_anchor]
-- 行业：[industry or不限]
+- 商家产品/服务锚点：[merchant_offer_anchor]（仅用于 PMF 推理，不会机械复制到 API）
+- 目标侧行业/品类：[target_side_terms or 不限]
 - 地区：[geo_include]
 - 排除地区：[geo_exclude or无]
 - 规模：[employee_range or不限]
 - 是否要求邮箱：[with_emails_only]
 - 决策角色：[decision_roles or未指定]
 - 目标数量：[target_count] 家
+- 搜索路线：[target_route_type]
+- 目标侧关键词：[target_side_projection summary]
 
 我将基于此调用公司搜索（首次搜索免费）。是否确认？
 ```
@@ -328,16 +487,16 @@ If the user changes the Brief, rebuild the Brief and derive `trade_mode` again.
 
 ### Tier 3: First-Use Mode
 
-Use when `completeness < 0.3` and the user did not explicitly request direct free search.
+Use when `completeness < 0.3` or required PMF fields are missing and the user has not explicitly skipped after the PMF Gate prompt.
 
-Run Lite Onboarding from `merchant-profile-playbook.md` first. It must include L0 company country. After onboarding, route to Tier 2 so the user sees and confirms the first real Brief.
+Run the PMF Gate first. If the user provides a website/product page or one-sentence description, confirm and save the profile before route planning. If they prefer guided setup, Lite Onboarding from `merchant-profile-playbook.md` may collect the same core fields. After profile confirmation, route to Tier 2 so the user sees the first real Brief and target-side query plan.
 
 ### Overrides
 
 - Strict override: "这次帮我严格确认" / "strict mode" forces Tier 2.
-- Direct-search override: "直接搜" / "skip confirmation" may force Tier 1 for free search, even when completeness is low, as long as enough search parameters exist.
-- Direct-search override cannot authorize paid unlock, paid contact search, or email sending.
-- If direct-search parameters are insufficient, ask only for product/category and target geography.
+- PMF skip override: after the PMF Gate prompt, "跳过" / "rough search" may force Tier 1 rough free search when enough search parameters exist.
+- PMF skip override cannot authorize paid unlock, paid contact search, or email sending.
+- If rough-search parameters are insufficient, ask only for product/category and target geography.
 
 ## 5. Brief Confirmation Template Contract
 
@@ -345,6 +504,7 @@ The Tier 2 template must include:
 
 - `trade_mode` label.
 - Search dimensions that will map to API parameters.
+- Target route and target-side projection summary.
 - Unsupported/local-only dimensions such as `employee_range`.
 - `target_count` and the fact that Expansion may run when filtered results are below target.
 - A clear yes/no or edit prompt.

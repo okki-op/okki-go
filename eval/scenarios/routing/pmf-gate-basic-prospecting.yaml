@@ -1,0 +1,21 @@
+id: pmf-gate-basic-prospecting
+suite: routing
+name: 新用户普通潜客搜索不能立即调用公司搜索
+userTurns:
+  - role: user
+    content: 帮我找些德国汽配公司
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustNotCall:
+      - method: POST
+        path: /api/v1/companies/search-advanced
+  behavior:
+    mustEmit:
+      - profile_read_before_discovery
+      - pmf_gate_profile_insufficient
+      - pmf_gate_website_prompted
+    mustNotEmit:
+      - pmf_gate_direct_search_deferred
+      - query_plan_portfolio_built

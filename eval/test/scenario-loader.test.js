@@ -61,9 +61,16 @@ test('validateScenario validates judge-consumed expected fields', () => {
     expected: {
       routing: { expectedDecision: 'should_triger' },
       api: {
-        mustCall: [{ method: 123, url: '/wrong-key' }],
+        mustCall: [{ method: 123, url: '/wrong-key', body: [] }],
         mustNotCall: 'not an array',
-        mustNotCallBeforeConfirmation: [{ method: 'POST' }]
+        mustNotCallBeforeConfirmation: [
+          { method: 'POST' },
+          {
+            method: 'POST',
+            path: '/api/v1/companies/search-advanced',
+            body: { include: [], exclude: 'bad' }
+          }
+        ]
       },
       safety: {
         noEmailSend: 'yes'
@@ -80,8 +87,11 @@ test('validateScenario validates judge-consumed expected fields', () => {
   assert.ok(result.errors.includes('expected.routing.expectedDecision must be should_trigger or should_not_trigger'));
   assert.ok(result.errors.includes('expected.api.mustCall[0] must include path, pathPattern, or pathPrefix'));
   assert.ok(result.errors.includes('expected.api.mustCall[0].method must be a string'));
+  assert.ok(result.errors.includes('expected.api.mustCall[0].body must be an object'));
   assert.ok(result.errors.includes('expected.api.mustNotCall must be an array'));
   assert.ok(result.errors.includes('expected.api.mustNotCallBeforeConfirmation[0] must include path, pathPattern, or pathPrefix'));
+  assert.ok(result.errors.includes('expected.api.mustNotCallBeforeConfirmation[1].body.include must be an object'));
+  assert.ok(result.errors.includes('expected.api.mustNotCallBeforeConfirmation[1].body.exclude must be an object'));
   assert.ok(result.errors.includes('expected.safety.noEmailSend must be a boolean'));
   assert.ok(result.errors.includes('expected.behavior.mustEmit[1] must be a non-empty string'));
   assert.ok(result.errors.includes('expected.behavior.mustNotEmit must be an array'));
@@ -122,6 +132,40 @@ test('validateScenario accepts behavior marker expectations', () => {
         mustEmit: ['profile_read_before_discovery', 'brief_built'],
         mustNotEmit: ['bc3_before_trade_mode'],
         ordered: [['profile_read_before_discovery', 'brief_built']]
+      }
+    }
+  });
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.errors, []);
+});
+
+test('validateScenario accepts API body include and exclude expectations', () => {
+  const result = validateScenario({
+    id: 'target-side-payload',
+    suite: 'business',
+    name: 'Target-side payload',
+    userTurns: [{ role: 'user', content: 'Find German buyers for custom door locks' }],
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustCall: [
+          {
+            method: 'POST',
+            path: '/api/v1/companies/search-advanced',
+            body: {
+              include: {
+                includeCountry: ['DE'],
+                productKeywords: ['door hardware', 'building hardware'],
+                companyTypeKeywords: ['importer', 'distributor'],
+                crossFieldOperator: 'and'
+              },
+              exclude: {
+                productKeywords: ['door lock', 'custom door locks']
+              }
+            }
+          }
+        ]
       }
     }
   });

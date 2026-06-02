@@ -1,0 +1,25 @@
+id: website-extraction-confirmation
+suite: business
+name: 用户提供官网后必须请求画像确认且不能先搜索
+userTurns:
+  - role: user
+    content: 帮我找德国汽配渠道，这是我们官网 https://example.com/brake-parts
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustNotCall:
+      - method: POST
+        path: /api/v1/companies/search-advanced
+  behavior:
+    mustEmit:
+      - profile_read_before_discovery
+      - pmf_gate_profile_insufficient
+      - website_extraction_attempted
+      - profile_extraction_confirmation_requested
+    ordered:
+      - - website_extraction_attempted
+        - profile_extraction_confirmation_requested
+    mustNotEmit:
+      - profile_confirmed_saved
+      - query_plan_portfolio_built
