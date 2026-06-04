@@ -19,9 +19,9 @@ expected:
               - architectural hardware
             companyTypeKeywords:
               - wholesaler
-            crossFieldOperator: and
+            crossFieldOperator: AND
           exclude:
-            crossFieldOperator: or
+            crossFieldOperator: OR
   behavior:
     mustEmit:
       - target_side_recovery_applied

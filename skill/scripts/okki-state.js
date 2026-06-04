@@ -4,6 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { outputBudgetMetadata } = require('./lib/compact-output');
 
 const VERSION = '1.1';
 const FILE_MODE = 0o600;
@@ -22,16 +23,18 @@ const B_CLASS_FIELDS = [
 function usage() {
   return [
     'Usage:',
-    '  node skill/scripts/okki-state.js profile read [--now ISO]',
-    '  node skill/scripts/okki-state.js profile redact [--now ISO]',
-    '  node skill/scripts/okki-state.js profile upsert --json JSON [--now ISO]',
-    '  node skill/scripts/okki-state.js profile update-history --json JSON [--now ISO]',
-    '  node skill/scripts/okki-state.js profile reset',
+    '  node scripts/okki-state.js profile read [--now ISO]',
+    '  node scripts/okki-state.js profile redact [--now ISO]',
+    '  node scripts/okki-state.js profile upsert --json JSON [--now ISO]',
+    '  node scripts/okki-state.js profile update-history --json JSON [--now ISO]',
+    '  node scripts/okki-state.js profile reset',
     '',
-    '  node skill/scripts/okki-state.js viewed classify --results-json JSON [--window-days N] [--now ISO]',
-    '  node skill/scripts/okki-state.js viewed mark-shown --results-json JSON [--brief-summary TEXT] [--now ISO]',
-    '  node skill/scripts/okki-state.js viewed mark-unlocked --domain DOMAIN [--country-code ISO] [--now ISO]',
-    '  node skill/scripts/okki-state.js viewed reset',
+    '  node scripts/okki-state.js viewed classify (--results-json JSON | --results-file PATH | --results-file -) [--window-days N] [--now ISO]',
+    '  node scripts/okki-state.js viewed classify (--results-json JSON | --results-file PATH | --results-file -) [--compact] [--window-days N] [--now ISO]',
+    '  node scripts/okki-state.js viewed mark-shown (--results-json JSON | --results-file PATH | --results-file -) [--brief-summary TEXT] [--compact] [--now ISO]',
+    '  node scripts/okki-state.js viewed mark-unlocked --domain DOMAIN [--country-code ISO] [--compact] [--now ISO]',
+    '  node scripts/okki-state.js viewed mark-unlocked-batch (--json JSON | --file PATH) [--now ISO]',
+    '  node scripts/okki-state.js viewed reset',
     '',
     'State path:',
     '  ${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/profile.json',
@@ -80,6 +83,10 @@ function parseArgs(argv) {
       const key = arg.slice(2);
       if (!key) {
         throw userError('Invalid empty option', 2);
+      }
+      if (key === 'compact') {
+        options.compact = true;
+        continue;
       }
       if (i + 1 >= argv.length || argv[i + 1].startsWith('--')) {
         throw userError(`Missing value for ${arg}`, 2);
@@ -185,10 +192,27 @@ function handleProfile(command, options, now) {
 
 function handleViewed(command, options, now) {
   if (command === 'classify') {
-    const results = parseResults(options.resultsJson);
+    const results = parseResults(options);
     const windowDays = parseWindowDays(options.windowDays);
     const loaded = loadState('viewed', now);
     const classified = classifyResults(results, loaded.state, windowDays, now);
+    if (options.compact) {
+      writeJson({
+        ok: true,
+        path: loaded.path,
+        recovered: loaded.recovered,
+        migrated: loaded.migrated,
+        chmodded: loaded.chmodded,
+        window_days: windowDays,
+        counts: {
+          unlocked: classified.unlocked.length,
+          seen: classified.seen.length,
+          new: classified.new.length
+        },
+        ...compactStateBudget(results.length)
+      });
+      return;
+    }
     writeJson({
       ok: true,
       path: loaded.path,
@@ -207,13 +231,25 @@ function handleViewed(command, options, now) {
   }
 
   if (command === 'mark-shown') {
-    const results = parseResults(options.resultsJson);
+    const results = parseResults(options);
     const loaded = loadState('viewed', now);
     const state = markShown(loaded.state, results, {
       now,
       briefSummary: options.briefSummary || ''
     });
     saveState('viewed', state.state);
+    if (options.compact) {
+      writeJson({
+        ok: true,
+        path: loaded.path,
+        recovered: loaded.recovered,
+        migrated: loaded.migrated || state.changed,
+        updated: state.updated,
+        total_items: state.state.items.length,
+        ...compactStateBudget(state.state.items.length)
+      });
+      return;
+    }
     writeJson({
       ok: true,
       path: loaded.path,
@@ -237,12 +273,53 @@ function handleViewed(command, options, now) {
       now
     });
     saveState('viewed', state.state);
+    if (options.compact) {
+      writeJson({
+        ok: true,
+        path: loaded.path,
+        recovered: loaded.recovered,
+        migrated: loaded.migrated || state.changed,
+        updated: 1,
+        total_items: state.state.items.length,
+        ...compactStateBudget(state.state.items.length)
+      });
+      return;
+    }
     writeJson({
       ok: true,
       path: loaded.path,
       recovered: loaded.recovered,
       migrated: loaded.migrated || state.changed,
       viewed: state.state
+    });
+    return;
+  }
+
+  if (command === 'mark-unlocked-batch') {
+    const rows = parseUnlockRows(options);
+    const loaded = loadState('viewed', now);
+    let state = loaded.state;
+    let updated = 0;
+    for (const row of rows) {
+      const domain = normalizeDomain(row.domain || row.website || row.url || row.companyDomain || row.company_domain);
+      if (!domain) continue;
+      const result = markUnlocked(state, {
+        domain,
+        countryCode: normalizeCountryCode(row.country_code || row.countryCode),
+        now
+      });
+      state = result.state;
+      updated += 1;
+    }
+    saveState('viewed', state);
+    writeJson({
+      ok: true,
+      path: loaded.path,
+      recovered: loaded.recovered,
+      migrated: loaded.migrated,
+      updated,
+      total_items: state.items.length,
+      ...compactStateBudget(state.items.length)
     });
     return;
   }
@@ -260,6 +337,21 @@ function handleViewed(command, options, now) {
   }
 
   throw userError(`Unsupported viewed command: ${command}`, 2);
+}
+
+function parseUnlockRows(options) {
+  const source = options.json
+    ? parseJsonOption(options.json, '--json')
+    : options.file
+      ? parseJsonOption(fs.readFileSync(options.file, 'utf8'), '--file')
+      : null;
+
+  if (!source) {
+    throw userError('mark-unlocked-batch requires --json or --file', 2);
+  }
+  if (Array.isArray(source)) return source;
+  if (Array.isArray(source.rows)) return source.rows;
+  throw userError('mark-unlocked-batch input must be an array or an object with rows[]', 2);
 }
 
 function loadState(kind, now) {
@@ -833,18 +925,46 @@ function normalizeCountryCode(value) {
   return /^[A-Z]{2}$/.test(text) ? text : text;
 }
 
-function parseResults(value) {
-  const parsed = parseJsonOption(value, '--results-json');
+function parseResults(options) {
+  const hasInlineJson = options.resultsJson !== undefined;
+  const hasFile = options.resultsFile !== undefined;
+
+  if (hasInlineJson && hasFile) {
+    throw userError('Use only one of --results-json or --results-file', 2);
+  }
+
+  const parsed = hasFile
+    ? parseJsonText(readResultsFile(options.resultsFile), `--results-file ${options.resultsFile}`)
+    : parseJsonOption(options.resultsJson, '--results-json');
+
   if (!Array.isArray(parsed)) {
-    throw userError('--results-json must be a JSON array', 2);
+    throw userError('Results input must be a JSON array', 2);
   }
   return parsed;
+}
+
+function readResultsFile(filePath) {
+  if (filePath === undefined) {
+    throw userError('Missing --results-json or --results-file', 2);
+  }
+  if (filePath === '-') {
+    return fs.readFileSync(0, 'utf8');
+  }
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch (error) {
+    throw userError(`Cannot read --results-file ${filePath}: ${error.message}`, 2);
+  }
 }
 
 function parseJsonOption(value, optionName) {
   if (value === undefined) {
     throw userError(`Missing ${optionName}`, 2);
   }
+  return parseJsonText(value, optionName);
+}
+
+function parseJsonText(value, optionName) {
   try {
     return JSON.parse(value);
   } catch (error) {
@@ -955,6 +1075,15 @@ function removeFileIfExists(file) {
 
 function writeJson(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function compactStateBudget(available) {
+  return outputBudgetMetadata({
+    defaultCap: 0,
+    hardCap: 0,
+    returned: 0,
+    available
+  });
 }
 
 function userError(message, code) {

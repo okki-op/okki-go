@@ -24,27 +24,27 @@ The installer supports:
 
 If your AI platform requires manual file upload:
 
-1. **Download the skill file**:
+1. **Download the skill package**:
    ```bash
    # After installing the npm package
    npm install @okki-global/okki-go
 
-   # The SKILL.md file is located at:
-   node_modules/@okki-global/okki-go/skill/SKILL.md
+   # The full skill directory is located at:
+   node_modules/@okki-global/okki-go/skill/
    ```
 
 2. **Or download directly from npm**:
    - Visit: https://www.npmjs.com/package/@okki-global/okki-go
    - Download the package
-   - Extract and locate `skill/SKILL.md`
+   - Extract and locate the `skill/` directory
 
 3. **Upload to your platform**:
    - Open your AI assistant's settings/configuration
    - Look for "Upload Skill" or "Add Custom Instructions"
-   - Select the `SKILL.md` file
+   - Select the full `skill/` directory when the platform supports scripts
    - Save and restart your AI assistant
 
-**Important**: The `SKILL.md` file contains all necessary instructions, API references, and workflows. Make sure to upload this specific file, not other markdown files in the package.
+**Important**: OKKI Go uses helper scripts for authentication diagnostics and company search wrappers. Prefer uploading/installing the full `skill/` directory. If a platform only accepts a single markdown file, `SKILL.md` still documents the workflow, but script-based helpers such as `scripts/okki-auth.js` will not be available.
 
 ### Supported Platforms
 
@@ -58,17 +58,30 @@ If your AI platform requires manual file upload:
 
 ### Configure API Key
 
-After installation, configure your API key:
+After installation, configure your API key once. The recommended local flow caches the key in the user-level OKKI Go config directory so future agent sessions can detect it without asking again:
 
 ```bash
 # Get your API key at: https://go.okki.ai
+# Run this from the installed OKKI Go skill directory.
+printf '%s\n' 'sk-xxx' | node scripts/okki-auth.js login --with-api-key
+```
 
-# 1. Preferred: platform secrets/config that injects OKKIGO_API_KEY
+The helper writes `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/credentials.json` and non-secret source metadata in `auth-source.json`, both with mode `0600`.
+
+Verify without printing the secret:
+
+```bash
+bash scripts/resolve-api-key.sh --check
+node scripts/okki-auth.js status --json
+```
+
+For automation or platforms that provide secrets injection, use explicit environment/config sources:
+
+```bash
+# Platform secrets/config that injects OKKIGO_API_KEY
 openclaw config set skills.entries.okkigo.apiKey "sk-xxx"
 
-# 2. Accio Work: account skill config is detected automatically when present
-
-# 3. Standard environment variable, for CLI/CI/local agent sessions
+# Standard environment variable, for CLI/CI/local agent sessions
 export OKKIGO_API_KEY="sk-xxx"
 ```
 
@@ -82,16 +95,7 @@ For Claude Code or other runtimes with JSON settings, inject the same variable:
 }
 ```
 
-For platforms that cannot inject secrets into new sessions, use the secure local fallback:
-
-```bash
-mkdir -p ~/.config/okki-go
-umask 077
-printf '%s\n' '{"apiKey":"sk-xxx"}' > ~/.config/okki-go/credentials.json
-chmod 600 ~/.config/okki-go/credentials.json
-```
-
-The skill resolves credentials in this order: platform config/secrets, Accio Work account skill config, `OKKIGO_API_KEY`, then `~/.config/okki-go/credentials.json`.
+The skill resolves credentials in this order: registered user-level source, explicit environment/config overrides, then the legacy local credentials file. It does not scan platform-specific config directories at runtime; platforms should inject `OKKIGO_API_KEY` or register a source during setup.
 
 ## Features
 
@@ -181,7 +185,7 @@ cp -r package/skill/* ~/.claude/skills/okki-go/
 
 ## Version
 
-**Current**: 1.2.0
+**Current**: 1.2.1
 
 ## Links
 

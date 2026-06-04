@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-05-28)
 
 **Core value:** The skill must turn vague B2B prospecting requests into safe, repeatable, source-backed search and outreach preparation without bypassing paid-action or email-send confirmations.
-**Current focus:** v1.2.x PMF Gate + Target-Side Expansion retrofit verified
+**Current focus:** v1.2.x audit remediation verified
 
 ## Current Position
 
 Phase: 5 of 5 (Verification and Release Readiness)
 Plan: 2 of 2 in current phase
 Status: Complete — release-ready
-Last activity: 2026-06-02 - Completed quick task 1: OKKI Go PMF Gate + Target-Side Expansion complete retrofit from spec 27f42dd
+Last activity: 2026-06-02 - Completed quick task 2: OKKI Go skill audit remediation: high/medium risks and SKILL.md length
 
 Progress: [██████████] 100%
 
@@ -67,6 +67,10 @@ Recent decisions affecting current work:
 - Phase 5 cleanup aligned `package.json`, `bin/install.js`, `skill/scripts/resolve-api-key.sh`, `skill/references/api-reference.md`, README, INSTALL, and SKILL changelog to `1.2.0`.
 - Top-level installation docs were updated away from legacy runtime flags; local-core static checks now pass with 0 warnings.
 - Phase 5 validation passed: static checker (9 tests), targeted Node tests (74 tests), six-scenario local-core regression (17 cases, 0 warnings), root package smoke, and full `eval` suite (156 tests).
+- Quick task 2 reduced `skill/SKILL.md` from 724 lines to 221 lines by moving authentication and workflow detail to references while keeping mandatory preflight, billing, output privacy, state helper, and routing rules in the main skill.
+- Quick task 2 added static guardrails for preflight, installed state-helper path, free-search output privacy, unlock confirmation, `search-advanced` supported-only docs, viewed large-input docs, and `SKILL.md` length.
+- `okki-state.js viewed classify` and `viewed mark-shown` now support `--results-file PATH` and `--results-file -`; inline `--results-json` remains available for small payloads.
+- Packaging manufacturer cases now cover both "我是纸品包装制造商，有欧盟环保认证，帮我找意大利的潜客" and "我是纸品包装制造商，帮我开发潜客"; the latter asks target geography/buyer route only and does not repeat product/company-type questions.
 
 ### Pending Todos
 
@@ -83,6 +87,7 @@ Recent decisions affecting current work:
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
 | 1 | OKKI Go PMF Gate + Target-Side Expansion complete retrofit from spec 27f42dd | 2026-06-02 | uncommitted | Verified | [1-okki-go-pmf-gate-target-side-expansion-c](./quick/1-okki-go-pmf-gate-target-side-expansion-c/) |
+| 2 | OKKI Go skill audit remediation: high/medium risks and SKILL.md length | 2026-06-02 | uncommitted | Verified | [2-okki-go-skill-audit-remediation-high-med](./quick/2-okki-go-skill-audit-remediation-high-med/) |
 
 ## Session Continuity
 

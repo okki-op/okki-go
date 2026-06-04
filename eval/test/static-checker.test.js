@@ -14,6 +14,9 @@ test('runStaticChecks passes required repository consistency checks', () => {
   assert.equal(resultById(results, 'installer-runtime-list-present').status, 'passed');
   assert.equal(resultById(results, 'release-version-consistency').status, 'passed');
   assert.equal(resultById(results, 'company-search-pagination-guardrail').status, 'passed');
+  assert.equal(resultById(results, 'current-turn-merchant-seed-guardrail').status, 'passed');
+  assert.equal(resultById(results, 'prospecting-audit-remediation-guardrails').status, 'passed');
+  assert.equal(resultById(results, 'compact-output-guardrails').status, 'passed');
 });
 
 test('runStaticChecks warns with relative file paths for legacy runtime flags', () => {
@@ -91,7 +94,7 @@ test('runStaticChecks fails when credential resolver guidance is missing', () =>
   assert.equal(result.status, 'failed');
   assert.equal(
     result.reason,
-    'skill must document credential resolution and include scripts/resolve-api-key.sh'
+    'skill must document credential resolution and include scripts/resolve-api-key.sh plus scripts/okki-auth.js'
   );
 });
 
@@ -112,9 +115,7 @@ test('runStaticChecks fails when release version references drift', () => {
       '---',
       'OKKIGO_API_KEY',
       'Do NOT use this skill',
-      'four-tier credential resolution',
-      'platform config/secrets',
-      'local credentials file',
+      ...credentialSkillLines(),
       'scripts/resolve-api-key.sh'
     ].join('\n'),
     installer: [
@@ -122,10 +123,12 @@ test('runStaticChecks fails when release version references drift', () => {
       'const SUPPORTED_RUNTIMES = [\'codex\', \'accio\'];'
     ].join('\n'),
     scripts: {
-      'resolve-api-key.sh': 'SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.0.12}"\n'
+      'resolve-api-key.sh': 'SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.0.12}"\n',
+      'okki-auth.js': '#!/usr/bin/env node\n'
     },
     references: {
-      'api-reference.md': 'X-Okki-Skill-Version: 1.0.12\n'
+      'api-reference.md': 'X-Okki-Skill-Version: 1.0.12\n',
+      'authentication.md': credentialAuthText()
     },
     readme: '**Current**: 1.0.12\n',
     install: '**当前版本**: 1.0.12\n'
@@ -162,6 +165,211 @@ test('runStaticChecks fails when free company search pagination guardrail is mis
   );
 });
 
+test('runStaticChecks fails when current-turn merchant seed guardrail is missing', () => {
+  const root = makeOkkiRoot({
+    skill: [
+      '---',
+      'version: 1.2.0',
+      '---',
+      'OKKIGO_API_KEY',
+      'Do NOT use this skill',
+      ...credentialSkillLines(),
+      'scripts/resolve-api-key.sh'
+    ].join('\n'),
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n',
+      'authentication.md': credentialAuthText(),
+      'discovery-playbook.md': [
+        'search-advanced page size must never exceed 50.',
+        'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
+        'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.'
+      ].join('\n'),
+      'merchant-profile-playbook.md': 'user_provided may be used as a default.'
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'current-turn-merchant-seed-guardrail');
+
+  assert.equal(result.status, 'failed');
+  assert.equal(
+    result.reason,
+    'skill must extract current-turn merchant facts before PMF Gate and avoid repeated profile questions'
+  );
+});
+
+test('runStaticChecks fails when prospecting audit remediation guardrails are missing', () => {
+  const root = makeOkkiRoot({
+    skill: [
+      '---',
+      'version: 1.2.0',
+      '---',
+      'OKKIGO_API_KEY',
+      'Do NOT use this skill',
+      ...credentialSkillLines(),
+      'scripts/resolve-api-key.sh',
+      'Current-Turn Merchant Seed',
+      'user_provided_current_turn',
+      'current_turn_merchant_seed_extracted',
+      'Do not repeat questions for merchant facts the user already provided',
+      'trade_mode_unknown_degraded_not_blocked'
+    ].join('\n'),
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n',
+      'authentication.md': credentialAuthText(),
+      'discovery-playbook.md': [
+        'search-advanced page size must never exceed 50.',
+        'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
+        'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.',
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn',
+        'current_turn_merchant_seed_extracted',
+        'Do not repeat questions for merchant facts the user already provided',
+        'trade_mode_unknown_degraded_not_blocked'
+      ].join('\n'),
+      'merchant-profile-playbook.md': [
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn'
+      ].join('\n')
+    },
+    scripts: {
+      'resolve-api-key.sh': 'SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.2.0}"\n',
+      'okki-auth.js': '#!/usr/bin/env node\n',
+      'okki-state.js': 'Usage: node skill/scripts/okki-state.js viewed classify --results-json JSON\n'
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'prospecting-audit-remediation-guardrails');
+
+  assert.equal(result.status, 'failed');
+  assert.equal(
+    result.reason,
+    'skill must include audit remediation contracts for preflight, paths, free output, unlock, and viewed input'
+  );
+});
+
+test('compact output guardrails fail when compact wrappers and docs are missing', () => {
+  const root = makeOkkiRoot({
+    scripts: {
+      'resolve-api-key.sh': 'SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.2.0}"\n',
+      'okki-auth.js': '#!/usr/bin/env node\n',
+      'okki-state.js': [
+        'Usage:',
+        'node scripts/okki-state.js profile read',
+        'node scripts/okki-state.js viewed classify --results-json JSON --results-file PATH --results-file -'
+      ].join('\n'),
+      'search-companies.js': [
+        'node scripts/search-companies.js --json',
+        'X-Okki-Install-Id',
+        'validateCountryCodes',
+        'payload.withEmails = 1',
+        'payload.crossFieldOperator = value'
+      ].join('\n')
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'compact-output-guardrails');
+
+  assert.equal(result.status, 'failed');
+  assert.match(result.reason, /compact wrappers/);
+  assert.ok(result.missing.includes('skill/scripts/discover-companies-batch.js'));
+});
+
+test('compact output guardrails pass when wrappers, raw preservation, and paid confirmation text exist', () => {
+  const compactText = [
+    'Normal OKKI Go tool output must be compact and user-facing',
+    'Raw API JSON, long email bodies, full profile objects, full local state, and internal identifiers must not be streamed into the model unless the user explicitly asks for raw/debug output',
+    'discover-companies-batch.js --compact',
+    'search-companies.js --json',
+    '--compact',
+    '--save-raw',
+    '--limit-output',
+    '--fields',
+    'private_mapping_saved',
+    'raw_path',
+    'unlock-companies.js --rows',
+    'After confirmation, use `unlock-companies.js --rows',
+    'A user-selected company is not enough to spend credits; ask for explicit unlock confirmation first',
+    'search-contacts.js --compact',
+    'Before the first `POST /contacts/search`',
+    'email-status.js --compact',
+    'Do not display full email content unless explicitly requested',
+    'mark-unlocked-batch',
+    'full local state',
+    'output_budget',
+    'truncated',
+    'available',
+    'next_offset',
+    '--batch latest',
+    '24h TTL',
+    'latest batch pointer',
+    'Latest batch reuse never replaces the required paid confirmation',
+    'OKKIGO_BATCH_STATE_FILE',
+    'resolveBatchPath'
+  ].join('\n');
+  const root = makeOkkiRoot({
+    skill: [
+      '---',
+      'version: 1.2.0',
+      '---',
+      'OKKIGO_API_KEY',
+      'Do NOT use this skill',
+      ...credentialSkillLines(),
+      'scripts/resolve-api-key.sh',
+      compactText
+    ].join('\n'),
+    scripts: {
+      'resolve-api-key.sh': 'SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.2.0}"\n',
+      'okki-auth.js': '#!/usr/bin/env node\n',
+      'okki-state.js': [
+        'Usage:',
+        'node scripts/okki-state.js profile read',
+        'node scripts/okki-state.js viewed classify --results-json JSON --results-file PATH --results-file -',
+        compactText
+      ].join('\n'),
+      'search-companies.js': [
+        'node scripts/search-companies.js --json',
+        'X-Okki-Install-Id',
+        'validateCountryCodes',
+        'payload.withEmails = 1',
+        'payload.crossFieldOperator = value',
+        compactText
+      ].join('\n'),
+      'discover-companies-batch.js': compactText,
+      'unlock-companies.js': compactText,
+      'search-contacts.js': compactText,
+      'email-status.js': compactText,
+      'lib/batch-state.js': compactText,
+      'lib/compact-output.js': compactText,
+      'README.md': compactText
+    },
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n| `withEmails` | integer |\n',
+      'authentication.md': credentialAuthText(),
+      'discovery-playbook.md': [
+        'search-advanced page size must never exceed 50.',
+        'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
+        'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.',
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn',
+        'current_turn_merchant_seed_extracted',
+        'Do not repeat questions for merchant facts the user already provided',
+        'trade_mode_unknown_degraded_not_blocked',
+        'Do not display `domain`, website, homepage, URL, or link fields in free company-search results',
+        'A user-selected company is not enough to spend credits; ask for explicit unlock confirmation first',
+        'We manufacture paper packaging with EU environmental certification; find prospects in Italy',
+        'Lite Onboarding asks merchant-profile defaults for future reuse; PMF Gate asks only what is needed for the current search',
+        'search-advanced supports only'
+      ].join('\n'),
+      'merchant-profile-playbook.md': [
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn',
+        'Lite Onboarding asks merchant-profile defaults for future reuse; PMF Gate asks only what is needed for the current search'
+      ].join('\n'),
+      'workflows.md': compactText
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'compact-output-guardrails');
+
+  assert.equal(result.status, 'passed');
+});
+
 function resultById(results, id) {
   const result = results.find((candidate) => candidate.id === id);
   assert.ok(result, `missing result ${id}`);
@@ -190,24 +398,53 @@ function makeOkkiRoot(overrides = {}) {
       '---',
       'OKKIGO_API_KEY',
       'Do NOT use this skill',
-      'four-tier credential resolution',
-      'platform config/secrets',
-      'local credentials file',
+      ...credentialSkillLines(),
       'scripts/resolve-api-key.sh'
     ].join('\n')
   );
   fs.mkdirSync(path.join(root, 'skill', 'scripts'), { recursive: true });
   for (const [fileName, content] of Object.entries(overrides.scripts || {
-    'resolve-api-key.sh': 'SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.2.0}"\n'
+    'resolve-api-key.sh': 'SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.2.0}"\n',
+    'okki-auth.js': '#!/usr/bin/env node\n',
+    'okki-state.js': [
+      'Usage:',
+      'node scripts/okki-state.js profile read',
+      'node scripts/okki-state.js viewed classify --results-json JSON --results-file PATH --results-file -'
+    ].join('\n'),
+    'search-companies.js': [
+      'node scripts/search-companies.js --json',
+      'X-Okki-Install-Id',
+      'validateCountryCodes',
+      'payload.withEmails = 1',
+      'payload.crossFieldOperator = value'
+    ].join('\n')
   })) {
-    fs.writeFileSync(path.join(root, 'skill', 'scripts', fileName), content);
+    const scriptPath = path.join(root, 'skill', 'scripts', fileName);
+    fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+    fs.writeFileSync(scriptPath, content);
   }
   for (const [fileName, content] of Object.entries(overrides.references || {
-    'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n',
+    'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n| `withEmails` | integer |\n',
+    'authentication.md': credentialAuthText(),
     'discovery-playbook.md': [
       'search-advanced page size must never exceed 50.',
       'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
-      'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.'
+      'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.',
+      'Current-Turn Merchant Seed',
+      'user_provided_current_turn',
+      'current_turn_merchant_seed_extracted',
+      'Do not repeat questions for merchant facts the user already provided',
+      'trade_mode_unknown_degraded_not_blocked',
+      'Do not display `domain`, website, homepage, URL, or link fields in free company-search results',
+      'A user-selected company is not enough to spend credits; ask for explicit unlock confirmation first',
+      'We manufacture paper packaging with EU environmental certification; find prospects in Italy',
+      'Lite Onboarding asks merchant-profile defaults for future reuse; PMF Gate asks only what is needed for the current search',
+      'search-advanced supports only'
+    ].join('\n'),
+    'merchant-profile-playbook.md': [
+      'Current-Turn Merchant Seed',
+      'user_provided_current_turn',
+      'Lite Onboarding asks merchant-profile defaults for future reuse; PMF Gate asks only what is needed for the current search'
     ].join('\n')
   })) {
     fs.writeFileSync(path.join(root, 'skill', 'references', fileName), content);
@@ -222,4 +459,24 @@ function makeOkkiRoot(overrides = {}) {
   }
 
   return root;
+}
+
+function credentialSkillLines() {
+  return [
+    'Codex-style credential flow',
+    'Explicit environment override',
+    'credentials.json',
+    'does not scan platform-specific config directories'
+  ];
+}
+
+function credentialAuthText() {
+  return [
+    'Codex-style credential flow',
+    'Explicit environment override',
+    'OKKIGO_API_KEY',
+    'credentials.json',
+    'does not scan platform-specific config directories',
+    'scripts/okki-auth.js'
+  ].join('\n');
 }

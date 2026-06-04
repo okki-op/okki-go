@@ -1,0 +1,241 @@
+#!/usr/bin/env node
+'use strict';
+
+const {
+  parseJson,
+  postJson,
+  readJsonFile,
+  writeJsonFile
+} = require('./lib/okki-api');
+const {
+  batchIdFromPath,
+  budgetedItems,
+  compactCompanyRow,
+  defaultRawPath,
+  normalizeDomain,
+  normalizeName,
+  nowIso,
+  responseList,
+  responseTotal
+} = require('./lib/compact-output');
+const { writeLatestBatchPointer } = require('./lib/batch-state');
+
+const MAX_PAGE_SIZE = 50;
+const DEFAULT_CONCURRENCY = 4;
+
+function usage() {
+  console.error([
+    'Usage:',
+    '  node scripts/discover-companies-batch.js --plan /path/plan.json --target-count N --save-batch /private/tmp/okki-go-batches/batch.json --compact',
+    '  node scripts/discover-companies-batch.js --json \'<plan>\' --compact'
+  ].join('\n'));
+}
+
+function parseArgs(argv) {
+  const args = {
+    plan: null,
+    json: null,
+    targetCount: null,
+    saveBatch: null,
+    compact: false,
+    concurrency: DEFAULT_CONCURRENCY
+  };
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--plan') {
+      args.plan = argv[++i];
+    } else if (arg === '--json') {
+      args.json = argv[++i];
+    } else if (arg === '--target-count') {
+      args.targetCount = positiveInt(argv[++i], '--target-count');
+    } else if (arg === '--save-batch') {
+      args.saveBatch = argv[++i];
+    } else if (arg === '--compact') {
+      args.compact = true;
+    } else if (arg === '--concurrency') {
+      args.concurrency = positiveInt(argv[++i], '--concurrency');
+    } else if (arg === '--help' || arg === '-h') {
+      usage();
+      process.exit(0);
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  if ((args.plan ? 1 : 0) + (args.json ? 1 : 0) !== 1) {
+    throw new Error('Provide exactly one of --plan or --json.');
+  }
+  return args;
+}
+
+function positiveInt(value, label) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1) throw new Error(`${label} must be a positive integer.`);
+  return number;
+}
+
+function readPlan(args) {
+  const plan = args.plan ? readJsonFile(args.plan) : parseJson(args.json, '--json');
+  if (!plan || typeof plan !== 'object' || Array.isArray(plan)) {
+    throw new Error('Plan must be a JSON object.');
+  }
+  if (!Array.isArray(plan.payloads) || plan.payloads.length === 0) {
+    throw new Error('Plan must include payloads[].');
+  }
+  return plan;
+}
+
+function buildRequests(plan) {
+  const requests = [];
+  for (const payloadPlan of plan.payloads) {
+    const pages = positiveInt(payloadPlan.pages || 1, 'payload.pages');
+    const size = Math.min(positiveInt(payloadPlan.size || 50, 'payload.size'), MAX_PAGE_SIZE);
+    const startFrom = Number.isInteger(Number(payloadPlan.from)) && Number(payloadPlan.from) >= 0
+      ? Number(payloadPlan.from)
+      : 0;
+    for (let page = 0; page < pages; page += 1) {
+      const payload = { ...payloadPlan, size, from: startFrom + (page * size) };
+      delete payload.pages;
+      requests.push({ payload, page: page + 1 });
+    }
+  }
+  return requests;
+}
+
+async function runWithConcurrency(items, concurrency, worker) {
+  const results = new Array(items.length);
+  let next = 0;
+
+  async function runOne() {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  const runners = Array.from(
+    { length: Math.min(Math.max(1, concurrency), items.length) },
+    () => runOne()
+  );
+  await Promise.all(runners);
+  return results;
+}
+
+function compilePatterns(values) {
+  return (Array.isArray(values) ? values : [])
+    .map((value) => String(value).trim())
+    .filter(Boolean)
+    .map((value) => new RegExp(value, 'i'));
+}
+
+function searchableText(record) {
+  return [
+    record.company_name,
+    record.companyName,
+    record.name,
+    record.company_type,
+    record.companyType,
+    record.industry,
+    record.main_products,
+    record.mainProducts,
+    record.company_profile,
+    record.description
+  ].flatMap((value) => Array.isArray(value) ? value : [value])
+    .filter((value) => value !== null && value !== undefined)
+    .join(' ');
+}
+
+function shouldKeep(record, includePatterns, excludePatterns) {
+  const text = searchableText(record);
+  if (excludePatterns.some((pattern) => pattern.test(text))) return false;
+  if (includePatterns.length === 0) return true;
+  return includePatterns.some((pattern) => pattern.test(text));
+}
+
+function dedupe(records) {
+  const byKey = new Map();
+  for (const record of records) {
+    const domain = normalizeDomain(record.domain || record.companyDomain || record.company_domain);
+    const name = normalizeName(record.company_name || record.companyName || record.name);
+    const key = domain ? `domain:${domain}` : name ? `name:${name}` : `raw:${byKey.size}`;
+    if (!byKey.has(key)) byKey.set(key, record);
+  }
+  return Array.from(byKey.values());
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const plan = readPlan(args);
+  const targetCount = Math.min(args.targetCount || plan.target_count || 50, 100);
+  const saveBatch = args.saveBatch || defaultRawPath('discover-companies');
+  const includePatterns = compilePatterns(plan.include);
+  const excludePatterns = compilePatterns(plan.exclude);
+  const requests = buildRequests(plan);
+
+  const pageResults = await runWithConcurrency(requests, args.concurrency, async (request) => {
+    const body = await postJson('/api/v1/companies/search-advanced', request.payload);
+    return {
+      body,
+      rows: responseList(body),
+      total: responseTotal(body, responseList(body).length)
+    };
+  });
+
+  const rawRecords = pageResults.flatMap((result) => result.rows);
+  const filtered = rawRecords.filter((record) => shouldKeep(record, includePatterns, excludePatterns));
+  const deduped = dedupe(filtered);
+  const budgeted = budgetedItems(deduped, {
+    defaultCap: targetCount,
+    hardCap: 100,
+    requestedLimit: targetCount,
+    available: deduped.length
+  });
+  const selected = budgeted.items;
+  const batchRows = selected.map((record, index) => ({
+    row: index + 1,
+    domain: record.domain || record.companyDomain || record.company_domain || null,
+    country_code: record.country_code || record.countryCode || null,
+    company_name: record.company_name || record.companyName || record.name || null,
+    id: record.id || record.companyHashId || record.company_hash_id || null,
+    raw: record
+  }));
+
+  const batch = {
+    version: '1.0',
+    created_at: nowIso(),
+    request_summary: plan.request_summary || '',
+    target_count: targetCount,
+    rows: batchRows
+  };
+  writeJsonFile(saveBatch, batch);
+  writeLatestBatchPointer({
+    batchPath: saveBatch,
+    displayedRows: selected.length,
+    requestSummary: batch.request_summary
+  });
+
+  const output = {
+    batch_id: batchIdFromPath(saveBatch),
+    scanned_pages: requests.length,
+    raw_count: rawRecords.length,
+    deduped_count: deduped.length,
+    rows: selected.map((record, index) => compactCompanyRow(record, index + 1, { include: plan.include })),
+    private_mapping_saved: true,
+    raw_path: saveBatch,
+    ...budgeted.metadata
+  };
+
+  if (args.compact) {
+    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`${JSON.stringify(batch, null, 2)}\n`);
+}
+
+main().catch((error) => {
+  console.error(error.message);
+  usage();
+  process.exit(2);
+});

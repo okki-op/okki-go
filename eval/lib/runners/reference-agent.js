@@ -49,6 +49,20 @@ function runReferenceScenario(scenario) {
     };
   }
 
+  if (shouldStopForTargetGeoQuestion(behaviorSet, expected)) {
+    return {
+      caseId: scenario.id,
+      suite: scenario.suite,
+      routingDecision: 'triggered_pending_prerequisite',
+      apiCalls: [],
+      behaviorEvents,
+      output: outputWithBehavior(
+        '请补充目标市场或买家路线后再开始免费公司搜索。Please provide the target market or buyer route before company search.',
+        behaviorEvents
+      )
+    };
+  }
+
   if (expected.api && Array.isArray(expected.api.mustNotCallBeforeConfirmation) && expected.api.mustNotCallBeforeConfirmation.length > 0) {
     const preConfirmationCalls = expected.api.mustCall ? expected.api.mustCall.map(normalizeCall) : [];
     return {
@@ -128,6 +142,10 @@ function shouldStopAtPmfGate(scenario, behaviorSet, expected) {
   return expectedForbidsCompanySearch(expected) || String(scenario.id || '').includes('pmf-gate');
 }
 
+function shouldStopForTargetGeoQuestion(behaviorSet, expected) {
+  return behaviorSet.has('target_geo_missing_question') && expectedForbidsCompanySearch(expected);
+}
+
 function expectedForbidsCompanySearch(expected) {
   return Boolean(expected.api && Array.isArray(expected.api.mustNotCall) && expected.api.mustNotCall.some((call) => {
     return String(call.method || '').toUpperCase() === 'POST' &&
@@ -152,6 +170,7 @@ function targetSideSearchCallFor(scenario, expected) {
   if (id.includes('skip-rough')) return withBody(DEFAULT_COMPANY_SEARCH_CALL, roughSearchPayload(bodyMatcher));
   if (id.includes('profile-confirmed')) return withBody(DEFAULT_COMPANY_SEARCH_CALL, automotiveAftermarketPayload());
   if (id.includes('door-lock')) return withBody(DEFAULT_COMPANY_SEARCH_CALL, doorLockChannelPayload());
+  if (id.includes('packaging')) return withBody(DEFAULT_COMPANY_SEARCH_CALL, paperPackagingItalyPayload());
   return withBody(DEFAULT_COMPANY_SEARCH_CALL, payloadFromMatcher(bodyMatcher));
 }
 
@@ -185,7 +204,7 @@ function roughSearchPayload(bodyMatcher) {
     ...payloadFromMatcher(bodyMatcher),
     includeCountry: ['DE'],
     industryKeywords: ['automotive aftermarket'],
-    crossFieldOperator: 'and',
+    crossFieldOperator: 'AND',
     from: 0,
     size: 50
   };
@@ -197,7 +216,7 @@ function automotiveAftermarketPayload() {
     productKeywords: ['auto spare parts', 'automotive aftermarket'],
     companyTypeKeywords: ['importer', 'distributor', 'wholesaler'],
     industryKeywords: ['automotive aftermarket'],
-    crossFieldOperator: 'and',
+    crossFieldOperator: 'AND',
     from: 0,
     size: 50
   };
@@ -209,7 +228,7 @@ function doorLockChannelPayload() {
     productKeywords: ['door hardware', 'building hardware', 'architectural hardware'],
     companyTypeKeywords: ['importer', 'distributor', 'wholesaler'],
     industryKeywords: ['construction materials'],
-    crossFieldOperator: 'and',
+    crossFieldOperator: 'AND',
     from: 0,
     size: 50
   };
@@ -221,7 +240,19 @@ function recoveryPayload() {
     productKeywords: ['architectural hardware', 'building hardware'],
     companyTypeKeywords: ['importer', 'distributor', 'wholesaler'],
     industryKeywords: ['construction materials'],
-    crossFieldOperator: 'and',
+    crossFieldOperator: 'AND',
+    from: 0,
+    size: 50
+  };
+}
+
+function paperPackagingItalyPayload() {
+  return {
+    includeCountry: ['IT'],
+    productKeywords: ['sustainable packaging', 'paper packaging', 'eco-friendly packaging'],
+    companyTypeKeywords: ['brand', 'importer', 'distributor'],
+    industryKeywords: ['food and beverage', 'cosmetics', 'retail packaging'],
+    crossFieldOperator: 'AND',
     from: 0,
     size: 50
   };

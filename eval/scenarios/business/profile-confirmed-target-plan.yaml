@@ -22,9 +22,9 @@ expected:
               - distributor
             industryKeywords:
               - automotive aftermarket
-            crossFieldOperator: and
+            crossFieldOperator: AND
           exclude:
-            crossFieldOperator: or
+            crossFieldOperator: OR
     mustNotCall:
       - method: POST
         path: /api/v1/contacts/search

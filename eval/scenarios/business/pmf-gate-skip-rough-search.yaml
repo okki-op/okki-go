@@ -17,7 +17,7 @@ expected:
           include:
             includeCountry:
               - DE
-            crossFieldOperator: and
+            crossFieldOperator: AND
     mustNotCall:
       - method: POST
         path: /api/v1/companies/unlock

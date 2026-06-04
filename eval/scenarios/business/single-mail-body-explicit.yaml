@@ -1,0 +1,18 @@
+id: single-mail-body-explicit
+suite: business
+name: 单封邮件正文必须显式请求才显示
+userTurns:
+  - role: user
+    content: 查一下 mail 2001 的状态
+  - role: user
+    content: 把这封邮件正文也给我看
+expected:
+  routing:
+    expectedDecision: should_trigger
+  behavior:
+    mustEmit:
+      - single_mail_status_compact_used
+      - email_body_explicitly_requested
+    mustNotEmit:
+      - email_body_echoed_before_explicit_request
+

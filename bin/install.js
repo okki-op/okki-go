@@ -30,7 +30,7 @@ const bold   = '\x1b[1m';
 // ─── Skill metadata ───────────────────────────────────────────────────────────
 const SKILL_NAME = 'okki-go';
 const DISPLAY_NAME = 'OKKI Go';
-const VERSION    = '1.2.0';
+const VERSION    = '1.2.1';
 
 // Friendly display names for each runtime
 const RUNTIME_LABELS = {
@@ -612,7 +612,7 @@ function copySkillFiles(skillDir, runtime) {
       if (fs.statSync(src).isFile()) {
         fs.copyFileSync(src, dst);
         // Set executable permission on Unix systems (Windows doesn't support chmod)
-        if (f.endsWith('.sh')) {
+        if (f.endsWith('.sh') || f.endsWith('.js')) {
           try { fs.chmodSync(dst, 0o755); } catch (e) { /* Windows */ }
         }
       }
@@ -895,10 +895,10 @@ function printNextSteps() {
   log(`   ${cyan}→${reset} ${t('step1Desc').replace('%s', `${green}https://go.okki.ai${reset}`).replace('%s', `${yellow}sk-xxx${reset}`)}\n`);
   log(`${yellow}2.${reset} ${t('step2Title')}`);
   log(`   ${cyan}→${reset} ${t('step2Desc')}`);
+  log(`   ${cyan}→${reset} One-time local login: ${green}printf '%s\\n' 'sk-xxx' | node scripts/okki-auth.js login --with-api-key${reset}`);
+  log(`   ${cyan}→${reset} Verify without printing the key: ${green}bash scripts/resolve-api-key.sh --check${reset}`);
   log(`   ${cyan}→${reset} Platform secrets/config injection as ${green}OKKIGO_API_KEY${reset}`);
-  log(`   ${cyan}→${reset} Accio Work account config: ${green}~/.accio/accounts/<accountId>/skills/skills_config.json${reset}`);
-  log(`   ${cyan}→${reset} Environment variable: ${green}export OKKIGO_API_KEY="sk-xxx"${reset}`);
-  log(`   ${cyan}→${reset} Local fallback: ${green}~/.config/okki-go/credentials.json${reset} with mode ${green}0600${reset}\n`);
+  log(`   ${cyan}→${reset} Automation override: ${green}export OKKIGO_API_KEY="sk-xxx"${reset}\n`);
   log(`${yellow}3.${reset} ${t('step3Title')}`);
   log(`   ${cyan}→${reset} ${t('step3Desc')}`);
   log(`      ${green}${t('step3Example')}${reset}\n`);

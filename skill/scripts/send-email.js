@@ -1,0 +1,128 @@
+#!/usr/bin/env node
+'use strict';
+
+const {
+  parseJson,
+  postJson,
+  readJsonFile,
+  writeJsonFile
+} = require('./lib/okki-api');
+const {
+  defaultRawPath,
+  nowIso,
+  outputBudgetMetadata
+} = require('./lib/compact-output');
+
+function usage() {
+  console.error([
+    'Usage:',
+    '  node scripts/send-email.js batch --json \'<payload>\' --compact [--mapping-file PATH]',
+    '  node scripts/send-email.js personalized --file payload.json --compact'
+  ].join('\n'));
+}
+
+function parseArgs(argv) {
+  if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h') {
+    usage();
+    process.exit(0);
+  }
+  const args = { mode: argv[0], json: null, file: null, compact: false, mappingFile: null };
+  for (let i = 1; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--json') {
+      args.json = argv[++i];
+    } else if (arg === '--file') {
+      args.file = argv[++i];
+    } else if (arg === '--compact') {
+      args.compact = true;
+    } else if (arg === '--mapping-file') {
+      args.mappingFile = argv[++i];
+    } else if (arg === '--help' || arg === '-h') {
+      usage();
+      process.exit(0);
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+  if (!['batch', 'personalized'].includes(args.mode)) {
+    throw new Error('Mode must be batch or personalized.');
+  }
+  if ((args.json ? 1 : 0) + (args.file ? 1 : 0) !== 1) {
+    throw new Error('Provide exactly one of --json or --file.');
+  }
+  return args;
+}
+
+function readPayload(args) {
+  return args.file ? readJsonFile(args.file) : parseJson(args.json, '--json');
+}
+
+function validatePayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Payload must be a JSON object.');
+  }
+  if (!Array.isArray(payload.recipients) || payload.recipients.length === 0) {
+    throw new Error('Payload must include recipients[].');
+  }
+  if (payload.recipients.length > 100) {
+    throw new Error('Payload recipients[] must not exceed 100.');
+  }
+}
+
+function taskIds(response) {
+  if (!response || typeof response !== 'object') return [];
+  if (response.task_id) return [response.task_id];
+  if (Array.isArray(response.task_ids)) return response.task_ids;
+  if (Array.isArray(response.tasks)) {
+    return Array.from(new Set(response.tasks.map((task) => task.task_id || task.taskId).filter(Boolean)));
+  }
+  return [];
+}
+
+function totalSubmitted(response, payload) {
+  if (response && Number.isFinite(Number(response.total))) return Number(response.total);
+  return Array.isArray(payload.recipients) ? payload.recipients.length : 0;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const payload = readPayload(args);
+  validatePayload(payload);
+  const endpoint = args.mode === 'batch'
+    ? '/api/v1/emails/send/batch'
+    : '/api/v1/emails/send/personalized';
+  const response = await postJson(endpoint, payload);
+  const mappingPath = args.mappingFile || defaultRawPath(`email-send-${args.mode}`);
+  writeJsonFile(mappingPath, {
+    version: '1.0',
+    created_at: nowIso(),
+    mode: args.mode,
+    request: payload,
+    response
+  });
+  const output = {
+    submitted: true,
+    mode: args.mode,
+    total: totalSubmitted(response, payload),
+    task_ids: taskIds(response),
+    mapping_saved: mappingPath
+  };
+  Object.assign(output, outputBudgetMetadata({
+    defaultCap: 20,
+    hardCap: 100,
+    returned: output.task_ids.length,
+    available: output.total
+  }));
+
+  if (args.compact) {
+    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
+}
+
+main().catch((error) => {
+  console.error(error.message);
+  usage();
+  process.exit(2);
+});

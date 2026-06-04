@@ -1,0 +1,24 @@
+id: contact-search-compact
+suite: business
+name: 跨公司联系人搜索使用 compact 输出
+userTurns:
+  - role: user
+    content: 帮我找德国汽车玻璃公司的采购经理邮箱
+  - role: user
+    content: 确认联系人搜索
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustNotCallBeforeConfirmation:
+      - method: POST
+        path: /api/v1/contacts/search
+  behavior:
+    mustEmit:
+      - contact_search_confirmation_requested
+      - contact_search_compact_used
+      - default_visible_size_20
+    mustNotEmit:
+      - raw_contacts_json_to_model
+      - internal_contact_ids_displayed
+

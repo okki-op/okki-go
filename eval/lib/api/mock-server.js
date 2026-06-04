@@ -154,7 +154,12 @@ function createMockServer(options = {}) {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/v1/companies/search-advanced') {
-      sendRecordedJson(res, recorderEntry, 200, {
+      const response = typeof options.companySearchResponse === 'function' ? options.companySearchResponse({
+        body,
+        query: recorderEntry.query,
+        recorder,
+        request: req
+      }) : {
         total: 2,
         list: [
           {
@@ -176,7 +181,8 @@ function createMockServer(options = {}) {
             employees_count: '11-50'
           }
         ]
-      });
+      };
+      sendRecordedJson(res, recorderEntry, 200, response);
       recorder.record(recorderEntry);
       return;
     }
@@ -209,6 +215,23 @@ function createMockServer(options = {}) {
       return;
     }
 
+    if (req.method === 'GET' && /^\/api\/v1\/companies\/[^/]+\/profile$/.test(url.pathname)) {
+      sendRecordedJson(res, recorderEntry, 200, {
+        companyHashId: url.pathname.split('/').at(-2),
+        name: 'AutoTeile Import GmbH',
+        country: 'DE',
+        industry: 'Automotive Parts Importer',
+        employeeCount: 120,
+        website: 'https://autoteile.example',
+        description: 'Leading supplier of automotive aftermarket parts for German repair and distribution channels.',
+        tradeData: [
+          { hsCode: '8708', value: 250000, direction: 'import' }
+        ]
+      });
+      recorder.record(recorderEntry);
+      return;
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/v1/contacts/search') {
       sendRecordedJson(res, recorderEntry, 200, {
         list: [
@@ -218,7 +241,8 @@ function createMockServer(options = {}) {
             email: 'mia.carter@example.com',
             title: 'VP Sales',
             company: 'Acme SaaS',
-            country: 'US'
+            country: 'US',
+            linkedin: 'https://linkedin.com/in/mia-carter'
           }
         ],
         total: 1,
@@ -248,7 +272,91 @@ function createMockServer(options = {}) {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/v1/emails/tasks') {
-      sendRecordedJson(res, recorderEntry, 200, { data: [], total: 0, page: 1, page_size: 20 });
+      const response = typeof options.emailTasksResponse === 'function'
+        ? options.emailTasksResponse({ query: recorderEntry.query, recorder })
+        : { data: [], total: 0, page: 1, page_size: 20 };
+      sendRecordedJson(res, recorderEntry, 200, response);
+      recorder.record(recorderEntry);
+      return;
+    }
+
+    if (req.method === 'GET' && /^\/api\/v1\/emails\/tasks\/\d+$/.test(url.pathname)) {
+      sendRecordedJson(res, recorderEntry, 200, {
+        taskId: Number(url.pathname.split('/').at(-1)),
+        totalCount: 2,
+        status: 'partial',
+        sentCount: 1,
+        failedCount: 1,
+        createdAt: '2026-03-20T08:00:00.000Z',
+        completedAt: '2026-03-20T08:05:32.000Z',
+        content: 'Dear company_name, we have a great product for you.',
+        bodyFormat: 'html',
+        mails: [
+          {
+            mailId: 2001,
+            taskId: 1001,
+            recipientEmail: 'alice@acme.com',
+            recipientNickname: 'Alice',
+            subject: 'Partnership Opportunity',
+            status: 'sent',
+            sentAt: '2026-03-20T08:01:15.000Z',
+            callbackReceivedAt: '2026-03-20T08:02:30.000Z',
+            failureReason: null
+          },
+          {
+            mailId: 2002,
+            taskId: 1001,
+            recipientEmail: 'bob@globex.com',
+            recipientNickname: 'Bob',
+            subject: 'Partnership Opportunity',
+            status: 'failed',
+            sentAt: null,
+            callbackReceivedAt: null,
+            failureReason: 'Invalid email address'
+          }
+        ]
+      });
+      recorder.record(recorderEntry);
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/v1/emails/mails') {
+      sendRecordedJson(res, recorderEntry, 200, {
+        data: [
+          {
+            mailId: 2001,
+            taskId: 1001,
+            recipientEmail: 'alice@acme.com',
+            recipientNickname: 'Alice',
+            subject: 'Partnership Opportunity',
+            status: 'sent',
+            sentAt: '2026-03-20T08:01:15.000Z',
+            callbackReceivedAt: '2026-03-20T08:02:30.000Z',
+            failureReason: null
+          }
+        ],
+        total: 1,
+        page: 1,
+        page_size: 20
+      });
+      recorder.record(recorderEntry);
+      return;
+    }
+
+    if (req.method === 'GET' && /^\/api\/v1\/emails\/mails\/\d+$/.test(url.pathname)) {
+      sendRecordedJson(res, recorderEntry, 200, {
+        mailId: Number(url.pathname.split('/').at(-1)),
+        taskId: 1001,
+        recipientEmail: 'alice@acme.com',
+        recipientNickname: 'Alice',
+        subject: 'Partnership Opportunity',
+        status: 'sent',
+        sentAt: '2026-03-20T08:01:15.000Z',
+        callbackReceivedAt: '2026-03-20T08:02:30.000Z',
+        failureReason: null,
+        content: 'Dear Acme Corp, we have a great product for you.',
+        bodyFormat: 'html'
+      });
       recorder.record(recorderEntry);
       return;
     }

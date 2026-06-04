@@ -75,7 +75,7 @@ Allowed recovery moves:
 
 Hard rules:
 
-- Do not switch the whole payload from `and` to `or` as the default move.
+- Do not switch the whole payload from `"AND"` to `"OR"` as the default move.
 - Do not remove target geography unless the user asked for geography-free exploration.
 - Do not combine unrelated target routes into one OR-style payload.
 - Do not preserve a merchant-product keyword in `productKeywords` merely to keep an anchor when that term is causing competitor-heavy search.
@@ -84,9 +84,9 @@ Hard rules:
 Message pattern:
 
 ```text
-首轮结果偏少，且直接搜 "[merchant term]" 容易混入同类厂家。我会保留 [target geography] 和 [target route]，
-把目标侧产品词从 "[old terms]" 调整为 "[new target-side terms]"，
-并把公司类型从 "[old type]" 放宽到 "[new route-compatible types]"。
+The first round is sparse, and directly searching "[merchant term]" may mix in peer manufacturers.
+I will keep [target geography] and [target route], change target-side product terms from "[old terms]" to "[new target-side terms]",
+and broaden company type from "[old type]" to "[new route-compatible types]".
 ```
 
 ## 4. L2 Target Route Expansion
@@ -138,7 +138,7 @@ Candidate template:
     "companyTypeKeywords": ["renovation contractor", "refurbishment contractor"],
     "industryKeywords": ["hotel renovation", "apartment refurbishment"],
     "includeCountry": ["DE"],
-    "crossFieldOperator": "and",
+    "crossFieldOperator": "AND",
     "from": 0,
     "size": 50
   },
@@ -176,9 +176,9 @@ Behavior markers:
 Accept these input forms for L2/L3 candidates:
 
 - Number list: `A1, A2, B1`
-- Route-wide selection: `channel 全选`, `all installer routes`
-- Natural language: `先试渠道和安装商，不要酒店`
-- Stop signal: `够了`, `stop`, `不要了`, `skip expansion`
+- Route-wide selection: `all channel routes`, `all installer routes`
+- Natural language: `try channels and installers first, avoid hotels`
+- Stop signal: `enough`, `stop`, `skip expansion`
 
 If a selection is ambiguous, ask one clarifying question before another search.
 

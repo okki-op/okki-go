@@ -16,7 +16,7 @@
 ```http
 Authorization: ApiKey sk-your-key-here
 X-Okki-Install-Id: <anonymous install id>
-X-Okki-Skill-Version: 1.2.0
+X-Okki-Skill-Version: 1.2.1
 X-Okki-Skill-Runtime: <agent runtime>
 ```
 
@@ -83,19 +83,21 @@ X-Okki-Skill-Runtime: <agent runtime>
 
 - 认证：必须
 - 计费：**免费**（不扣积分）
-- 基于企业画像的多维搜索，返回公司列表含 domain
+- 基于企业画像的多维搜索，返回公司列表；`domain` 仅供内部解锁使用，不展示给用户
+
+`search-advanced supports only` the request fields listed below. Do not invent filters such as `employee_range`, `decision_roles`, `website`, `homepage`, `url`, `contacts`, or `limit`. Unsupported dimensions must be handled locally or in later workflow stages.
 
 ### 请求体
 
 ```json
 {
-  "companyTypeKeywords": ["数字印刷设备"],
+  "companyTypeKeywords": ["digital printing equipment manufacturer"],
   "productKeywords": ["DTF printer"],
   "industryKeywords": ["manufacturing"],
   "includeCountry": ["US", "CN"],
   "excludeCountry": ["RU"],
-  "withEmails": true,
-  "crossFieldOperator": "and",
+  "withEmails": 1,
+  "crossFieldOperator": "AND",
   "from": 0,
   "size": 10
 }
@@ -110,8 +112,8 @@ X-Okki-Skill-Runtime: <agent runtime>
 | `industryKeywords` | string[] | 否 | — | 行业关键词 |
 | `includeCountry` | string[] | 否 | ISO 3166-1 alpha-2 | 包含的国家代码 |
 | `excludeCountry` | string[] | 否 | ISO 3166-1 alpha-2 | 排除的国家代码 |
-| `withEmails` | boolean | 否 | — | 是否只返回有邮箱的公司 |
-| `crossFieldOperator` | string | 否 | `"and"` / `"or"` | 跨字段匹配逻辑 |
+| `withEmails` | integer | 否 | `0` / `1` | 是否只返回有邮箱的公司 |
+| `crossFieldOperator` | string | 否 | `"AND"` / `"OR"` | 跨字段匹配逻辑 |
 | `from` | integer | 否 | 默认 0 | 分页偏移量 |
 | `size` | integer | 否 | 默认 10，最大 50 | 每页数量 |
 
@@ -122,11 +124,11 @@ X-Okki-Skill-Runtime: <agent runtime>
   "total": 215,
   "list": [
     {
-      "company_type": ["数字印刷设备制造商"],
+      "company_type": ["digital printing equipment manufacturer"],
       "email_count": 4,
       "founding_time": "1996",
-      "industry": ["制造业-印刷专用设备制造"],
-      "main_products": ["UV平板打印机", "热升华打印机"],
+      "industry": ["manufacturing - printing equipment"],
+      "main_products": ["UV flatbed printer", "dye sublimation printer"],
       "country_code": "CN",
       "whatsapp_count": 0,
       "company_profile": "Company description...",
@@ -139,7 +141,7 @@ X-Okki-Skill-Runtime: <agent runtime>
 }
 ```
 
-> `domain` is the key field — use it with `/companies/unlock` to resolve the `companyHashId` needed for profile/detail/email queries.
+> `domain` is an internal key. Store it privately with the row index and use it with `/companies/unlock` only after explicit unlock confirmation. Do not display `domain`, website, homepage, URL, or link fields in free company-search results.
 
 ---
 

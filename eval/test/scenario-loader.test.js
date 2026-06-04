@@ -158,7 +158,7 @@ test('validateScenario accepts API body include and exclude expectations', () =>
                 includeCountry: ['DE'],
                 productKeywords: ['door hardware', 'building hardware'],
                 companyTypeKeywords: ['importer', 'distributor'],
-                crossFieldOperator: 'and'
+                crossFieldOperator: 'AND'
               },
               exclude: {
                 productKeywords: ['door lock', 'custom door locks']

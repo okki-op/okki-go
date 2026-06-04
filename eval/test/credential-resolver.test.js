@@ -12,6 +12,10 @@ function makeTempHome() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'okki-credentials-home-'));
 }
 
+function makeTempDir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
 function runResolver(args, env = {}) {
   return runCommand('bash', [resolverPath, ...args], {
     cwd: fromOkkiRoot(),
@@ -54,7 +58,91 @@ test('credential resolver reads secure local credentials file after env vars', (
   assert.equal(result.stdout.trim(), 'sk-from-file');
 });
 
-test('credential resolver reads Accio account skill config when runtime is accio', () => {
+test('credential resolver handles GNU stat before BSD stat when checking file permissions', () => {
+  const home = makeTempHome();
+  const binDir = makeTempDir('okki-fake-stat-bin-');
+  const configDir = path.join(home, '.config', 'okki-go');
+  const credentialsPath = path.join(configDir, 'credentials.json');
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(credentialsPath, JSON.stringify({ apiKey: 'sk-from-file' }));
+  fs.chmodSync(credentialsPath, 0o600);
+
+  const statPath = path.join(binDir, 'stat');
+  fs.writeFileSync(statPath, [
+    '#!/bin/sh',
+    'if [ "$1" = "-c" ]; then',
+    '  echo 600',
+    '  exit 0',
+    'fi',
+    'if [ "$1" = "-f" ]; then',
+    '  echo "not-a-file-mode"',
+    '  exit 0',
+    'fi',
+    'exit 1',
+    ''
+  ].join('\n'));
+  fs.chmodSync(statPath, 0o700);
+
+  const result = runResolver(['--source'], {
+    HOME: home,
+    PATH: `${binDir}${path.delimiter}${process.env.PATH}`
+  });
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout.trim(), `file:${credentialsPath}`);
+});
+
+test('credential resolver does not guess OpenClaw skill config at runtime', () => {
+  const home = makeTempHome();
+  const openclawDir = path.join(home, '.openclaw');
+  const configPath = path.join(openclawDir, 'openclaw.json');
+  fs.mkdirSync(openclawDir, { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify({
+    skills: {
+      entries: {
+        okkigo: {
+          apiKey: 'sk-from-openclaw'
+        }
+      }
+    }
+  }));
+  fs.chmodSync(configPath, 0o600);
+
+  const result = runResolver(['--print'], { HOME: home });
+
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout.trim(), 'NO_KEY');
+  assert.equal(result.stdout.includes('sk-from-openclaw'), false);
+  assert.equal(result.stderr.includes('sk-from-openclaw'), false);
+});
+
+test('credential resolver still accepts explicit env when OpenClaw config exists', () => {
+  const home = makeTempHome();
+  const openclawDir = path.join(home, '.openclaw');
+  const configPath = path.join(openclawDir, 'openclaw.json');
+  fs.mkdirSync(openclawDir, { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify({
+    skills: {
+      entries: {
+        okkigo: {
+          apiKey: 'sk-from-openclaw'
+        }
+      }
+    }
+  }));
+  fs.chmodSync(configPath, 0o600);
+
+  const result = runResolver(['--source'], {
+    HOME: home,
+    OKKIGO_API_KEY: 'sk-from-env'
+  });
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout.trim(), 'env:OKKIGO_API_KEY');
+  assert.equal(result.stdout.includes('sk-from-openclaw'), false);
+});
+
+test('credential resolver does not guess Accio account skill config at runtime', () => {
   const home = makeTempHome();
   const accountId = 'account-1';
   const skillsDir = path.join(home, '.accio', 'accounts', accountId, 'skills');
@@ -74,8 +162,10 @@ test('credential resolver reads Accio account skill config when runtime is accio
     ACCIO_ACCOUNT_ID: accountId
   });
 
-  assert.equal(result.status, 0);
-  assert.equal(result.stdout.trim(), 'sk-from-accio');
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout.trim(), 'NO_KEY');
+  assert.equal(result.stdout.includes('sk-from-accio'), false);
+  assert.equal(result.stderr.includes('sk-from-accio'), false);
 });
 
 test('credential resolver refuses local credentials files with broad permissions', () => {

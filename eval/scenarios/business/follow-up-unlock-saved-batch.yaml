@@ -1,0 +1,28 @@
+id: follow-up-unlock-saved-batch
+suite: business
+name: 后续解锁使用已保存 batch 映射
+userTurns:
+  - role: user
+    content: 再给我多搜一些，至少多给55家
+  - role: user
+    content: 帮我解锁前5家
+  - role: user
+    content: 确认
+expected:
+  routing:
+    expectedDecision: should_trigger
+  api:
+    mustNotCallBeforeConfirmation:
+      - method: POST
+        path: /api/v1/companies/unlock
+  behavior:
+    mustEmit:
+      - unlock_confirmation_requested
+      - unlock_batch_used
+      - charged_count_reported
+      - balance_reported
+    mustNotEmit:
+      - free_search_rerun_to_locate_same_rows
+      - domain_displayed
+      - companyHashId_displayed
+

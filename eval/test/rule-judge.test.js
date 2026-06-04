@@ -145,11 +145,11 @@ test('API body include and exclude expectations are enforced', () => {
                 includeCountry: ['DE'],
                 productKeywords: ['door hardware', 'building hardware'],
                 companyTypeKeywords: ['importer', 'distributor'],
-                crossFieldOperator: 'and'
+                crossFieldOperator: 'AND'
               },
               exclude: {
                 productKeywords: ['door lock', 'custom door locks'],
-                crossFieldOperator: 'or'
+                crossFieldOperator: 'OR'
               }
             }
           }
@@ -168,7 +168,7 @@ test('API body include and exclude expectations are enforced', () => {
           includeCountry: ['DE'],
           productKeywords: ['door hardware', 'building hardware', 'architectural hardware'],
           companyTypeKeywords: ['importer', 'distributor', 'wholesaler'],
-          crossFieldOperator: 'and'
+          crossFieldOperator: 'AND'
         }
       }
     ]
@@ -187,7 +187,7 @@ test('API body include and exclude expectations are enforced', () => {
           includeCountry: ['DE'],
           productKeywords: ['door lock'],
           companyTypeKeywords: ['manufacturer'],
-          crossFieldOperator: 'or'
+          crossFieldOperator: 'OR'
         }
       }
     ]
@@ -469,6 +469,35 @@ test('reference agent can model a PMF gate stop before company search', () => {
   assert.equal(judgeScenarioRun(scenario, run).status, 'passed');
 });
 
+test('reference agent stops for target geography question before company search', () => {
+  const scenario = {
+    id: 'packaging-manufacturer-missing-target-geo',
+    suite: 'business',
+    userTurns: [{ role: 'user', content: '我是纸品包装制造商，帮我开发潜客' }],
+    expected: {
+      routing: { expectedDecision: 'should_trigger' },
+      api: {
+        mustNotCall: [{ method: 'POST', path: '/api/v1/companies/search-advanced' }]
+      },
+      behavior: {
+        mustEmit: [
+          'current_turn_merchant_seed_extracted',
+          'current_turn_product_used',
+          'target_geo_missing_question',
+          'lite_onboarding_deferred'
+        ]
+      }
+    }
+  };
+
+  const run = runReferenceScenario(scenario);
+
+  assert.equal(run.routingDecision, 'triggered_pending_prerequisite');
+  assert.deepEqual(run.apiCalls, []);
+  assert.match(run.output, /target market|目标市场|buyer route|买家路线/i);
+  assert.equal(judgeScenarioRun(scenario, run).status, 'passed');
+});
+
 test('reference agent includes target-side projected API payload when expected', () => {
   const scenario = {
     id: 'target-side-door-lock-channel-route',
@@ -486,11 +515,11 @@ test('reference agent includes target-side projected API payload when expected',
                 productKeywords: ['door hardware', 'building hardware'],
                 companyTypeKeywords: ['importer', 'distributor'],
                 industryKeywords: ['construction materials'],
-                crossFieldOperator: 'and'
+                crossFieldOperator: 'AND'
               },
               exclude: {
                 productKeywords: ['door lock', 'custom door locks'],
-                crossFieldOperator: 'or'
+                crossFieldOperator: 'OR'
               }
             }
           }
@@ -519,7 +548,7 @@ test('reference agent includes target-side projected API payload when expected',
         productKeywords: ['door hardware', 'building hardware', 'architectural hardware'],
         companyTypeKeywords: ['importer', 'distributor', 'wholesaler'],
         industryKeywords: ['construction materials'],
-        crossFieldOperator: 'and',
+        crossFieldOperator: 'AND',
         from: 0,
         size: 50
       }

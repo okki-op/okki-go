@@ -23,7 +23,7 @@ expected:
               - distributor
             industryKeywords:
               - construction materials
-            crossFieldOperator: and
+            crossFieldOperator: AND
           exclude:
             productKeywords:
               - door lock
@@ -31,7 +31,7 @@ expected:
               - smart locks
             companyTypeKeywords:
               - manufacturer
-            crossFieldOperator: or
+            crossFieldOperator: OR
   behavior:
     mustEmit:
       - pmf_brief_built

@@ -1,6 +1,6 @@
 # Merchant Profile Playbook
 
-This playbook defines the long-term Merchant Profile contract used by OKKI Go discovery and outreach workflows. It is a rule contract for `~/.config/okki-go/profile.json` v1.1; implementation details for reading and writing the file belong to `skill/scripts/okki-state.js`.
+This playbook defines the long-term Merchant Profile contract used by OKKI Go discovery and outreach workflows. It is a rule contract for `~/.config/okki-go/profile.json` v1.1; implementation details for reading and writing the file belong to `scripts/okki-state.js`.
 
 ## 1. Profile Schema
 
@@ -40,6 +40,7 @@ Fields are split by inference risk.
 |--------|---------|-----------------------------|------------|
 | `user_confirmed` | User explicitly confirmed the value for future reuse. | Yes | Write after the user confirms saving or onboarding answer. |
 | `user_provided` | User said the value in-session but did not confirm long-term profile reuse. | Only if no confirmed/imported value exists for that field. | Write only when the user gave the value clearly. |
+| `user_provided_current_turn` | User stated the value in the current prospecting request. It is session seed data, not a long-term Profile default. | Yes for the current PMF Brief only. | Do not persist unless the user confirms saving. |
 | `agent_inferred` | Agent inferred the value and it is waiting for user confirmation. | No | Must be labeled and followed by a confirmation prompt. |
 | `imported` | User imported the value from an external system or file. | Yes | Treat as confirmed unless the import UI marks it otherwise. |
 
@@ -166,6 +167,15 @@ Default inference rules:
 
 Run Lite Onboarding when the user first enters Prospecting Brief Discovery and either `profile.json` does not exist or `completeness < 0.3`. The user must already have passed the normal API key setup flow before API calls are attempted; onboarding itself does not bypass authentication.
 
+Before asking Lite Onboarding questions, apply Current-Turn Merchant Seed from `discovery-playbook.md`. Do not repeat questions for merchant facts the user already provided. For example, if the user says "我是中国的汽车玻璃制造商", skip L0 company country, L1 company type, and L2 primary product questions for the current session; ask only missing fields such as target market, customer region, decision roles, or whether to save the facts.
+
+Lite Onboarding asks merchant-profile defaults for future reuse; PMF Gate asks only what is needed for the current search. Boundary rules:
+
+- If current-turn facts can build a Brief, skip Lite Onboarding and search under the current Brief.
+- If current-turn facts include product/company type but miss target geography or target route, ask only that current-search missing field.
+- If the user says "我是纸品包装制造商，帮我开发潜客", do not ask what product they sell or whether they are a manufacturer; ask which target market or buyer route to develop.
+- Ask Lite Onboarding only when the user wants guided setup, future default saving, or there is no usable current-search seed.
+
 Ask exactly five lightweight questions:
 
 1. **L0 company country, required:** "Which country or region does your company mainly operate from?" Write to `profile.company.country`. This is the anchor for future `trade_mode` derivation. Use the ISO table in `discovery-playbook.md` for country code normalization.
@@ -209,6 +219,18 @@ I inferred that your target markets may include SG and MY. Should I add them to 
 
 If the user accepts or edits the value, change the chosen entries to `user_confirmed`. If the user rejects them, remove the inferred entries. If the user does not answer, keep the inferred entries but exclude them from defaults and clearly mark them in profile views.
 
+### Mode 2.55: Current-Turn Merchant Seed Confirmation
+
+Current-turn facts may be used immediately for the current PMF Brief when the user stated them clearly. They should not become long-term Merchant Profile defaults silently.
+
+Rules:
+
+- Use `user_provided_current_turn` facts to avoid repeated profile questions in the same turn.
+- If those facts would improve future defaults, ask after or alongside the search whether to save them.
+- If the user confirms saving, write accepted values as `user_confirmed`.
+- If the user does not confirm saving, keep them session-only.
+- Never downgrade clear current-turn facts to `agent_inferred`.
+
 ### Mode 2.6: Website/Product Page Quick Profile
 
 When the PMF Gate in `discovery-playbook.md` asks for a company website or product page, any extracted data is provisional until the user confirms it.
@@ -250,6 +272,7 @@ Prospecting Brief Discovery reads Profile defaults before asking Gray Area quest
 - `user_confirmed`: may be presented as default.
 - `imported`: may be presented as default.
 - `user_provided`: may be used only when no confirmed/imported option exists for the same field, and the prompt must say it came from the current or prior conversation rather than the confirmed profile.
+- `user_provided_current_turn`: may feed the current PMF Brief and target-side query plan without a repeated question; it must be confirmed before long-term persistence.
 - `agent_inferred`: must not be used as a default.
 
 Default mapping:

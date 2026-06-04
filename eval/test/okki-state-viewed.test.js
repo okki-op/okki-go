@@ -183,6 +183,60 @@ test('viewed classify returns unlocked, seen, and new groups', (t) => {
   assert.equal(output.groups.new[0].domain, 'new.example');
 });
 
+test('viewed classify accepts large result payloads from a file', (t) => {
+  const configHome = makeConfig(t);
+  const resultsFile = path.join(configHome, 'results.json');
+  fs.writeFileSync(resultsFile, JSON.stringify([
+    { domain: 'file-one.example' },
+    { website: 'https://file-two.example/path' }
+  ]));
+
+  const output = runState(configHome, [
+    'viewed',
+    'classify',
+    '--window-days',
+    '30',
+    '--results-file',
+    resultsFile,
+    '--now',
+    NOW
+  ]);
+
+  assert.equal(output.counts.new, 2);
+  assert.equal(output.groups.new[0].domain, 'file-one.example');
+  assert.equal(output.groups.new[1].domain, 'file-two.example');
+});
+
+test('viewed mark-shown accepts large result payloads from stdin', (t) => {
+  const configHome = makeConfig(t);
+  const result = spawnSync(
+    process.execPath,
+    [
+      STATE_CLI,
+      'viewed',
+      'mark-shown',
+      '--results-file',
+      '-',
+      '--brief-summary',
+      'stdin payload',
+      '--now',
+      NOW
+    ],
+    {
+      cwd: REPO_ROOT,
+      env: { ...process.env, XDG_CONFIG_HOME: configHome },
+      input: JSON.stringify([{ domain: 'stdin.example' }]),
+      encoding: 'utf8'
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.updated, 1);
+  assert.equal(output.viewed.items[0].domain, 'stdin.example');
+  assert.equal(output.viewed.items[0].brief_summary, 'stdin payload');
+});
+
 test('viewed unlocked expiry falls back to seen when shown_at is still active', (t) => {
   const configHome = makeConfig(t);
   writeViewed(configHome, {
@@ -245,6 +299,99 @@ test('viewed mark-unlocked creates an item when domain was not shown before', (t
   assert.equal(output.viewed.items[0].unlocked_at, NOW);
   assert.equal(output.viewed.items[0].country_code, 'GB');
   assert.equal(modeOf(viewedPath(configHome)), '600');
+});
+
+test('viewed mark-unlocked compact output reports counts without full state', (t) => {
+  const configHome = makeConfig(t);
+  const output = runState(configHome, [
+    'viewed',
+    'mark-unlocked',
+    '--domain',
+    'compact.example',
+    '--country-code',
+    'DE',
+    '--compact',
+    '--now',
+    NOW
+  ]);
+
+  assert.equal(output.ok, true);
+  assert.equal(output.updated, 1);
+  assert.equal(output.total_items, 1);
+  assert.equal(Object.hasOwn(output, 'viewed'), false);
+
+  const stored = JSON.parse(fs.readFileSync(viewedPath(configHome), 'utf8'));
+  assert.equal(stored.items[0].domain, 'compact.example');
+  assert.equal(stored.items[0].status, 'unlocked');
+});
+
+test('viewed mark-unlocked-batch updates multiple domains and prints compact counts', (t) => {
+  const configHome = makeConfig(t);
+  const output = runState(configHome, [
+    'viewed',
+    'mark-unlocked-batch',
+    '--json',
+    JSON.stringify([
+      { domain: 'https://www.batch-one.example/path', country_code: 'de' },
+      { domain: 'batch-two.example', countryCode: 'US' },
+      { domain: 'batch-one.example', country_code: 'DE' }
+    ]),
+    '--now',
+    NOW
+  ]);
+
+  assert.equal(output.ok, true);
+  assert.equal(output.updated, 3);
+  assert.equal(output.total_items, 2);
+  assert.equal(Object.hasOwn(output, 'viewed'), false);
+
+  const stored = JSON.parse(fs.readFileSync(viewedPath(configHome), 'utf8'));
+  assert.deepEqual(stored.items.map((item) => item.domain), ['batch-one.example', 'batch-two.example']);
+  assert.equal(stored.items[0].country_code, 'DE');
+  assert.equal(stored.items[1].country_code, 'US');
+});
+
+test('viewed mark-shown compact output reports counts without full state', (t) => {
+  const configHome = makeConfig(t);
+  const output = runState(configHome, [
+    'viewed',
+    'mark-shown',
+    '--results-json',
+    JSON.stringify([{ domain: 'shown-one.example' }, { domain: 'shown-two.example' }]),
+    '--compact',
+    '--now',
+    NOW
+  ]);
+
+  assert.equal(output.ok, true);
+  assert.equal(output.updated, 2);
+  assert.equal(output.total_items, 2);
+  assert.equal(Object.hasOwn(output, 'viewed'), false);
+});
+
+test('viewed classify compact output reports counts without raw result groups', (t) => {
+  const configHome = makeConfig(t);
+  runState(configHome, [
+    'viewed',
+    'mark-shown',
+    '--results-json',
+    JSON.stringify([{ domain: 'seen-compact.example' }]),
+    '--now',
+    '2026-05-27T12:00:00.000Z'
+  ]);
+
+  const output = runState(configHome, [
+    'viewed',
+    'classify',
+    '--results-json',
+    JSON.stringify([{ domain: 'seen-compact.example' }, { domain: 'new-compact.example' }]),
+    '--compact',
+    '--now',
+    NOW
+  ]);
+
+  assert.deepEqual(output.counts, { unlocked: 0, seen: 1, new: 1 });
+  assert.equal(Object.hasOwn(output, 'groups'), false);
 });
 
 test('viewed corrupt JSON is backed up and classification continues as new', (t) => {
