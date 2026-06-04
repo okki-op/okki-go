@@ -71,7 +71,7 @@ Default company discovery is the MVP path. Do not turn it into research, onboard
 
 Before prospecting, authenticate and use only current-turn facts plus optional Profile memory that is cheap to read. Profile memory can help but must not block the first free search.
 
-First-search goal: use the model's B2B judgment to build one simple target-company search hypothesis. Do not follow a fixed keyword template.
+First-search goal: use the model's B2B judgment to build one simple target-company search hypothesis. Do not follow a fixed keyword template, and do not add a separate visible validation step before the first free search.
 
 Flow:
 
@@ -108,6 +108,7 @@ Automatic recovery budget:
 - If the first free search is zero, sparse, or clearly noisy, you may run lightweight free recovery searches before asking the user.
 - Each additional `search-companies.js` invocation after the first search counts as one automatic recovery round.
 - Run at most 3 automatic recovery rounds for one user request.
+- Use the recovery gradient from [discovery-playbook.md](./references/discovery-playbook.md): first recover by target-side rewrite, then by buyer-route shift, then by narrow-field cleanup. Do not repeat the same failed keyword pattern.
 - After the budget is used, stop and show the best current results or explain that the search is still weak, then ask the user whether to continue refining.
 - A new user request such as "more", "continue", or "make it more precise" may start a new recovery budget.
 
@@ -116,6 +117,8 @@ Automatic recovery budget:
 For company discovery, user-provided products, services, websites, certifications, and business descriptions are merchant-side context first.
 
 Do not mechanically copy the user's own product/business term into `productKeywords`.
+
+If the user directly names the target company profile, such as "Find German auto glass importers", treat that as a direct target-company request. Use the user's product/category and company type more directly in the first search. If recovery is needed, keep the user-specified company type in the first recovery and change product/category wording first.
 
 Generate concise target-side keywords that describe the target company's own profile:
 

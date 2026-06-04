@@ -19,6 +19,8 @@ function runStaticChecks(options = {}) {
     checkCompanySearchPaginationGuardrail(okkiRoot),
     checkCurrentTurnMerchantSeedGuardrail(okkiRoot),
     checkProspectingAuditRemediationGuardrails(okkiRoot),
+    checkOkkiIndexLanguagePreferenceGuardrail(okkiRoot),
+    checkDiscoveryRecoveryGradientGuardrail(okkiRoot),
     checkCompactOutputGuardrails(okkiRoot)
   ];
 }
@@ -290,6 +292,80 @@ function checkProspectingAuditRemediationGuardrails(okkiRoot) {
   return fail(
     'prospecting-audit-remediation-guardrails',
     'skill must include audit remediation contracts for preflight, paths, free output, unlock, and viewed input',
+    { missing }
+  );
+}
+
+function checkOkkiIndexLanguagePreferenceGuardrail(okkiRoot) {
+  const discoveryPath = path.join(okkiRoot, 'skill', 'references', 'discovery-playbook.md');
+  if (!fs.existsSync(discoveryPath)) {
+    return fail(
+      'okki-index-language-preference-guardrail',
+      'skill must define weak-model-friendly OKKI index-language search preferences before first search'
+    );
+  }
+
+  const discovery = readText(discoveryPath);
+  const required = [
+    'Round 1 Search Preference',
+    'Prefer concrete product or business-scope terms that may appear in target-company profiles',
+    'Use fewer abstract industry labels, such as FMCG, food and beverage, and contract packaging',
+    'In Round 1, avoid combining multiple search dimensions',
+    'productKeywords + companyTypeKeywords + industryKeywords + AND',
+    'unless the user explicitly specifies them'
+  ];
+  const forbidden = [
+    'Cold start: before any OKKI result is available, choose concrete target-company profile words by business reasoning',
+    'Do not assume the model knows OKKI internal index terms before the first search',
+    'Observed results: after any OKKI result is returned, use terms from `company_type`, `industry`, `main_products`, and `company_profile` for recovery'
+  ];
+
+  const missing = required.filter((needle) => !discovery.includes(needle));
+  const presentForbidden = forbidden.filter((needle) => discovery.includes(needle));
+  if (missing.length === 0 && presentForbidden.length === 0) {
+    return pass('okki-index-language-preference-guardrail');
+  }
+
+  return fail(
+    'okki-index-language-preference-guardrail',
+    'skill must define weak-model-friendly OKKI index-language search preferences before first search',
+    { missing, forbidden: presentForbidden }
+  );
+}
+
+function checkDiscoveryRecoveryGradientGuardrail(okkiRoot) {
+  const discoveryPath = path.join(okkiRoot, 'skill', 'references', 'discovery-playbook.md');
+  if (!fs.existsSync(discoveryPath)) {
+    return fail(
+      'discovery-recovery-gradient-guardrail',
+      'skill must define the first-search and automatic recovery gradient'
+    );
+  }
+
+  const discovery = readText(discoveryPath);
+  const required = [
+    'Automatic recovery gradient',
+    'Round 1: model-judgment first search',
+    'Recovery 1: target-side rewrite',
+    'Recovery 2: buyer-route shift',
+    'Recovery 3: narrow-field cleanup',
+    'Stop after the recovery budget',
+    'merchant_offer_anchor',
+    'target_side_projection',
+    'direct target-company request',
+    'Do not rewrite the user-specified company type in Recovery 1',
+    'Do not use global `OR`',
+    'Do not combine unrelated buyer routes'
+  ];
+
+  const missing = required.filter((needle) => !discovery.includes(needle));
+  if (missing.length === 0) {
+    return pass('discovery-recovery-gradient-guardrail');
+  }
+
+  return fail(
+    'discovery-recovery-gradient-guardrail',
+    'skill must define the first-search and automatic recovery gradient',
     { missing }
   );
 }

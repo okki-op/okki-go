@@ -4,6 +4,12 @@ This reference explains how to turn a B2B prospecting request into a fast free `
 
 Default behavior is simple: infer target-company profile keywords, search, show results, then wait for the user to choose unlock/refinement. Do not run PMF Gate, Lite Onboarding, Brief confirmation, Expansion, Sales Mentor, or historical viewed deduplication before the first free search unless the user explicitly asks.
 
+## Round 1 Search Preference
+
+1. Prefer concrete product or business-scope terms that may appear in target-company profiles, such as cosmetics, skincare, perfume, detergent, and packaging materials. Use fewer abstract industry labels, such as FMCG, food and beverage, and contract packaging.
+
+2. In Round 1, avoid combining multiple search dimensions, such as productKeywords + companyTypeKeywords + industryKeywords + AND, unless the user explicitly specifies them.
+
 The first search should use model judgment, not a fixed template. Build one concise target-company hypothesis and search it. The guardrails below say what not to do; they do not require a specific keyword set.
 
 ## 1. Constructible Search
@@ -36,15 +42,30 @@ Do not repeat questions for merchant facts the user already provided. If target 
 
 ## 2. Merchant-Side to Target-Side Keywords
 
-User-provided products, services, certifications, websites, and business descriptions are merchant-side context first.
+User-provided products, services, certifications, websites, and business descriptions are merchant-side context first when the user describes their own business. Common merchant-side signals include "I am", "we are", "we manufacture", "we sell", "our company", "our website", and product pages.
 
-Do not mechanically copy merchant-side terms into `productKeywords`.
+Direct target-company requests are different. If the user says "Find German auto glass importers", "Find Middle East auto parts distributors", or "Search US security system installers", the user already named target-side product/category terms and target company types. Use those terms more directly in the first search.
+
+Do not mechanically copy merchant-side terms into `productKeywords`. Store them mentally as `merchant_offer_anchor` and project them into target-company terms before or during recovery.
 
 Use the model's B2B reasoning to generate concise target-side terms:
 
 - `productKeywords`: target-company products, categories, inventory, services, application categories, procurement language, or business categories.
 - `companyTypeKeywords`: target-company route words such as importer, distributor, wholesaler, dealer, retailer, installer, contractor, integrator, procurement company, or trading company.
 - `industryKeywords`: target-company industry/application context such as automotive aftermarket, construction materials, industrial supplies, hospitality, healthcare, or electronics.
+
+Build a `target_side_projection` when merchant-side facts drive the search. Keep it short:
+
+```json
+{
+  "merchant_offer_anchor": ["custom door locks"],
+  "target_side_projection": {
+    "product_terms": ["door hardware", "architectural hardware"],
+    "company_type_terms": ["distributor", "dealer"],
+    "industry_terms": ["building materials"]
+  }
+}
+```
 
 Avoid long combined phrases in `productKeywords`.
 
@@ -66,6 +87,15 @@ Better:
 ```
 
 Direct target-company requests can use the user's terms more directly. If the user says "Find auto parts importers", `auto parts` is target-side product/category context and `importer` is target-side company type.
+
+Simple request classification:
+
+| User says | Classify as | First-search handling |
+|-----------|-------------|-----------------------|
+| "I am an auto glass manufacturer; find German customers." | Merchant-side seed | Search one likely target route. If weak, rewrite to target-side terms such as `auto parts`, `automotive aftermarket`, or `vehicle glass service`. |
+| "Our website is for custom door locks; find US buyers." | Merchant-side seed | Search one likely buyer route. If weak, rewrite to `door hardware`, `architectural hardware`, `access control`, or `security systems`. |
+| "Find German auto glass importers." | Direct target-company request | Use `auto glass` or `automotive glass` with `importer` and `DE`; do not force a merchant-side rewrite first. |
+| "Find Middle East auto parts distributors." | Direct target-company request | Use `auto parts` with `distributor` and a practical Middle East country set. |
 
 ## 3. Payload Contract
 
@@ -165,7 +195,7 @@ If the user asks for "new only", "exclude companies I saw", or similar, use the 
 
 ## 6. When Results Are Weak
 
-If the first result set is sparse, zero, or noisy, keep recovery lightweight. Do not automatically enter multi-round Expansion.
+If the first result set is sparse, zero, noisy, or peer-manufacturer-heavy, keep recovery lightweight. Do not automatically enter multi-round Expansion.
 
 Automatic recovery budget:
 
@@ -174,6 +204,28 @@ Automatic recovery budget:
 - Keep each recovery payload concise and directly related to the current request.
 - After 3 automatic recovery rounds, stop and show the best current results or explain why the search is still weak, then ask whether to continue refining.
 - If the user explicitly asks to continue, find more, or make it more precise, that new request may start another recovery budget.
+
+### Automatic recovery gradient
+
+Use this order. It is designed for weaker models: do the first applicable step, run the free search, inspect whether results improved, then move to the next step only if needed.
+
+1. **Round 1: model-judgment first search.** Build one concise target-company search hypothesis from the current request. Keep the model's normal B2B judgment. Do not add a separate visible validator, a Query Plan Portfolio, or a long explanation before the first search.
+2. **Recovery 1: target-side rewrite.** If Round 1 is zero, sparse, noisy, or peer-manufacturer-heavy, treat merchant-side terms as `merchant_offer_anchor` and rewrite `productKeywords` into target-side category, inventory, service, application, or procurement language. Keep target geography. Keep the same clear buyer route where possible.
+3. **Recovery 2: buyer-route shift.** If Recovery 1 is still weak, stop changing only synonyms. Shift to one adjacent buyer route with a clear path, such as channel route to installer/integrator route, or narrow importer route to trade-category supplier route. Keep geography. Use one route per payload.
+4. **Recovery 3: narrow-field cleanup.** If Recovery 2 is still weak, remove the least important narrowing field, such as `industryKeywords`, or remove `withEmails` if the user did not require email-only results. You may broaden the same route from one company type to route-compatible types, such as `importer` to `importer`, `distributor`, and `wholesaler`.
+5. **Stop after the recovery budget.** After three recovery searches, stop automatic searching. Show the best current results or say that the search is still weak, then offer two or three next directions instead of continuing to guess.
+
+Direct target-company request rule:
+
+- For a direct target-company request, Recovery 1 changes product/category wording first and preserves the user-specified company type. Example: `auto glass importer` can recover to `automotive glass`, `vehicle glass`, `auto parts`, or `automotive aftermarket` while keeping `importer`.
+- Do not rewrite the user-specified company type in Recovery 1.
+- In Recovery 2, you may broaden the company type only within the same route, such as `importer` to `importer`, `distributor`, and `wholesaler`.
+
+Merchant-side seed rule:
+
+- For a merchant-side seed, Recovery 1 must not preserve exact merchant-side product terms merely to keep an anchor when those terms caused weak or peer-heavy results.
+- Use `merchant_offer_anchor` only as internal reasoning context. The API payload should contain target-side terms from `target_side_projection`.
+- If the user gave a website or product page and recovery is weak, use the page only to improve target-side projection. Do not add unsupported `website`, `homepage`, or `url` fields to the API payload.
 
 Allowed refinement options:
 
@@ -192,10 +244,21 @@ Do not do these as automatic recovery:
 - Do not drop target geography unless the user asked for geography-free exploration.
 - Do not keep a merchant-side keyword only to preserve an anchor when it is causing poor results.
 
-Example:
+Examples:
 
 ```text
-The first scan is broad and some companies look like peer suppliers. I can refine the target-side keywords toward distributors/installers, or try another country set. Which direction should I use?
+Merchant-side seed:
+User: "I am a custom door lock manufacturer. Find German customers."
+Round 1 may use: door locks + distributor/dealer + DE
+Recovery 1 should use: door hardware / architectural hardware + distributor/dealer + DE
+Recovery 2 may use: access control / security systems + installer/integrator + DE
+Recovery 3 may remove an industry keyword or broaden dealer to distributor/wholesaler.
+
+Direct target-company request:
+User: "Find German auto glass importers."
+Round 1 should use: auto glass / automotive glass + importer + DE
+Recovery 1 should keep importer and use: vehicle glass / auto parts / automotive aftermarket + importer + DE
+Recovery 2 may broaden within the channel route: importer/distributor/wholesaler + auto parts or automotive aftermarket + DE
 ```
 
 ## 7. Paid and Send Guardrails

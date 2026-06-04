@@ -16,6 +16,8 @@ test('runStaticChecks passes required repository consistency checks', () => {
   assert.equal(resultById(results, 'company-search-pagination-guardrail').status, 'passed');
   assert.equal(resultById(results, 'current-turn-merchant-seed-guardrail').status, 'passed');
   assert.equal(resultById(results, 'prospecting-audit-remediation-guardrails').status, 'passed');
+  assert.equal(resultById(results, 'okki-index-language-preference-guardrail').status, 'passed');
+  assert.equal(resultById(results, 'discovery-recovery-gradient-guardrail').status, 'passed');
   assert.equal(resultById(results, 'compact-output-guardrails').status, 'passed');
 });
 
@@ -243,6 +245,181 @@ test('runStaticChecks fails when prospecting audit remediation guardrails are mi
     result.reason,
     'skill must include audit remediation contracts for preflight, paths, free output, unlock, and viewed input'
   );
+});
+
+test('runStaticChecks fails when discovery recovery gradient is missing', () => {
+  const root = makeOkkiRoot({
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n| `withEmails` | integer |\n',
+      'authentication.md': credentialAuthText(),
+      'discovery-playbook.md': [
+        'search-advanced page size must never exceed 50.',
+        'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
+        'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.',
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn',
+        'current_turn_merchant_seed_extracted',
+        'Do not repeat questions for merchant facts the user already provided',
+        'trade_mode_unknown_degraded_not_blocked'
+      ].join('\n'),
+      'merchant-profile-playbook.md': [
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn'
+      ].join('\n')
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'discovery-recovery-gradient-guardrail');
+
+  assert.equal(result.status, 'failed');
+  assert.equal(
+    result.reason,
+    'skill must define the first-search and automatic recovery gradient'
+  );
+});
+
+test('runStaticChecks fails when OKKI index-language preference is missing', () => {
+  const root = makeOkkiRoot({
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n| `withEmails` | integer |\n',
+      'authentication.md': credentialAuthText(),
+      'discovery-playbook.md': [
+        'search-advanced page size must never exceed 50.',
+        'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
+        'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.',
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn',
+        'current_turn_merchant_seed_extracted',
+        'Do not repeat questions for merchant facts the user already provided',
+        'trade_mode_unknown_degraded_not_blocked'
+      ].join('\n'),
+      'merchant-profile-playbook.md': [
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn'
+      ].join('\n')
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'okki-index-language-preference-guardrail');
+
+  assert.equal(result.status, 'failed');
+  assert.equal(
+    result.reason,
+    'skill must define weak-model-friendly OKKI index-language search preferences before first search'
+  );
+});
+
+test('runStaticChecks passes when OKKI index-language preference is explicit', () => {
+  const preferenceText = [
+    'Round 1 Search Preference',
+    'Prefer concrete product or business-scope terms that may appear in target-company profiles',
+    'Use fewer abstract industry labels, such as FMCG, food and beverage, and contract packaging',
+    'In Round 1, avoid combining multiple search dimensions',
+    'productKeywords + companyTypeKeywords + industryKeywords + AND',
+    'unless the user explicitly specifies them'
+  ].join('\n');
+  const root = makeOkkiRoot({
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n| `withEmails` | integer |\n',
+      'authentication.md': credentialAuthText(),
+      'discovery-playbook.md': [
+        'search-advanced page size must never exceed 50.',
+        'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
+        'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.',
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn',
+        'current_turn_merchant_seed_extracted',
+        'Do not repeat questions for merchant facts the user already provided',
+        'trade_mode_unknown_degraded_not_blocked',
+        preferenceText
+      ].join('\n'),
+      'merchant-profile-playbook.md': [
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn'
+      ].join('\n')
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'okki-index-language-preference-guardrail');
+
+  assert.equal(result.status, 'passed');
+});
+
+test('runStaticChecks fails when OKKI index-language preference keeps the old long cold-start wording', () => {
+  const oldPreferenceText = [
+    'OKKI Index-Language Search Preference',
+    'Cold start: before any OKKI result is available, choose concrete target-company profile words by business reasoning',
+    'Do not assume the model knows OKKI internal index terms before the first search',
+    'Observed results: after any OKKI result is returned, use terms from `company_type`, `industry`, `main_products`, and `company_profile` for recovery',
+    'Start with concrete product, inventory, application, or operating-category words',
+    'Do not start with abstract labels such as FMCG, food and beverage, contract packaging',
+    'Do not start with productKeywords + companyTypeKeywords + industryKeywords + crossFieldOperator: "AND"',
+    'For multilingual markets, try local-language or Chinese profile words when English abstract terms return weak results',
+    'First get recall, then filter returned companies locally'
+  ].join('\n');
+  const root = makeOkkiRoot({
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n| `withEmails` | integer |\n',
+      'authentication.md': credentialAuthText(),
+      'discovery-playbook.md': [
+        'search-advanced page size must never exceed 50.',
+        'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
+        'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.',
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn',
+        'current_turn_merchant_seed_extracted',
+        'Do not repeat questions for merchant facts the user already provided',
+        'trade_mode_unknown_degraded_not_blocked',
+        oldPreferenceText
+      ].join('\n'),
+      'merchant-profile-playbook.md': [
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn'
+      ].join('\n')
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'okki-index-language-preference-guardrail');
+
+  assert.equal(result.status, 'failed');
+  assert.ok(result.forbidden.includes('Cold start: before any OKKI result is available, choose concrete target-company profile words by business reasoning'));
+});
+
+test('runStaticChecks passes when discovery recovery gradient is explicit', () => {
+  const gradientText = [
+    'Automatic recovery gradient',
+    'Round 1: model-judgment first search',
+    'Recovery 1: target-side rewrite',
+    'Recovery 2: buyer-route shift',
+    'Recovery 3: narrow-field cleanup',
+    'Stop after the recovery budget',
+    'merchant_offer_anchor',
+    'target_side_projection',
+    'direct target-company request',
+    'Do not rewrite the user-specified company type in Recovery 1',
+    'Do not use global `OR`',
+    'Do not combine unrelated buyer routes'
+  ].join('\n');
+  const root = makeOkkiRoot({
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n| `withEmails` | integer |\n',
+      'authentication.md': credentialAuthText(),
+      'discovery-playbook.md': [
+        'search-advanced page size must never exceed 50.',
+        'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
+        'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.',
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn',
+        'current_turn_merchant_seed_extracted',
+        'Do not repeat questions for merchant facts the user already provided',
+        'trade_mode_unknown_degraded_not_blocked',
+        gradientText
+      ].join('\n'),
+      'merchant-profile-playbook.md': [
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn'
+      ].join('\n')
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'discovery-recovery-gradient-guardrail');
+
+  assert.equal(result.status, 'passed');
 });
 
 test('compact output guardrails fail when compact wrappers and docs are missing', () => {
