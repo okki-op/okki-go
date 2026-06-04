@@ -553,22 +553,18 @@ function generateManifest(skillDir, runtime, installId) {
   // references/
   const refsDir = path.join(skillDir, 'references');
   if (fs.existsSync(refsDir)) {
-    for (const f of fs.readdirSync(refsDir)) {
-      const fp = path.join(refsDir, f);
-      if (fs.statSync(fp).isFile()) {
-        manifest.files[`references/${f}`] = sha256(fs.readFileSync(fp, 'utf8'));
-      }
+    for (const relPath of listFilesRecursive(refsDir)) {
+      const manifestPath = toManifestPath(path.join('references', relPath));
+      manifest.files[manifestPath] = sha256(fs.readFileSync(path.join(refsDir, relPath), 'utf8'));
     }
   }
 
   // scripts/
   const scriptsDir = path.join(skillDir, 'scripts');
   if (fs.existsSync(scriptsDir)) {
-    for (const f of fs.readdirSync(scriptsDir)) {
-      const fp = path.join(scriptsDir, f);
-      if (fs.statSync(fp).isFile()) {
-        manifest.files[`scripts/${f}`] = sha256(fs.readFileSync(fp, 'utf8'));
-      }
+    for (const relPath of listFilesRecursive(scriptsDir)) {
+      const manifestPath = toManifestPath(path.join('scripts', relPath));
+      manifest.files[manifestPath] = sha256(fs.readFileSync(path.join(scriptsDir, relPath), 'utf8'));
     }
   }
 
@@ -576,6 +572,45 @@ function generateManifest(skillDir, runtime, installId) {
 }
 
 // ─── File copying ─────────────────────────────────────────────────────────────
+function toManifestPath(relPath) {
+  return relPath.split(path.sep).join('/');
+}
+
+function listFilesRecursive(dir, prefix = '') {
+  if (!fs.existsSync(dir)) return [];
+  const files = [];
+  for (const entry of fs.readdirSync(dir).sort()) {
+    const fullPath = path.join(dir, entry);
+    const relPath = prefix ? path.join(prefix, entry) : entry;
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      files.push(...listFilesRecursive(fullPath, relPath));
+    } else if (stat.isFile()) {
+      files.push(relPath);
+    }
+  }
+  return files;
+}
+
+function copyDirectoryRecursive(srcDir, dstDir, options = {}) {
+  ensureDir(dstDir);
+  for (const entry of fs.readdirSync(srcDir).sort()) {
+    const src = path.join(srcDir, entry);
+    const dst = path.join(dstDir, entry);
+    const stat = fs.statSync(src);
+    if (stat.isDirectory()) {
+      copyDirectoryRecursive(src, dst, options);
+      continue;
+    }
+    if (!stat.isFile()) continue;
+
+    fs.copyFileSync(src, dst);
+    if (options.executableFiles && options.executableFiles(entry)) {
+      try { fs.chmodSync(dst, 0o755); } catch (e) { /* Windows */ }
+    }
+  }
+}
+
 function copySkillFiles(skillDir, runtime) {
   const { mainFile } = getSkillMeta(runtime);
 
@@ -592,12 +627,7 @@ function copySkillFiles(skillDir, runtime) {
   const srcRefs = path.join(SRC_DIR, 'references');
   const dstRefs = path.join(skillDir, 'references');
   if (fs.existsSync(srcRefs)) {
-    ensureDir(dstRefs);
-    for (const f of fs.readdirSync(srcRefs)) {
-      const src = path.join(srcRefs, f);
-      const dst = path.join(dstRefs, f);
-      if (fs.statSync(src).isFile()) fs.copyFileSync(src, dst);
-    }
+    copyDirectoryRecursive(srcRefs, dstRefs);
     log(`  ${green}✓${reset} Copied references/`);
   }
 
@@ -605,18 +635,9 @@ function copySkillFiles(skillDir, runtime) {
   const srcScripts = path.join(SRC_DIR, 'scripts');
   const dstScripts = path.join(skillDir, 'scripts');
   if (fs.existsSync(srcScripts)) {
-    ensureDir(dstScripts);
-    for (const f of fs.readdirSync(srcScripts)) {
-      const src = path.join(srcScripts, f);
-      const dst = path.join(dstScripts, f);
-      if (fs.statSync(src).isFile()) {
-        fs.copyFileSync(src, dst);
-        // Set executable permission on Unix systems (Windows doesn't support chmod)
-        if (f.endsWith('.sh') || f.endsWith('.js')) {
-          try { fs.chmodSync(dst, 0o755); } catch (e) { /* Windows */ }
-        }
-      }
-    }
+    copyDirectoryRecursive(srcScripts, dstScripts, {
+      executableFiles: fileName => fileName.endsWith('.sh') || fileName.endsWith('.js')
+    });
     log(`  ${green}✓${reset} Copied scripts/`);
   }
 
