@@ -74,6 +74,8 @@ test('search-companies compact output omits private fields while saving raw mapp
       '--json',
       JSON.stringify({ includeCountry: ['DE'], productKeywords: ['auto parts'], size: 2 }),
       '--compact',
+      '--locale',
+      'zh-CN',
       '--limit-output',
       '1',
       '--save-raw',
@@ -87,6 +89,7 @@ test('search-companies compact output omits private fields while saving raw mapp
     assert.equal(output.rows[0].row, 1);
     assert.equal(output.rows[0].company_name, 'AutoTeile Import GmbH');
     assert.equal(output.rows[0].country_code, 'DE');
+    assert.equal(output.rows[0].country_name, '德国');
     assert.equal(output.rows[0].fit.includes('brake parts'), true);
     assert.equal(Object.hasOwn(output.rows[0], 'domain'), false);
     assert.equal(Object.hasOwn(output.rows[0], 'id'), false);
@@ -216,7 +219,9 @@ test('discover-companies-batch emits compact deduped rows and preserves raw reco
       '2',
       '--save-batch',
       batchPath,
-      '--compact'
+      '--compact',
+      '--locale',
+      'zh-CN'
     ], {
       OKKIGO_BASE_URL: server.baseUrl,
       OKKIGO_BATCH_STATE_FILE: latestPath
@@ -229,6 +234,8 @@ test('discover-companies-batch emits compact deduped rows and preserves raw reco
     assert.equal(output.raw_count, 4);
     assert.equal(output.deduped_count, 2);
     assert.equal(output.private_mapping_saved, true);
+    assert.equal(output.rows[0].country_code, 'DE');
+    assert.equal(output.rows[0].country_name, '德国');
     assert.equal(result.stdout.includes('autoteile.example'), false);
     assert.equal(server.recorder.requests.filter((entry) => entry.path === '/api/v1/companies/search-advanced').length, 2);
 
@@ -282,6 +289,8 @@ test('unlock-companies uses saved row mapping, emits compact output, saves full 
       '1-2',
       '--mark-unlocked',
       '--compact',
+      '--locale',
+      'zh-CN',
       '--raw-file',
       rawPath
     ], {
@@ -295,6 +304,8 @@ test('unlock-companies uses saved row mapping, emits compact output, saves full 
     assert.equal(output.results.length, 2);
     assert.equal(output.results[0].row, 1);
     assert.equal(output.results[0].status, 'unlocked');
+    assert.equal(output.results[0].country_code, 'DE');
+    assert.equal(output.results[0].country_name, '德国');
     assert.equal(output.results[0].profile_available, true);
     assert.equal(output.results[0].emails_total, 1);
     assert.equal(output.results[0].description_preview.length > 0, true);

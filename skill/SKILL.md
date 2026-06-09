@@ -58,7 +58,7 @@ If it returns `NO_KEY`, follow [authentication.md](./references/authentication.m
 For free company discovery, prefer the deterministic wrapper:
 
 ```bash
-node scripts/search-companies.js --json '<search-advanced payload>' --compact
+node scripts/search-companies.js --json '<search-advanced payload>' --compact --locale '<user-locale>'
 ```
 
 The wrapper normalizes `withEmails`, `crossFieldOperator`, pagination, auth headers, and supported fields before calling the free `search-advanced` endpoint.
@@ -71,14 +71,14 @@ Default company discovery is the MVP path. Do not turn it into research, onboard
 
 Before prospecting, authenticate and use only current-turn facts plus optional Profile memory that is cheap to read. Profile memory can help but must not block the first free search.
 
-First-search goal: use the model's B2B judgment to build one simple target-company search hypothesis. Do not follow a fixed keyword template, and do not add a separate visible validation step before the first free search.
+First-search goal: get usable recall quickly. Translate the user's words into OKKI index-language target-company terms, then search with one keyword dimension plus geography if the user specified it. Do not add a separate visible validation step before the first free search.
 
 Flow:
 
 1. Authenticate.
 2. Read the latest user request and optional Profile memory.
 3. Treat the current user request as the source of truth for this search.
-4. Build a concise target-side `search-advanced` payload.
+4. Build a recall-first target-side `search-advanced` payload.
 5. Run the free company search.
 6. Display the returned companies in a user-friendly list without internal identifiers.
 7. Ask which company the user wants to unlock or what refinement they want next.
@@ -96,7 +96,12 @@ Do not run these by default before the first free company search:
 First-search guardrails:
 
 - Do not default to "email-only" results. Set `withEmails: 1` only when the user asks for companies with email addresses or makes email availability central to the request.
-- Do not pack `productKeywords`, `companyTypeKeywords`, and `industryKeywords` together by default. Use only the fields that are needed for the chosen search hypothesis.
+- Use exactly one keyword dimension by default: choose only one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords`. Add `includeCountry` only when the user specifies geography.
+- Prefer `productKeywords` for Round 1 unless the user's request is primarily a company-type/category search with no product or application terms.
+- Put 2-5 same-dimension terms in that field when useful: synonyms, upstream category words, application words, service words, procurement language, or local-language words.
+- Treat extra dimensions from the user, such as importer, manufacturer, distributor, certification, employee size, decision role, and abstract industry, as soft display or recovery clues instead of first-search hard filters.
+- Do not use `industryKeywords` in Round 1 by default. It is usually a later refinement field.
+- Do not use `crossFieldOperator: "AND"` in Round 1 by default.
 - Do not copy the user's own company identity into target keywords. Convert merchant-side context into target-company categories, routes, or procurement language.
 - Do not use `crossFieldOperator: "OR"` as the default recovery move. First change target-side terms, remove an over-narrow field, remove `withEmails`, or adjust route scope.
 - Do not combine unrelated buyer routes in one payload.
@@ -118,7 +123,7 @@ For company discovery, user-provided products, services, websites, certification
 
 Do not mechanically copy the user's own product/business term into `productKeywords`.
 
-If the user directly names the target company profile, such as "Find German auto glass importers", treat that as a direct target-company request. Use the user's product/category and company type more directly in the first search. If recovery is needed, keep the user-specified company type in the first recovery and change product/category wording first.
+If the user directly names the target company profile, such as "Find German auto glass importers", treat that as a direct target-company request but still keep Round 1 recall-first. Use product/category index-language terms with the requested geography first; keep company type words such as `importer` for display filtering or recovery.
 
 Generate concise target-side keywords that describe the target company's own profile:
 
@@ -127,14 +132,15 @@ Generate concise target-side keywords that describe the target company's own pro
 - Industries or application categories the target company belongs to.
 
 Avoid long combined phrases such as `"auto glass importer"` inside `productKeywords`. Put route words in `companyTypeKeywords` and product/category words in `productKeywords`.
+For Round 1, choose only one of those dimensions for the API payload. The other dimensions remain useful for later recovery or for explaining fit in the displayed results.
 
 Examples:
 
 | User says | Treat as | Better target-side payload direction |
 |-----------|----------|--------------------------------------|
-| "I am an auto glass manufacturer; find German customers." | Merchant product is auto glass. | `productKeywords`: `["auto parts", "automotive glass", "vehicle parts"]`; `companyTypeKeywords`: `["importer", "distributor", "dealer"]`; `includeCountry`: `["DE"]` |
-| "We sell door locks; find US prospects." | Merchant product is door locks. | `productKeywords`: `["door hardware", "building hardware", "security hardware"]`; `companyTypeKeywords`: `["distributor", "dealer", "installer"]`; `includeCountry`: `["US"]` |
-| "Find Middle East auto parts importers." | User directly names target companies. | `productKeywords`: `["auto parts", "automotive aftermarket"]`; `companyTypeKeywords`: `["importer"]`; country codes for the chosen Middle East markets |
+| "I am an auto glass manufacturer; find German customers." | Merchant product is auto glass. | Round 1: `productKeywords`: `["auto parts", "automotive glass", "vehicle parts", "Autoglas"]`; `includeCountry`: `["DE"]`. Use importer/distributor/dealer as soft or recovery clues. |
+| "We sell door locks; find US prospects." | Merchant product is door locks. | Round 1: `productKeywords`: `["door hardware", "building hardware", "security hardware"]`; `includeCountry`: `["US"]`. Use distributor/dealer/installer later if needed. |
+| "Find Middle East auto parts importers." | User directly names target companies. | Round 1: `productKeywords`: `["auto parts", "automotive aftermarket", "vehicle parts"]`; country codes for the chosen Middle East markets. Keep importer for display filtering or recovery. |
 
 For details and country normalization, read [discovery-playbook.md](./references/discovery-playbook.md).
 
@@ -175,20 +181,31 @@ Rules:
 - Do not hard-code an 8-12 company display rule.
 - Do not run historical viewed deduplication by default.
 - Do not display `domain`, website, homepage, URL, link fields, raw internal IDs, or unlock keys in free company-search results.
+- Apply display/privacy rules silently. Do not tell the user that domain, website, URL, ID, unlock, batch, raw, or private-mapping fields were hidden, omitted, filtered, or saved unless the user explicitly asks for raw/debug details.
+- Do not show compact wrapper metadata such as `batch_id`, `raw_path`, `private_mapping_saved`, or `output_budget` in normal user replies; use it only internally for pagination and follow-up row selections.
 - Keep internal identifiers privately mapped to result numbers for later unlock.
-- Show concise fields such as company name, country, industry/category, products/profile fit, email count, employee range, and why it may fit.
-- For broad, paginated, "more", or count-based requests above 20 results, use `discover-companies-batch.js --compact` instead of multiple direct `search-companies.js` calls.
+- Pass `--locale '<user-locale>'` to compact company-search, batch-discovery, and unlock commands when practical.
+- Show country/region as the localized `country_name` that matches the user's language. Use `country_code` only as an internal fallback when no localized name is available.
+- Show concise fields such as company name, localized country/region, industry/category, products/profile fit, email count, employee range, and why it may fit.
+- For broad, paginated, "more", or count-based requests above 20 results, use `discover-companies-batch.js --compact --locale '<user-locale>'` instead of multiple direct `search-companies.js` calls.
 - Never feed raw multi-page company JSON into the model for normal result presentation.
 - Save private row-to-domain mappings in a batch file and reference the batch ID privately.
 - Compact wrappers include `output_budget`, `truncated`, `available`, and `next_offset`; use those fields for "show more" pagination instead of guessing.
 - When the user refers to row numbers, "the first N", "these companies", or "the list above", use the latest saved batch pointer within the 24h TTL. Do not re-search by company name unless the latest batch file is missing, unreadable, or expired.
 - For local state writes, prefer batch/compact commands such as `mark-unlocked-batch`.
 
-After results, ask a simple next step such as:
+After results, present the companies directly in the user's language and ask one simple next step:
 
 ```text
+Found <N> matching companies:
+
+| # | Company | Country | Category/Industry | Products/Profile fit | Emails | Employees |
+| 1 | ... | ... | ... | ... | ... | ... |
+
 Pick a company number to unlock details and emails, or tell me how to refine the search.
 ```
+
+Do not add a preface or footnote explaining which internal fields are not shown.
 
 If the user explicitly asks for "new only", "not the same as last time", "exclude viewed", or similar, then use `scripts/okki-state.js viewed` as described in [workflows.md](./references/workflows.md). Otherwise skip it.
 
@@ -223,7 +240,7 @@ Unlocking this company costs 1 credit unless it was unlocked in the last 30 days
 
 After every paid call, report the charge and remaining balance. If unsure, call `GET /api/v1/credit/balance`.
 
-After confirmation, use `unlock-companies.js --rows ... --compact` with `--batch latest` for row selections from the most recently displayed batch, or pass the explicit batch path when known. Report charge, remaining balance, and compact company details. If batch mapping is unavailable or expired, tell the user you need to re-run a free lookup to locate the private records before unlocking. Latest batch reuse never replaces the required paid confirmation.
+After confirmation, use `unlock-companies.js --rows ... --compact --locale '<user-locale>'` with `--batch latest` for row selections from the most recently displayed batch, or pass the explicit batch path when known. Report charge, remaining balance, and compact company details. If batch mapping is unavailable or expired, tell the user you need to re-run a free lookup to locate the private records before unlocking. Latest batch reuse never replaces the required paid confirmation.
 
 ### Contact Search Confirmation
 

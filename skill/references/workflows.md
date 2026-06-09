@@ -26,6 +26,17 @@ Default visible caps:
 
 Default free company-search display is light and direct. Do not classify historical viewed state or write mark-shown by default.
 
+Use a positive result shape in the user's language:
+
+```text
+Found <N> matching companies:
+
+| # | Company | Country | Category/Industry | Products/Profile fit | Emails | Employees |
+| 1 | ... | ... | ... | ... | ... | ... |
+
+Pick a company number to unlock details and emails, or tell me how to refine the search.
+```
+
 Suggested table:
 
 ```text
@@ -37,9 +48,12 @@ Rules:
 - Show the API/default first page or the user-requested count when practical.
 - Do not hard-code an 8-12 company limit.
 - Do not display `domain`, website, homepage, URL, link fields, raw internal IDs, or unlock keys.
+- Apply this silently. Do not say that hidden fields were hidden, omitted, filtered, unavailable, or privately mapped unless the user explicitly asks for raw/debug details.
+- Do not show compact wrapper metadata such as `batch_id`, `raw_path`, `private_mapping_saved`, or `output_budget` in normal user replies.
 - Keep internal identifiers privately mapped to result numbers for later `/companies/unlock`.
-- Use `node scripts/search-companies.js --json '<payload>' --compact --save-raw /private/tmp/okki-go-batches/<batch>.json` for normal display.
-- Use `node scripts/discover-companies-batch.js --plan <plan.json> --target-count N --save-batch <batch.json> --compact` for broad, paginated, "more", or `N > 20` requests. This emits `private_mapping_saved`, `raw_path`, scanned/deduped/returned counts, latest batch pointer, and compact rows only.
+- Display `country_name` as the Country value. Use `country_code` only as an internal fallback if `country_name` is missing.
+- Use `node scripts/search-companies.js --json '<payload>' --compact --locale '<user-locale>' --save-raw /private/tmp/okki-go-batches/<batch>.json` for normal display.
+- Use `node scripts/discover-companies-batch.js --plan <plan.json> --target-count N --save-batch <batch.json> --compact --locale '<user-locale>'` for broad, paginated, "more", or `N > 20` requests. This emits `private_mapping_saved`, `raw_path`, scanned/deduped/returned counts, latest batch pointer, and compact rows only.
 - Batch files and the latest batch pointer have a default 24h TTL. Follow-up row selections such as "the first N", "these companies", "the list above", or explicit row numbers can reuse the latest batch if the pointer exists, is readable, and has not expired.
 - For zero or weak results, use at most 3 automatic recovery searches for the current user request, then show the best current result set or ask whether to broaden target-side keywords, change route/company type, change geography, or require emails.
 
@@ -118,7 +132,7 @@ Use when the user asks to find target customers or companies.
 2. Read current-turn product/service, target company/category, geography, buyer route, exclusions, and requested count.
 3. Optionally read Profile memory if it is cheap and useful, but do not block the first search on Profile completeness.
 4. Build a target-side `search-advanced` payload using [discovery-playbook.md](./discovery-playbook.md).
-5. Call free company search with `node scripts/search-companies.js --json '<api payload>'`.
+5. Call free company search with `node scripts/search-companies.js --json '<api payload>' --compact --locale '<user-locale>' --save-raw /private/tmp/okki-go-batches/<batch>.json`. Do not call `search-companies.js` without `--compact` unless the user explicitly asks for raw/debug output.
 6. If results are zero, sparse, or noisy, run at most 3 automatic recovery searches for this user request.
 7. Display results without internal identifiers.
 8. Wait for user selection or refinement. Do not proactively call paid APIs.
@@ -139,13 +153,13 @@ Use when the user selects a company and asks for details, emails, or contacts in
 For row selections from a displayed batch, after confirmation use:
 
 ```bash
-node scripts/unlock-companies.js --batch <batch.json> --rows 1-5 --mark-unlocked --compact
-node scripts/unlock-companies.js --batch latest --rows 1-5 --mark-unlocked --compact
+node scripts/unlock-companies.js --batch <batch.json> --rows 1-5 --mark-unlocked --compact --locale '<user-locale>'
+node scripts/unlock-companies.js --batch latest --rows 1-5 --mark-unlocked --compact --locale '<user-locale>'
 ```
 
 `--rows` accepts generic selectors such as `1`, `1,3,7`, or `2-6`; examples are not special cases.
 
-The compact output includes charge count, balance, company names, description previews, first emails/phones, `profile_available`, `emails_total`, and `raw_path`. It must not display `domain` or `companyHashId`. The raw unlock/profile/profileEmails payload remains available through the saved `raw_path`, so compact output is a presentation filter, not data deletion. Use `--detail` only when the user asks for fuller details; show website only if the unlocked profile returns a user-facing website.
+The compact output includes charge count, balance, company names, localized country/region names, description previews, first emails/phones, `profile_available`, `emails_total`, and `raw_path`. It must not display `domain` or `companyHashId`. The raw unlock/profile/profileEmails payload remains available through the saved `raw_path`, so compact output is a presentation filter, not data deletion. Use `--detail` only when the user asks for fuller details; show website only if the unlocked profile returns a user-facing website.
 
 Latest batch reuse does not bypass paid confirmation: ask before every `/companies/unlock` call. If the batch file is missing or stale, explain that the private row mapping is unavailable. Re-run a free lookup or ask the user to pick from a new list, then ask explicit paid confirmation before unlocking.
 

@@ -310,11 +310,12 @@ test('runStaticChecks fails when OKKI index-language preference is missing', () 
 test('runStaticChecks passes when OKKI index-language preference is explicit', () => {
   const preferenceText = [
     'Round 1 Search Preference',
-    'Prefer concrete product or business-scope terms that may appear in target-company profiles',
-    'Use fewer abstract industry labels, such as FMCG, food and beverage, and contract packaging',
-    'In Round 1, avoid combining multiple search dimensions',
-    'productKeywords + companyTypeKeywords + industryKeywords + AND',
-    'unless the user explicitly specifies them'
+    'Round 1 is recall-first',
+    'translate user words into OKKI index-language terms',
+    'Use exactly one keyword dimension by default',
+    'Choose only one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords`',
+    'Country or region filters are allowed when the user specifies geography',
+    'Do not use `crossFieldOperator: "AND"` in Round 1 by default'
   ].join('\n');
   const root = makeOkkiRoot({
     references: {
@@ -381,10 +382,46 @@ test('runStaticChecks fails when OKKI index-language preference keeps the old lo
   assert.ok(result.forbidden.includes('Cold start: before any OKKI result is available, choose concrete target-company profile words by business reasoning'));
 });
 
+test('runStaticChecks fails when OKKI index-language preference permits multi-dimension first search by default', () => {
+  const oldMultiDimensionText = [
+    'Round 1 Search Preference',
+    'Prefer concrete product or business-scope terms that may appear in target-company profiles',
+    'Use fewer abstract industry labels, such as FMCG, food and beverage, and contract packaging',
+    'In Round 1, avoid combining multiple search dimensions',
+    'productKeywords + companyTypeKeywords + industryKeywords + AND',
+    'unless the user explicitly specifies them'
+  ].join('\n');
+  const root = makeOkkiRoot({
+    references: {
+      'api-reference.md': 'X-Okki-Skill-Version: 1.2.0\n| `withEmails` | integer |\n',
+      'authentication.md': credentialAuthText(),
+      'discovery-playbook.md': [
+        'search-advanced page size must never exceed 50.',
+        'When target_count > 50, use free pagination with size: 50, from: 0, then from: 50.',
+        'Do not call /contacts/search or /companies/unlock to satisfy company-count targets.',
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn',
+        'current_turn_merchant_seed_extracted',
+        'Do not repeat questions for merchant facts the user already provided',
+        'trade_mode_unknown_degraded_not_blocked',
+        oldMultiDimensionText
+      ].join('\n'),
+      'merchant-profile-playbook.md': [
+        'Current-Turn Merchant Seed',
+        'user_provided_current_turn'
+      ].join('\n')
+    }
+  });
+  const result = resultById(runStaticChecks({ okkiRoot: root }), 'okki-index-language-preference-guardrail');
+
+  assert.equal(result.status, 'failed');
+  assert.ok(result.forbidden.includes('unless the user explicitly specifies them'));
+});
+
 test('runStaticChecks passes when discovery recovery gradient is explicit', () => {
   const gradientText = [
     'Automatic recovery gradient',
-    'Round 1: model-judgment first search',
+    'Round 1: recall-first one-dimension search',
     'Recovery 1: target-side rewrite',
     'Recovery 2: buyer-route shift',
     'Recovery 3: narrow-field cleanup',
@@ -392,7 +429,8 @@ test('runStaticChecks passes when discovery recovery gradient is explicit', () =
     'merchant_offer_anchor',
     'target_side_projection',
     'direct target-company request',
-    'Do not rewrite the user-specified company type in Recovery 1',
+    'In Recovery 1, change product/category wording before adding another dimension',
+    'In Recovery 2, you may add or broaden the company type within the same route',
     'Do not use global `OR`',
     'Do not combine unrelated buyer routes'
   ].join('\n');

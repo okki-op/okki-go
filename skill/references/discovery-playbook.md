@@ -6,11 +6,17 @@ Default behavior is simple: infer target-company profile keywords, search, show 
 
 ## Round 1 Search Preference
 
-1. Prefer concrete product or business-scope terms that may appear in target-company profiles, such as cosmetics, skincare, perfume, detergent, and packaging materials. Use fewer abstract industry labels, such as FMCG, food and beverage, and contract packaging.
+Round 1 is recall-first. Its job is to create a usable candidate pool, not to prove exact fit in one API call.
 
-2. In Round 1, avoid combining multiple search dimensions, such as productKeywords + companyTypeKeywords + industryKeywords + AND, unless the user explicitly specifies them.
+1. Before the first search, translate user words into OKKI index-language terms: upper-level category words, application words, service words, procurement language, local-language words, and common target-company profile terms. Do not rely on one exact SKU, model, or long-tail product phrase from the user.
 
-The first search should use model judgment, not a fixed template. Build one concise target-company hypothesis and search it. The guardrails below say what not to do; they do not require a specific keyword set.
+2. Use exactly one keyword dimension by default. Choose only one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords` for Round 1. Country or region filters are allowed when the user specifies geography.
+
+3. Prefer `productKeywords` for Round 1 when product, service, application, or buyer-need terms are available. Use 2-5 same-dimension terms in that field, such as synonyms, broader category terms, target-side application terms, or local-language terms.
+
+4. Do not use `industryKeywords` in Round 1 by default, and do not use `crossFieldOperator: "AND"` in Round 1 by default. Treat extra dimensions from the user as soft display or recovery clues.
+
+The first search should use model judgment, not a fixed template. Build one concise target-company hypothesis and search it with one keyword dimension plus optional geography. The guardrails below say what not to do; they do not require a specific keyword set.
 
 ## 1. Constructible Search
 
@@ -44,7 +50,7 @@ Do not repeat questions for merchant facts the user already provided. If target 
 
 User-provided products, services, certifications, websites, and business descriptions are merchant-side context first when the user describes their own business. Common merchant-side signals include "I am", "we are", "we manufacture", "we sell", "our company", "our website", and product pages.
 
-Direct target-company requests are different. If the user says "Find German auto glass importers", "Find Middle East auto parts distributors", or "Search US security system installers", the user already named target-side product/category terms and target company types. Use those terms more directly in the first search.
+Direct target-company requests are different. If the user says "Find German auto glass importers", "Find Middle East auto parts distributors", or "Search US security system installers", the user already named target-side product/category terms and target company types. Keep Round 1 recall-first: use the product/category side as the first keyword dimension when available, and keep company type words for display filtering or recovery.
 
 Do not mechanically copy merchant-side terms into `productKeywords`. Store them mentally as `merchant_offer_anchor` and project them into target-company terms before or during recovery.
 
@@ -77,7 +83,7 @@ Bad:
 }
 ```
 
-Better:
+Better for recovery or explicit later refinement:
 
 ```json
 {
@@ -86,16 +92,25 @@ Better:
 }
 ```
 
-Direct target-company requests can use the user's terms more directly. If the user says "Find auto parts importers", `auto parts` is target-side product/category context and `importer` is target-side company type.
+Better for Round 1:
+
+```json
+{
+  "productKeywords": ["auto parts", "automotive glass", "vehicle parts", "Autoglas"],
+  "includeCountry": ["DE"]
+}
+```
+
+Direct target-company requests can use the user's product/category terms more directly. If the user says "Find auto parts importers", `auto parts` is target-side product/category context and `importer` is target-side company type; Round 1 should usually search product/category terms plus geography, then use `importer` in recovery if recall is weak or noisy.
 
 Simple request classification:
 
 | User says | Classify as | First-search handling |
 |-----------|-------------|-----------------------|
-| "I am an auto glass manufacturer; find German customers." | Merchant-side seed | Search one likely target route. If weak, rewrite to target-side terms such as `auto parts`, `automotive aftermarket`, or `vehicle glass service`. |
-| "Our website is for custom door locks; find US buyers." | Merchant-side seed | Search one likely buyer route. If weak, rewrite to `door hardware`, `architectural hardware`, `access control`, or `security systems`. |
-| "Find German auto glass importers." | Direct target-company request | Use `auto glass` or `automotive glass` with `importer` and `DE`; do not force a merchant-side rewrite first. |
-| "Find Middle East auto parts distributors." | Direct target-company request | Use `auto parts` with `distributor` and a practical Middle East country set. |
+| "I am an auto glass manufacturer; find German customers." | Merchant-side seed | Round 1: product/category terms such as `auto parts`, `automotive glass`, `vehicle parts`, or `Autoglas` plus `DE`. If weak, rewrite within product/category terms first. |
+| "Our website is for custom door locks; find US buyers." | Merchant-side seed | Round 1: product/category terms such as `door hardware`, `architectural hardware`, `access control`, or `security systems` plus `US`. |
+| "Find German auto glass importers." | Direct target-company request | Round 1: `auto glass`, `automotive glass`, `vehicle glass`, `Autoglas`, or `Windschutzscheibe` plus `DE`; keep `importer` for display filtering or recovery. |
+| "Find Middle East auto parts distributors." | Direct target-company request | Round 1: `auto parts`, `automotive aftermarket`, or `vehicle parts` plus a practical Middle East country set; keep `distributor` for display filtering or recovery. |
 
 ## 3. Payload Contract
 
@@ -104,7 +119,6 @@ Send only fields supported by [api-reference.md](./api-reference.md):
 ```json
 {
   "productKeywords": ["auto parts", "automotive aftermarket"],
-  "companyTypeKeywords": ["importer", "distributor"],
   "includeCountry": ["DE"],
   "from": 0,
   "size": 10
@@ -113,21 +127,29 @@ Send only fields supported by [api-reference.md](./api-reference.md):
 
 Rules:
 
-- Use `node scripts/search-companies.js --json '<payload>'`.
+- Use `node scripts/search-companies.js --json '<payload>' --compact --locale '<user-locale>' --save-raw /private/tmp/okki-go-batches/<batch>.json` for normal free company-search display.
+- Do not call `search-companies.js` without `--compact` unless the user explicitly asks for raw/debug output.
 - `size` defaults to wrapper/API behavior when the user does not specify a count.
 - `size` must be 1-50. Paginate with `from` for larger counts.
 - When `target_count > 50`, use free pagination with `size: 50`, `from: 0`, then `from: 50`, and continue by page as needed. Do not call `/contacts/search` or `/companies/unlock` to satisfy company-count targets.
 - Use ISO 3166-1 alpha-2 country codes.
 - Use `withEmails: 1` only when the user asks for companies with emails or when email availability is central to the task.
 - Do not add `withEmails: 1` just because leads should be contactable. Company discovery is free; contact availability can be checked after candidates exist.
-- Do not pack `productKeywords`, `companyTypeKeywords`, and `industryKeywords` together by default. Use only the fields needed for the chosen hypothesis.
+- In Round 1, use exactly one keyword dimension by default. Choose only one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords`.
+- Country or region filters are allowed in Round 1 when the user specifies geography.
+- Do not pack `productKeywords`, `companyTypeKeywords`, and `industryKeywords` together by default. Extra user dimensions are soft display or recovery clues.
 - Omit `crossFieldOperator` when a simple payload is enough. Use `"AND"` only when every chosen field must be required. Use `"OR"` only for a deliberate broad scan.
+- Do not use `crossFieldOperator: "AND"` in Round 1 by default.
 - Do not switch the whole payload from `"AND"` to `"OR"` as the default response to zero results.
 - Do not invent unsupported fields such as `employee_range`, `decision_roles`, `website`, `homepage`, `url`, `contacts`, or `limit`.
 - Treat employee range, certifications, and similar constraints as local display/filtering guidance only if present in returned fields.
 - Decision roles are for later contact lookup or outreach; never put roles into company-search keywords.
 
 Free company-search output must hide internal identifiers. Do not display `domain`, website, homepage, URL, link fields, or raw internal IDs. Store `domain` privately by row number for later `/companies/unlock`.
+
+Apply this silently in user replies. Present only visible company fields and the next action; do not explain that domain, website, URL, or internal fields were hidden, omitted, filtered, or privately mapped unless the user asks for raw/debug output.
+
+For display, use localized country/region names from compact output (`country_name`) instead of raw ISO country codes. Fall back to `country_code` only when a localized name is unavailable.
 
 ## 4. Country Normalization
 
@@ -209,17 +231,17 @@ Automatic recovery budget:
 
 Use this order. It is designed for weaker models: do the first applicable step, run the free search, inspect whether results improved, then move to the next step only if needed.
 
-1. **Round 1: model-judgment first search.** Build one concise target-company search hypothesis from the current request. Keep the model's normal B2B judgment. Do not add a separate visible validator, a Query Plan Portfolio, or a long explanation before the first search.
-2. **Recovery 1: target-side rewrite.** If Round 1 is zero, sparse, noisy, or peer-manufacturer-heavy, treat merchant-side terms as `merchant_offer_anchor` and rewrite `productKeywords` into target-side category, inventory, service, application, or procurement language. Keep target geography. Keep the same clear buyer route where possible.
-3. **Recovery 2: buyer-route shift.** If Recovery 1 is still weak, stop changing only synonyms. Shift to one adjacent buyer route with a clear path, such as channel route to installer/integrator route, or narrow importer route to trade-category supplier route. Keep geography. Use one route per payload.
+1. **Round 1: recall-first one-dimension search.** Build one concise target-company search hypothesis from the current request. Use exactly one keyword dimension by default, plus geography if specified. Translate user words into OKKI index-language terms before searching. Do not add a separate visible validator, a Query Plan Portfolio, or a long explanation before the first search.
+2. **Recovery 1: target-side rewrite.** If Round 1 is zero, sparse, noisy, or peer-manufacturer-heavy, treat merchant-side terms as `merchant_offer_anchor` and rewrite within the same keyword dimension first, usually `productKeywords`, into target-side category, inventory, service, application, local-language, or procurement language. Keep target geography.
+3. **Recovery 2: buyer-route shift.** If Recovery 1 is still weak, stop changing only synonyms. Shift to one adjacent buyer route with a clear path, such as channel route to installer/integrator route, or narrow importer route to trade-category supplier route. Keep geography. Use one route per payload. This is the first normal place to add or switch to `companyTypeKeywords`.
 4. **Recovery 3: narrow-field cleanup.** If Recovery 2 is still weak, remove the least important narrowing field, such as `industryKeywords`, or remove `withEmails` if the user did not require email-only results. You may broaden the same route from one company type to route-compatible types, such as `importer` to `importer`, `distributor`, and `wholesaler`.
 5. **Stop after the recovery budget.** After three recovery searches, stop automatic searching. Show the best current results or say that the search is still weak, then offer two or three next directions instead of continuing to guess.
 
 Direct target-company request rule:
 
-- For a direct target-company request, Recovery 1 changes product/category wording first and preserves the user-specified company type. Example: `auto glass importer` can recover to `automotive glass`, `vehicle glass`, `auto parts`, or `automotive aftermarket` while keeping `importer`.
-- Do not rewrite the user-specified company type in Recovery 1.
-- In Recovery 2, you may broaden the company type only within the same route, such as `importer` to `importer`, `distributor`, and `wholesaler`.
+- For a direct target-company request, Round 1 usually searches product/category wording first and keeps the user-specified company type as a soft clue. Example: `auto glass importer` can start with `automotive glass`, `vehicle glass`, `auto parts`, `automotive aftermarket`, `Autoglas`, or `Windschutzscheibe` plus geography.
+- In Recovery 1, change product/category wording before adding another dimension.
+- In Recovery 2, you may add or broaden the company type within the same route, such as `importer` to `importer`, `distributor`, and `wholesaler`.
 
 Merchant-side seed rule:
 
@@ -249,16 +271,16 @@ Examples:
 ```text
 Merchant-side seed:
 User: "I am a custom door lock manufacturer. Find German customers."
-Round 1 may use: door locks + distributor/dealer + DE
-Recovery 1 should use: door hardware / architectural hardware + distributor/dealer + DE
-Recovery 2 may use: access control / security systems + installer/integrator + DE
+Round 1 should use: door hardware / architectural hardware / security hardware + DE
+Recovery 1 may use: access control / security systems + DE
+Recovery 2 may use: installer / integrator + DE, or distributor / dealer + DE
 Recovery 3 may remove an industry keyword or broaden dealer to distributor/wholesaler.
 
 Direct target-company request:
 User: "Find German auto glass importers."
-Round 1 should use: auto glass / automotive glass + importer + DE
-Recovery 1 should keep importer and use: vehicle glass / auto parts / automotive aftermarket + importer + DE
-Recovery 2 may broaden within the channel route: importer/distributor/wholesaler + auto parts or automotive aftermarket + DE
+Round 1 should use: auto glass / automotive glass / vehicle glass / Autoglas / Windschutzscheibe + DE
+Recovery 1 should use: auto parts / automotive aftermarket / vehicle parts + DE
+Recovery 2 may add or broaden within the channel route: importer/distributor/wholesaler + auto parts or automotive aftermarket + DE
 ```
 
 ## 7. Paid and Send Guardrails

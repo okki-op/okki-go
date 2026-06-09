@@ -308,16 +308,18 @@ function checkOkkiIndexLanguagePreferenceGuardrail(okkiRoot) {
   const discovery = readText(discoveryPath);
   const required = [
     'Round 1 Search Preference',
-    'Prefer concrete product or business-scope terms that may appear in target-company profiles',
-    'Use fewer abstract industry labels, such as FMCG, food and beverage, and contract packaging',
-    'In Round 1, avoid combining multiple search dimensions',
-    'productKeywords + companyTypeKeywords + industryKeywords + AND',
-    'unless the user explicitly specifies them'
+    'Round 1 is recall-first',
+    'translate user words into OKKI index-language terms',
+    'Use exactly one keyword dimension by default',
+    'Choose only one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords`',
+    'Country or region filters are allowed when the user specifies geography',
+    'Do not use `crossFieldOperator: "AND"` in Round 1 by default'
   ];
   const forbidden = [
     'Cold start: before any OKKI result is available, choose concrete target-company profile words by business reasoning',
     'Do not assume the model knows OKKI internal index terms before the first search',
-    'Observed results: after any OKKI result is returned, use terms from `company_type`, `industry`, `main_products`, and `company_profile` for recovery'
+    'Observed results: after any OKKI result is returned, use terms from `company_type`, `industry`, `main_products`, and `company_profile` for recovery',
+    'unless the user explicitly specifies them'
   ];
 
   const missing = required.filter((needle) => !discovery.includes(needle));
@@ -345,7 +347,7 @@ function checkDiscoveryRecoveryGradientGuardrail(okkiRoot) {
   const discovery = readText(discoveryPath);
   const required = [
     'Automatic recovery gradient',
-    'Round 1: model-judgment first search',
+    'Round 1: recall-first one-dimension search',
     'Recovery 1: target-side rewrite',
     'Recovery 2: buyer-route shift',
     'Recovery 3: narrow-field cleanup',
@@ -353,7 +355,8 @@ function checkDiscoveryRecoveryGradientGuardrail(okkiRoot) {
     'merchant_offer_anchor',
     'target_side_projection',
     'direct target-company request',
-    'Do not rewrite the user-specified company type in Recovery 1',
+    'In Recovery 1, change product/category wording before adding another dimension',
+    'In Recovery 2, you may add or broaden the company type within the same route',
     'Do not use global `OR`',
     'Do not combine unrelated buyer routes'
   ];

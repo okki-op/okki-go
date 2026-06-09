@@ -18,18 +18,16 @@ expected:
             productKeywords:
               - sustainable packaging
               - paper packaging
+          exclude:
             companyTypeKeywords:
               - brand
               - importer
               - distributor
+              - manufacturer
             industryKeywords:
               - food and beverage
               - cosmetics
             crossFieldOperator: AND
-          exclude:
-            companyTypeKeywords:
-              - manufacturer
-            crossFieldOperator: OR
   behavior:
     mustEmit:
       - current_turn_merchant_seed_extracted
@@ -40,15 +38,16 @@ expected:
       - pmf_brief_built
       - merchant_offer_anchor_recorded
       - target_side_projection_built
-      - query_plan_portfolio_built
+      - round1_recall_first_one_dimension
       - target_geo_preserved
     ordered:
       - - current_turn_merchant_seed_extracted
         - pmf_brief_built
       - - pmf_brief_built
-        - query_plan_portfolio_built
+        - round1_recall_first_one_dimension
     mustNotEmit:
       - pmf_gate_website_prompted
       - repeated_profile_country_question
       - repeated_primary_product_question
       - lite_onboarding_started
+      - query_plan_portfolio_built

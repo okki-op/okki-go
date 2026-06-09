@@ -26,8 +26,8 @@ const DEFAULT_CONCURRENCY = 4;
 function usage() {
   console.error([
     'Usage:',
-    '  node scripts/discover-companies-batch.js --plan /path/plan.json --target-count N --save-batch /private/tmp/okki-go-batches/batch.json --compact',
-    '  node scripts/discover-companies-batch.js --json \'<plan>\' --compact'
+    '  node scripts/discover-companies-batch.js --plan /path/plan.json --target-count N --save-batch /private/tmp/okki-go-batches/batch.json --compact [--locale en-US]',
+    '  node scripts/discover-companies-batch.js --json \'<plan>\' --compact [--locale en-US]'
   ].join('\n'));
 }
 
@@ -38,7 +38,8 @@ function parseArgs(argv) {
     targetCount: null,
     saveBatch: null,
     compact: false,
-    concurrency: DEFAULT_CONCURRENCY
+    concurrency: DEFAULT_CONCURRENCY,
+    locale: null
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -53,6 +54,8 @@ function parseArgs(argv) {
       args.saveBatch = argv[++i];
     } else if (arg === '--compact') {
       args.compact = true;
+    } else if (arg === '--locale') {
+      args.locale = argv[++i];
     } else if (arg === '--concurrency') {
       args.concurrency = positiveInt(argv[++i], '--concurrency');
     } else if (arg === '--help' || arg === '-h') {
@@ -221,7 +224,10 @@ async function main() {
     scanned_pages: requests.length,
     raw_count: rawRecords.length,
     deduped_count: deduped.length,
-    rows: selected.map((record, index) => compactCompanyRow(record, index + 1, { include: plan.include })),
+    rows: selected.map((record, index) => compactCompanyRow(record, index + 1, {
+      include: plan.include,
+      locale: args.locale
+    })),
     private_mapping_saved: true,
     raw_path: saveBatch,
     ...budgeted.metadata

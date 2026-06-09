@@ -6,6 +6,8 @@ const path = require('path');
 const PRIVATE_FIELD_PATTERN = /(domain|hash|id|website|homepage|url|link)$/i;
 const DEFAULT_BATCH_DIR = '/private/tmp/okki-go-batches';
 const DEFAULT_OUTPUT_HARD_CAP = 100;
+const DEFAULT_LOCALE = 'en-US';
+const regionDisplayNamesByLocale = new Map();
 
 function nowIso() {
   return new Date().toISOString();
@@ -160,7 +162,35 @@ function countryCode(record) {
   return value ? String(value).trim().toUpperCase() : '';
 }
 
+function normalizeLocale(value) {
+  const locale = cleanString(value || DEFAULT_LOCALE);
+  try {
+    return Intl.DisplayNames.supportedLocalesOf([locale])[0] || DEFAULT_LOCALE;
+  } catch (_) {
+    return DEFAULT_LOCALE;
+  }
+}
+
+function regionDisplayNames(locale) {
+  const normalized = normalizeLocale(locale);
+  if (!regionDisplayNamesByLocale.has(normalized)) {
+    regionDisplayNamesByLocale.set(normalized, new Intl.DisplayNames([normalized], { type: 'region' }));
+  }
+  return regionDisplayNamesByLocale.get(normalized);
+}
+
+function countryName(recordOrCode, locale) {
+  const code = typeof recordOrCode === 'string' ? recordOrCode.trim().toUpperCase() : countryCode(recordOrCode);
+  if (!/^[A-Z]{2}$/.test(code)) return '';
+  try {
+    return cleanString(regionDisplayNames(locale).of(code)) || code;
+  } catch (_) {
+    return code;
+  }
+}
+
 function compactCompanyRow(record, row, options = {}) {
+  const code = countryCode(record);
   const type = compactList(firstNonEmpty(
     record.company_type,
     record.companyType,
@@ -171,7 +201,8 @@ function compactCompanyRow(record, row, options = {}) {
   return {
     row,
     company_name: companyName(record) || 'Unknown company',
-    country_code: countryCode(record) || null,
+    country_code: code || null,
+    country_name: countryName(code, options.locale) || null,
     company_type: type || '未知',
     email_count: numericOrUnknown(firstNonEmpty(record.email_count, record.emailCount, record.emails_count)),
     employees_count: firstNonEmpty(record.employees_count, record.employeeCount, record.employeesCount, record.employee_range) || '未知',
@@ -283,9 +314,12 @@ module.exports = {
   compactCompanyRow,
   compactList,
   countryCode,
+  countryName,
   DEFAULT_BATCH_DIR,
+  DEFAULT_LOCALE,
   DEFAULT_OUTPUT_HARD_CAP,
   defaultRawPath,
+  normalizeLocale,
   normalizeDomain,
   normalizeName,
   nowIso,

@@ -30,12 +30,13 @@ Single-page company search:
 node scripts/search-companies.js \
   --json '<search-advanced payload>' \
   --compact \
-  --fields company_name,email_count,employees_count,company_type,fit \
+  --locale '<user-locale>' \
+  --fields company_name,country_name,email_count,employees_count,company_type,fit \
   --limit-output 50 \
   --save-raw /private/tmp/okki-go-batches/search-raw.json
 ```
 
-`--compact` omits `domain`, raw IDs, website/homepage/URL/link fields from stdout and writes row-to-domain mapping plus raw records to `--save-raw`.
+`--compact` omits `domain`, raw IDs, website/homepage/URL/link fields from stdout and writes row-to-domain mapping plus raw records to `--save-raw`. `--locale` adds localized `country_name` values for user-facing display while preserving `country_code` for internal workflow use.
 
 Batch discovery for "more", pagination-heavy, or count-based requests:
 
@@ -44,7 +45,8 @@ node scripts/discover-companies-batch.js \
   --plan /private/tmp/de-autoglass-plan.json \
   --target-count N \
   --save-batch /private/tmp/okki-go-batches/de-autoglass-20260604.json \
-  --compact
+  --compact \
+  --locale '<user-locale>'
 ```
 
 The numeric values in examples are placeholders; scripts use the requested target count and generic row selectors such as `1,3,7-9`.
@@ -58,7 +60,8 @@ node scripts/unlock-companies.js \
   --batch latest \
   --rows ROWS \
   --mark-unlocked \
-  --compact
+  --compact \
+  --locale '<user-locale>'
 ```
 
 `unlock-companies.js` reads saved row mappings, including `--batch latest` within the 24h TTL, calls paid `/companies/unlock`, fetches profile/profileEmails/balance, uses `mark-unlocked-batch`, and emits charge/balance/company summaries only. Compact output includes `raw_path`; it never prints `domain` or `companyHashId`. The skill workflow must still ask explicit paid confirmation before calling it.

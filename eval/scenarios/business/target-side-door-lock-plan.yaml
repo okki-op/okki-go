@@ -18,37 +18,33 @@ expected:
             productKeywords:
               - door hardware
               - building hardware
-            companyTypeKeywords:
-              - importer
-              - distributor
-            industryKeywords:
-              - construction materials
-            crossFieldOperator: AND
           exclude:
             productKeywords:
               - door lock
               - custom door locks
               - smart locks
             companyTypeKeywords:
+              - importer
+              - distributor
               - manufacturer
-            crossFieldOperator: OR
+            industryKeywords:
+              - construction materials
+            crossFieldOperator: AND
   behavior:
     mustEmit:
       - pmf_brief_built
       - merchant_offer_anchor_recorded
       - target_side_projection_built
-      - query_plan_portfolio_built
       - merchant_offer_terms_not_mechanically_copied
+      - round1_recall_first_one_dimension
       - target_geo_preserved
       - target_side_query_validator_passed
-      - results_grouped_by_query_plan
     ordered:
       - - merchant_offer_anchor_recorded
         - target_side_projection_built
       - - target_side_projection_built
-        - query_plan_portfolio_built
-      - - query_plan_portfolio_built
         - target_side_query_validator_passed
     mustNotEmit:
       - brief_sent_directly_as_single_payload
+      - query_plan_portfolio_built
       - global_or_broadening_applied

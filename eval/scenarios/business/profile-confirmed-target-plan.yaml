@@ -17,14 +17,16 @@ expected:
           include:
             includeCountry:
               - DE
+            productKeywords:
+              - auto parts
+              - automotive aftermarket
+          exclude:
             companyTypeKeywords:
               - importer
               - distributor
             industryKeywords:
               - automotive aftermarket
             crossFieldOperator: AND
-          exclude:
-            crossFieldOperator: OR
     mustNotCall:
       - method: POST
         path: /api/v1/contacts/search
@@ -37,7 +39,7 @@ expected:
       - pmf_brief_built
       - merchant_offer_anchor_recorded
       - target_side_projection_built
-      - query_plan_portfolio_built
+      - round1_recall_first_one_dimension
       - core_query_plan_selected
     ordered:
       - - profile_extraction_confirmation_requested
@@ -47,6 +49,6 @@ expected:
       - - profile_confirmed_saved
         - pmf_brief_built
       - - pmf_brief_built
-        - query_plan_portfolio_built
-      - - query_plan_portfolio_built
+        - round1_recall_first_one_dimension
+      - - round1_recall_first_one_dimension
         - core_query_plan_selected

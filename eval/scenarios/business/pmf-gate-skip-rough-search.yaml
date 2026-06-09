@@ -17,6 +17,10 @@ expected:
           include:
             includeCountry:
               - DE
+            productKeywords:
+              - auto parts
+              - automotive aftermarket
+          exclude:
             crossFieldOperator: AND
     mustNotCall:
       - method: POST

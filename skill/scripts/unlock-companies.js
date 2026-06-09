@@ -13,6 +13,7 @@ const {
   batchIdFromPath,
   cleanString,
   countryCode,
+  countryName,
   defaultRawPath,
   nowIso,
   outputBudgetMetadata,
@@ -24,9 +25,9 @@ const { resolveBatchPath } = require('./lib/batch-state');
 function usage() {
   console.error([
     'Usage:',
-    '  node scripts/unlock-companies.js --batch batch.json --rows ROWS --compact [--mark-unlocked] [--raw-file PATH]',
-    '  node scripts/unlock-companies.js --batch latest --rows ROWS --compact [--mark-unlocked] [--raw-file PATH]',
-    '  node scripts/unlock-companies.js --batch batch.json --rows ROWS --detail [--raw-file PATH]'
+    '  node scripts/unlock-companies.js --batch batch.json --rows ROWS --compact [--locale en-US] [--mark-unlocked] [--raw-file PATH]',
+    '  node scripts/unlock-companies.js --batch latest --rows ROWS --compact [--locale en-US] [--mark-unlocked] [--raw-file PATH]',
+    '  node scripts/unlock-companies.js --batch batch.json --rows ROWS --detail [--locale en-US] [--raw-file PATH]'
   ].join('\n'));
 }
 
@@ -38,7 +39,8 @@ function parseArgs(argv) {
     detail: false,
     rawFile: null,
     markUnlocked: false,
-    now: null
+    now: null,
+    locale: null
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -56,6 +58,8 @@ function parseArgs(argv) {
       args.markUnlocked = true;
     } else if (arg === '--now') {
       args.now = argv[++i];
+    } else if (arg === '--locale') {
+      args.locale = argv[++i];
     } else if (arg === '--help' || arg === '-h') {
       usage();
       process.exit(0);
@@ -128,12 +132,15 @@ function profileDescription(profile) {
   return cleanString(profile.description || profile.company_profile || profile.profile || '');
 }
 
-function compactResult(item, mode) {
+function compactResult(item, mode, options = {}) {
   const profile = item.profile && !item.profile.error ? item.profile : null;
   const profileEmails = item.profileEmails && !item.profileEmails.error ? item.profileEmails : null;
+  const code = countryCode(item.row);
   const result = {
     row: item.row.row,
     company_name: item.row.company_name || item.unlock.companyName || 'Unknown company',
+    country_code: code || null,
+    country_name: countryName(code, options.locale) || null,
     status: item.unlock.companyHashId ? 'unlocked' : 'failed',
     charged: Boolean(item.unlock.charged),
     summary: profile ? cleanString(profile.industry || profile.company_type || '') : '',
@@ -219,7 +226,7 @@ async function main() {
   writeJsonFile(rawPath, raw);
   const state = args.markUnlocked ? markUnlockedBatch(results.map((item) => item.row)) : null;
   const mode = args.detail ? 'detail' : 'compact';
-  const compactResults = results.map((item) => compactResult(item, mode));
+  const compactResults = results.map((item) => compactResult(item, mode, { locale: args.locale }));
   const output = {
     batch_id: batchIdFromPath(resolvedBatch.batchPath),
     latest_batch_used: resolvedBatch.latestBatchUsed,

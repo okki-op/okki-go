@@ -42,10 +42,10 @@ function usage() {
     'Usage:',
     '  node scripts/search-companies.js --json \'<search-advanced payload>\'',
     '  node scripts/search-companies.js --file /path/to/payload.json',
-    '  node scripts/search-companies.js --json \'<payload>\' --compact [--limit-output 50] [--fields company_name,email_count,fit] [--save-raw PATH]',
+    '  node scripts/search-companies.js --json \'<payload>\' --compact [--locale en-US] [--limit-output 50] [--fields company_name,country_name,email_count,fit] [--save-raw PATH]',
     '',
     'Example:',
-    '  node scripts/search-companies.js --json \'{"productKeywords":["auto glass"],"companyTypeKeywords":["importer","distributor"],"includeCountry":["DE"],"withEmails":0,"size":20}\' --compact'
+    '  node scripts/search-companies.js --json \'{"productKeywords":["auto glass"],"companyTypeKeywords":["importer","distributor"],"includeCountry":["DE"],"withEmails":0,"size":20}\' --compact --locale zh-CN'
   ].join('\n'));
 }
 
@@ -57,7 +57,8 @@ function parseArgs(argv) {
     compact: false,
     fields: null,
     limitOutput: null,
-    saveRaw: null
+    saveRaw: null,
+    locale: null
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -75,6 +76,8 @@ function parseArgs(argv) {
       args.limitOutput = parsePositiveInteger(argv[++i], '--limit-output');
     } else if (arg === '--save-raw') {
       args.saveRaw = argv[++i];
+    } else if (arg === '--locale') {
+      args.locale = argv[++i];
     } else if (arg === '--help' || arg === '-h') {
       usage();
       process.exit(0);
@@ -353,7 +356,8 @@ async function main() {
       payload,
       rawPath,
       fields: parseFields(args.fields),
-      limitOutput: args.limitOutput || payload.size || 50
+      limitOutput: args.limitOutput || payload.size || 50,
+      locale: args.locale
     });
     writeJsonFile(rawPath, compact.raw);
     writeLatestBatchPointer({
@@ -379,7 +383,7 @@ function compactSearchResponse(body, options) {
   });
   const fields = options.fields;
   const rows = budgeted.items.map((record, index) => (
-    projectFields(compactCompanyRow(record, index + 1), fields)
+    projectFields(compactCompanyRow(record, index + 1, { locale: options.locale }), fields)
   ));
   const rawRows = list.map((record, index) => ({
     row: index + 1,
