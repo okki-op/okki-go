@@ -10,7 +10,9 @@ const {
   batchIdFromPath,
   budgetedItems,
   compactCompanyRow,
+  DEFAULT_COMPANY_TARGET_COUNT,
   defaultRawPath,
+  discoveryHealth,
   nowIso,
   parseFields,
   projectFields,
@@ -18,7 +20,10 @@ const {
   responseTotal
 } = require('./lib/compact-output');
 const { writeJsonFile } = require('./lib/okki-api');
-const { writeLatestBatchPointer } = require('./lib/batch-state');
+const {
+  readLatestBatchPointer,
+  writeLatestBatchPointer
+} = require('./lib/batch-state');
 
 const BASE_URL = process.env.OKKIGO_BASE_URL || 'https://go.okki.ai';
 const SKILL_VERSION = process.env.OKKIGO_SKILL_VERSION || '1.2.1';
@@ -42,7 +47,7 @@ function usage() {
     'Usage:',
     '  node scripts/search-companies.js --json \'<search-advanced payload>\'',
     '  node scripts/search-companies.js --file /path/to/payload.json',
-    '  node scripts/search-companies.js --json \'<payload>\' --compact [--locale en-US] [--limit-output 50] [--fields company_name,country_name,email_count,fit] [--save-raw PATH]',
+    '  node scripts/search-companies.js --json \'<payload>\' --compact [--locale en-US] [--target-count 30] [--limit-output 50] [--fields company_name,country_name,email_count,fit] [--save-raw PATH]',
     '',
     'Example:',
     '  node scripts/search-companies.js --json \'{"productKeywords":["auto glass"],"companyTypeKeywords":["importer","distributor"],"includeCountry":["DE"],"withEmails":0,"size":20}\' --compact --locale zh-CN'
@@ -58,7 +63,8 @@ function parseArgs(argv) {
     fields: null,
     limitOutput: null,
     saveRaw: null,
-    locale: null
+    locale: null,
+    targetCount: null
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -78,6 +84,8 @@ function parseArgs(argv) {
       args.saveRaw = argv[++i];
     } else if (arg === '--locale') {
       args.locale = argv[++i];
+    } else if (arg === '--target-count') {
+      args.targetCount = parsePositiveInteger(argv[++i], '--target-count');
     } else if (arg === '--help' || arg === '-h') {
       usage();
       process.exit(0);
@@ -195,7 +203,7 @@ function normalizeCrossFieldOperator(payload) {
 
 function normalizePagination(payload) {
   const from = payload.from === undefined ? 0 : Number(payload.from);
-  const size = payload.size === undefined ? 10 : Number(payload.size);
+  const size = payload.size === undefined ? DEFAULT_COMPANY_TARGET_COUNT : Number(payload.size);
 
   if (!Number.isInteger(from) || from < 0) {
     throw new Error('from must be a non-negative integer.');
@@ -211,10 +219,9 @@ function normalizePagination(payload) {
 function ensureSearchable(payload) {
   const hasKeywords = KEYWORD_FIELDS
     .some((key) => Array.isArray(payload[key]) && payload[key].length > 0);
-  const hasCountry = Array.isArray(payload.includeCountry) && payload.includeCountry.length > 0;
 
-  if (!hasKeywords && !hasCountry) {
-    throw new Error('Payload must include at least one keyword field or includeCountry.');
+  if (!hasKeywords) {
+    throw new Error('Payload must include at least one of productKeywords, industryKeywords, or companyTypeKeywords.');
   }
 }
 
@@ -356,14 +363,17 @@ async function main() {
       payload,
       rawPath,
       fields: parseFields(args.fields),
-      limitOutput: args.limitOutput || payload.size || 50,
-      locale: args.locale
+      limitOutput: args.limitOutput || payload.size || DEFAULT_COMPANY_TARGET_COUNT,
+      locale: args.locale,
+      targetCount: args.targetCount || payload.size || DEFAULT_COMPANY_TARGET_COUNT,
+      latestPointer: readLatestBatchPointer({ ignoreErrors: true })
     });
     writeJsonFile(rawPath, compact.raw);
     writeLatestBatchPointer({
       batchPath: rawPath,
       displayedRows: compact.output.returned,
-      requestSummary: compact.raw.request_summary
+      requestSummary: compact.raw.request_summary,
+      discoveryHealth: compact.output.discovery_health
     });
     process.stdout.write(`${JSON.stringify(compact.output, null, 2)}\n`);
     return;
@@ -401,6 +411,15 @@ function compactSearchResponse(body, options) {
     raw_path: options.rawPath,
     ...budgeted.metadata
   };
+  output.discovery_health = discoveryHealth({
+    targetCount: options.targetCount,
+    visibleUniqueCount: rows.length,
+    usableCandidateCount: rows.length,
+    available: budgeted.metadata.available,
+    nextOffset: budgeted.metadata.next_offset,
+    hasNextPage: budgeted.metadata.truncated,
+    latestHealth: options.latestPointer && options.latestPointer.discovery_health
+  });
   return {
     output,
     raw: {

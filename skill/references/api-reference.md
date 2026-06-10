@@ -16,7 +16,7 @@
 ```http
 Authorization: ApiKey sk-your-key-here
 X-Okki-Install-Id: <anonymous install id>
-X-Okki-Skill-Version: 1.2.1
+X-Okki-Skill-Version: 1.3.0
 X-Okki-Skill-Runtime: <agent runtime>
 ```
 
@@ -105,11 +105,13 @@ X-Okki-Skill-Runtime: <agent runtime>
 
 ### 请求参数说明
 
+At least one of `companyTypeKeywords`, `productKeywords`, or `industryKeywords` must be non-empty. Geography fields such as `includeCountry` and `excludeCountry` are filters only and cannot be used as a keywordless search.
+
 | 参数 | 类型 | 必填 | 约束 | 说明 |
 |------|------|------|------|------|
-| `companyTypeKeywords` | string[] | 否 | — | 公司类型关键词 |
-| `productKeywords` | string[] | 否 | — | 产品关键词 |
-| `industryKeywords` | string[] | 否 | — | 行业关键词 |
+| `companyTypeKeywords` | string[] | 条件必填 | 三个关键词字段至少一个非空 | 公司类型关键词 |
+| `productKeywords` | string[] | 条件必填 | 三个关键词字段至少一个非空 | 产品关键词 |
+| `industryKeywords` | string[] | 条件必填 | 三个关键词字段至少一个非空 | 行业关键词 |
 | `includeCountry` | string[] | 否 | ISO 3166-1 alpha-2 | 包含的国家代码 |
 | `excludeCountry` | string[] | 否 | ISO 3166-1 alpha-2 | 排除的国家代码 |
 | `withEmails` | integer | 否 | `0` / `1` | 是否只返回有邮箱的公司 |

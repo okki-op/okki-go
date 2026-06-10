@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-05-28)
 
 **Core value:** The skill must turn vague B2B prospecting requests into safe, repeatable, source-backed search and outreach preparation without bypassing paid-action or email-send confirmations.
-**Current focus:** v1.2.x audit remediation verified
+**Current focus:** v1.3.0 optimized mentor mode landing
 
 ## Current Position
 
-Phase: 5 of 5 (Verification and Release Readiness)
-Plan: 2 of 2 in current phase
-Status: Complete — release-ready
-Last activity: 2026-06-02 - Completed quick task 2: OKKI Go skill audit remediation: high/medium risks and SKILL.md length
+Phase: 6 of 6 (Optimized Mentor Mode 1.3.0)
+Plan: 1 of 1 in current phase
+Status: Complete — optimized mentor-mode contract landed
+Last activity: 2026-06-09 - Landed L0/L1/L2 mentor mode, pagination-aware Expansion, recallability guardrails, and 1.3.0 version references
 
 Progress: [██████████] 100%
 
@@ -71,16 +71,24 @@ Recent decisions affecting current work:
 - Quick task 2 added static guardrails for preflight, installed state-helper path, free-search output privacy, unlock confirmation, `search-advanced` supported-only docs, viewed large-input docs, and `SKILL.md` length.
 - `okki-state.js viewed classify` and `viewed mark-shown` now support `--results-file PATH` and `--results-file -`; inline `--results-json` remains available for small payloads.
 - Packaging manufacturer cases now cover both "我是纸品包装制造商，有欧盟环保认证，帮我找意大利的潜客" and "我是纸品包装制造商，帮我开发潜客"; the latter asks target geography/buyer route only and does not repeat product/company-type questions.
+- Phase 6 targets `1.3.0`, not `1.2.2`, because the optimized mentor mode changes user-visible routing and guidance behavior.
+- Phase 6 intentionally excludes eval implementation changes; eval remains a verification tool and can be updated in a separate follow-up phase if needed.
+- `skill/SKILL.md` now defines Optimized Mentor Mode with L0 Default Search, L1 Mentor Lite, L2 Mentor Guided, Minimal Prospecting Profile, OKKI Recallability Guard, pagination-before-Expansion, and explicit Web Research Add-on boundaries.
+- `sales-mentor-playbook.md` was rewritten around compact L1/L2 mentor behavior, customer-side relationship routes, buyer-side validation, source discipline, and non-bypassable paid-action confirmation.
+- `expansion-playbook.md` now treats Expansion as user-confirmed new search branches after pagination is exhausted or a new route is explicitly requested.
+- `discovery-playbook.md` and `workflows.md` now align default search, recovery budgets, L1/L2 routing, and follow-up pagination with the optimized mentor design.
+- Package, installer, resolver, API reference, authentication examples, README, INSTALL, and SKILL references now align to `1.3.0`.
 
 ### Pending Todos
 
-- None for v1.2.0 Discovery Harness release readiness.
+- Align eval static checks/scenarios with v1.3.0 optimized mentor mode in a separate follow-up phase if automated evaluation remains required.
 
 ### Blockers/Concerns
 
 - `okki-go` is not a git root; commit commands must be run from the parent worktree or with correct paths.
 - Existing worktree still has unrelated and prior-phase modified/untracked files; do not revert or overwrite them.
 - Live local-agent behavior and paid OKKI API flows were not exercised in Phase 5; coverage is deterministic local-core plus safety-rule review.
+- Existing eval static check still expects the old PMF Gate boundary sentence; this was not changed because eval implementation is not part of Phase 6.
 
 ### Quick Tasks Completed
 

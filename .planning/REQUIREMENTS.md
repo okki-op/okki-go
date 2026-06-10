@@ -43,6 +43,19 @@
 - [x] **REL-02**: Maintainer can inspect a self-review checklist covering playbook references, workflow order, helper call order, three-tier routing, Ladder trigger, unlocked write timing, trade_mode timing, direct-search fallback, pagination strategy, Iron Rule 0, and B'' coverage.
 - [x] **REL-03**: Package and SKILL version references are consistently bumped from 1.0.12 to 1.2.0 where release scope requires it.
 
+## v1.3.0 Requirements
+
+### Optimized Mentor Mode
+
+- [x] **OMM-01**: User can see Skill routing that separates L0 Default Search, L1 Mentor Lite, and L2 Mentor Guided.
+- [x] **OMM-02**: L2 Mentor Guided requires a Minimal Prospecting Profile, uses Product Context Lite only when route choice is blocked, and treats Success Customer Profile as optional.
+- [x] **OMM-03**: Mentor routes use customer-side relationship reasoning and buyer-side validation before recommending or searching a route.
+- [x] **OMM-04**: OKKI Recallability Guard keeps first route payloads to one primary search field plus optional geography, with secondary role signals in local priority rules.
+- [x] **OMM-05**: Expansion checks pagination state before new branches and requires user confirmation before searching one new branch.
+- [x] **OMM-06**: Web Research Add-on is explicit, source-backed, separate from OKKI search, and cannot mutate search payloads without confirmation.
+- [x] **OMM-07**: Existing paid unlock, contact-search, and email-send confirmations remain authoritative.
+- [x] **OMM-08**: Package, installer, resolver, API reference, authentication examples, README, INSTALL, and SKILL version references align to 1.3.0.
+
 ## v2 Requirements
 
 ### Deferred Personalization
@@ -93,12 +106,21 @@
 | REL-01 | Phase 5 | Complete |
 | REL-02 | Phase 5 | Complete |
 | REL-03 | Phase 5 | Complete |
+| OMM-01 | Phase 6 | Complete |
+| OMM-02 | Phase 6 | Complete |
+| OMM-03 | Phase 6 | Complete |
+| OMM-04 | Phase 6 | Complete |
+| OMM-05 | Phase 6 | Complete |
+| OMM-06 | Phase 6 | Complete |
+| OMM-07 | Phase 6 | Complete |
+| OMM-08 | Phase 6 | Complete |
 
 **Coverage:**
 - v1.2.0 requirements: 23 total
-- Mapped to phases: 23
+- v1.3.0 requirements: 8 total
+- Mapped to phases: 31
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-28*
-*Last updated: 2026-05-29 after Phase 5 release-readiness verification*
+*Last updated: 2026-06-09 after Phase 6 optimized mentor-mode landing*

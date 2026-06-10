@@ -15,6 +15,7 @@ This roadmap lands the merged discovery harness from rule contracts to tested re
 - [x] **Phase 3: Skill Workflow Integration** - Wire the harness into SKILL.md, preserving existing safety flows.
 - [x] **Phase 4: Eval Coverage** - Add regression scenarios for high-risk harness behavior.
 - [x] **Phase 5: Verification and Release Readiness** - Run self-review, tests, version checks, and release notes.
+- [x] **Phase 6: Optimized Mentor Mode 1.3.0** - Land L0/L1/L2 mentor routing, pagination-aware Expansion, recallability guardrails, and 1.3.0 version consistency.
 
 ## Phase Details
 
@@ -101,6 +102,21 @@ Plans:
 - [x] 05-01: Self-review and verification artifact
 - [x] 05-02: Final test run and release readiness cleanup
 
+### Phase 6: Optimized Mentor Mode 1.3.0
+**Goal**: Implement the optimized mentor-mode design from `docs/OKKI_GO_OPTIMIZED_MENTOR_MODE_SKILL_DESIGN.md` in the Skill and reference playbooks without making eval implementation part of the phase scope.  
+**Depends on**: Phase 5.  
+**Requirements**: [OMM-01, OMM-02, OMM-03, OMM-04, OMM-05, OMM-06, OMM-07, OMM-08]  
+**Success Criteria** (what must be TRUE):
+  1. `skill/SKILL.md` documents Optimized Mentor Mode and routes ordinary search to L0, result judgment to L1, and guided strategy/diagnosis to L2.
+  2. `sales-mentor-playbook.md` defines Minimal Prospecting Profile, customer-side relationship routes, OKKI Recallability Guard, compact L1/L2 output, and source discipline.
+  3. `expansion-playbook.md` requires pagination checks before Expansion and user confirmation before searching a new branch.
+  4. `discovery-playbook.md` and `workflows.md` align recovery budgets, recall-first payload rules, and follow-up routing with the optimized mentor design.
+  5. Package/SKILL release references are consistent with `1.3.0`.
+**Plans**: 1 plan
+
+Plans:
+- [x] 06-01: Skill and playbook optimized mentor-mode retrofit
+
 ## Progress
 
 **Execution Order:**
@@ -113,3 +129,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. Skill Workflow Integration | 4/4 | Complete | 2026-05-28 |
 | 4. Eval Coverage | 3/3 | Complete | 2026-05-28 |
 | 5. Verification and Release Readiness | 2/2 | Complete | 2026-05-29 |
+| 6. Optimized Mentor Mode 1.3.0 | 1/1 | Complete | 2026-06-09 |

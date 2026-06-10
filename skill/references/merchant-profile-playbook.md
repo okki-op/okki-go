@@ -40,7 +40,7 @@ Fields are split by inference risk.
 |--------|---------|-----------------------------|------------|
 | `user_confirmed` | User explicitly confirmed the value for future reuse. | Yes | Write after the user confirms saving or onboarding answer. |
 | `user_provided` | User said the value in-session but did not confirm long-term profile reuse. | Only if no confirmed/imported value exists for that field. | Write only when the user gave the value clearly. |
-| `user_provided_current_turn` | User stated the value in the current prospecting request. It is session seed data, not a long-term Profile default. | Yes for the current PMF Brief only. | Do not persist unless the user confirms saving. |
+| `user_provided_current_turn` | User stated the value in the current prospecting request. It is session seed data, not a long-term Profile default. | Yes for the current search or Minimal Prospecting Profile only. | Do not persist unless the user confirms saving. |
 | `agent_inferred` | Agent inferred the value and it is waiting for user confirmation. | No | Must be labeled and followed by a confirmation prompt. |
 | `imported` | User imported the value from an external system or file. | Yes | Treat as confirmed unless the import UI marks it otherwise. |
 
@@ -60,7 +60,7 @@ Completeness drives Progressive Enrichment and the three-tier confirmation flow 
 
 ### Dynamic Trade Anchor
 
-`profile.company.country` is the L0 anchor for dynamic `trade_mode` inference. `trade_mode` itself is not stored in the Profile. It is derived per session after a Brief exists:
+`profile.company.country` can help dynamic `trade_mode` inference when the user asks for sales strategy. `trade_mode` itself is not stored in the Profile and must not block L0 Default Search:
 
 ```text
 trade_mode = derive(profile.company.country, brief.geo_include)
@@ -83,7 +83,7 @@ Default inference rules:
 
 ### Sales Context
 
-`sales_context` stores Business Context Lite answers from `sales-mentor-playbook.md`: `goal`, `time_horizon`, `channel`, `source`, and `updated_at`. Discovery reads it before repeating BC1/BC2 and asks whether to keep or adjust the previous sales objective. BC3 is only reused when current `trade_mode` is known and compatible with the current Brief.
+`sales_context` stores optional user-confirmed sales preferences such as `goal`, `time_horizon`, `channel`, `source`, and `updated_at`. L1/L2 mentor advice may read it when useful, but L0 Default Search must not ask Business Context questions before the first free search.
 
 ### Example v1.1 Profile
 
@@ -165,13 +165,13 @@ Default inference rules:
 
 ### Mode 1: Lite Onboarding
 
-Run Lite Onboarding when the user first enters Prospecting Brief Discovery and either `profile.json` does not exist or `completeness < 0.3`. The user must already have passed the normal API key setup flow before API calls are attempted; onboarding itself does not bypass authentication.
+Run Lite Onboarding only when the user asks to save or set up reusable Merchant Profile defaults, or when they explicitly want guided profile setup. The user must already have passed the normal API key setup flow before API calls are attempted; onboarding itself does not bypass authentication.
 
 Before asking Lite Onboarding questions, apply Current-Turn Merchant Seed from `discovery-playbook.md`. Do not repeat questions for merchant facts the user already provided. For example, if the user says "我是中国的汽车玻璃制造商", skip L0 company country, L1 company type, and L2 primary product questions for the current session; ask only missing fields such as target market, customer region, decision roles, or whether to save the facts.
 
-Lite Onboarding asks merchant-profile defaults for future reuse; PMF Gate asks only what is needed for the current search. Boundary rules:
+Lite Onboarding asks merchant-profile defaults for future reuse. Product Context Lite in `sales-mentor-playbook.md` asks only what is needed for the current L2 search route. Boundary rules:
 
-- If current-turn facts can build a Brief, skip Lite Onboarding and search under the current Brief.
+- If current-turn facts can build a free search or Minimal Prospecting Profile, skip Lite Onboarding.
 - If current-turn facts include product/company type but miss target geography or target route, ask only that current-search missing field.
 - If the user says "我是纸品包装制造商，帮我开发潜客", do not ask what product they sell or whether they are a manufacturer; ask which target market or buyer route to develop.
 - Ask Lite Onboarding only when the user wants guided setup, future default saving, or there is no usable current-search seed.
@@ -221,7 +221,7 @@ If the user accepts or edits the value, change the chosen entries to `user_confi
 
 ### Mode 2.55: Current-Turn Merchant Seed Confirmation
 
-Current-turn facts may be used immediately for the current PMF Brief when the user stated them clearly. They should not become long-term Merchant Profile defaults silently.
+Current-turn facts may be used immediately for the current free search or Minimal Prospecting Profile when the user stated them clearly. They should not become long-term Merchant Profile defaults silently.
 
 Rules:
 
@@ -233,7 +233,7 @@ Rules:
 
 ### Mode 2.6: Website/Product Page Quick Profile
 
-When the PMF Gate in `discovery-playbook.md` asks for a company website or product page, any extracted data is provisional until the user confirms it.
+When the user explicitly asks to use a company website or product page for profile setup, any extracted data is provisional until the user confirms it.
 
 Rules:
 
@@ -267,12 +267,12 @@ sender_email: s***@example.com
 
 ## 3. Discovery Reuse Rules
 
-Prospecting Brief Discovery reads Profile defaults before asking Gray Area questions. It must prefer only confirmed or imported long-term data:
+Mentor Guided and optional profile reuse read Profile defaults before asking more questions. They must prefer only confirmed or imported long-term data:
 
 - `user_confirmed`: may be presented as default.
 - `imported`: may be presented as default.
 - `user_provided`: may be used only when no confirmed/imported option exists for the same field, and the prompt must say it came from the current or prior conversation rather than the confirmed profile.
-- `user_provided_current_turn`: may feed the current PMF Brief and target-side query plan without a repeated question; it must be confirmed before long-term persistence.
+- `user_provided_current_turn`: may feed the current free search, Minimal Prospecting Profile, and target-side projection without a repeated question; it must be confirmed before long-term persistence.
 - `agent_inferred`: must not be used as a default.
 
 Default mapping:
@@ -290,7 +290,7 @@ Default mapping:
 
 Merchant offer terms feed `merchant_offer_anchor` and PMF reasoning. They do not automatically become API `productKeywords`; `discovery-playbook.md` must project them through target-side routes first.
 
-When the user changes a Profile-derived default in the Brief, ask whether the change should update the Profile:
+When the user changes a Profile-derived default in the current search or Minimal Prospecting Profile, ask whether the change should update the Profile:
 
 ```text
 You changed the target markets from US, DE to US, JP. Save this to your Merchant Profile for future defaults?
@@ -298,7 +298,7 @@ You changed the target markets from US, DE to US, JP. Save this to your Merchant
 (b) No, only use it this time
 ```
 
-Profile defaults never replace the session Brief. The Brief remains a session object described in `discovery-playbook.md`.
+Profile defaults never replace current-turn facts or the session Minimal Prospecting Profile.
 
 ## 4. Outreach Reuse Rules
 
@@ -310,7 +310,7 @@ Allowed reuse:
 - `outreach_identity.sender_name`, `sender_title`, and redacted `sender_email` for draft context.
 - `offerings.primary_products` and confirmed/imported `offerings.usps` for value proposition language.
 - `outreach_identity.preferred_language`; if `null`, infer and confirm a default before writing it back.
-- `sales_context` to guide tone, channel, timing, and the Sales Journey Preview defined in `sales-mentor-playbook.md`.
+- `sales_context` to guide optional L1/L2 tone, channel preference, and first-touch angle when the user asks for advice.
 
 Safety boundary:
 

@@ -105,6 +105,26 @@ test('search-companies compact output omits private fields while saving raw mapp
   }
 });
 
+test('search-companies rejects country-only payload before calling API', async (t) => {
+  const server = await createMockServer().start();
+
+  try {
+    const result = await runScript('search-companies.js', [
+      '--json',
+      JSON.stringify({ includeCountry: ['AE', 'SA'], size: 10 }),
+      '--compact',
+      '--locale',
+      'zh-CN'
+    ], { OKKIGO_BASE_URL: server.baseUrl });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /productKeywords, industryKeywords, or companyTypeKeywords/);
+    assert.equal(server.recorder.requests.filter((entry) => entry.path === '/api/v1/companies/search-advanced').length, 0);
+  } finally {
+    await server.stop();
+  }
+});
+
 test('search-companies compact output honors explicit visible budget and hard cap metadata', async (t) => {
   const server = await createMockServer({
     companySearchResponse() {
@@ -249,6 +269,40 @@ test('discover-companies-batch emits compact deduped rows and preserves raw reco
     assert.equal(latest.latest_batch, batchPath);
     assert.equal(latest.displayed_rows, 2);
     assert.equal(latest.request_summary, 'German auto parts buyers');
+  } finally {
+    await server.stop();
+  }
+});
+
+test('discover-companies-batch rejects payloads without keyword fields before calling API', async (t) => {
+  const server = await createMockServer().start();
+  const tempDir = makeTempDir(t);
+  const planPath = path.join(tempDir, 'plan.json');
+  const batchPath = path.join(tempDir, 'batch.json');
+  fs.writeFileSync(planPath, JSON.stringify({
+    request_summary: 'Middle East broad recovery',
+    target_count: 10,
+    payloads: [
+      { includeCountry: ['AE', 'SA', 'EG'], size: 10, pages: 1 }
+    ]
+  }));
+
+  try {
+    const result = await runScript('discover-companies-batch.js', [
+      '--plan',
+      planPath,
+      '--target-count',
+      '10',
+      '--save-batch',
+      batchPath,
+      '--compact',
+      '--locale',
+      'zh-CN'
+    ], { OKKIGO_BASE_URL: server.baseUrl });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /productKeywords, industryKeywords, or companyTypeKeywords/);
+    assert.equal(server.recorder.requests.filter((entry) => entry.path === '/api/v1/companies/search-advanced').length, 0);
   } finally {
     await server.stop();
   }

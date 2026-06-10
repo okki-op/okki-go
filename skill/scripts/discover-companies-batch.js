@@ -11,17 +11,23 @@ const {
   batchIdFromPath,
   budgetedItems,
   compactCompanyRow,
+  DEFAULT_COMPANY_TARGET_COUNT,
   defaultRawPath,
+  discoveryHealth,
   normalizeDomain,
   normalizeName,
   nowIso,
   responseList,
   responseTotal
 } = require('./lib/compact-output');
-const { writeLatestBatchPointer } = require('./lib/batch-state');
+const {
+  readLatestBatchPointer,
+  writeLatestBatchPointer
+} = require('./lib/batch-state');
 
 const MAX_PAGE_SIZE = 50;
 const DEFAULT_CONCURRENCY = 4;
+const KEYWORD_FIELDS = ['companyTypeKeywords', 'productKeywords', 'industryKeywords'];
 
 function usage() {
   console.error([
@@ -92,6 +98,7 @@ function readPlan(args) {
 function buildRequests(plan) {
   const requests = [];
   for (const payloadPlan of plan.payloads) {
+    ensureSearchable(payloadPlan);
     const pages = positiveInt(payloadPlan.pages || 1, 'payload.pages');
     const size = Math.min(positiveInt(payloadPlan.size || 50, 'payload.size'), MAX_PAGE_SIZE);
     const startFrom = Number.isInteger(Number(payloadPlan.from)) && Number(payloadPlan.from) >= 0
@@ -104,6 +111,15 @@ function buildRequests(plan) {
     }
   }
   return requests;
+}
+
+function ensureSearchable(payload) {
+  const hasKeywords = KEYWORD_FIELDS
+    .some((key) => Array.isArray(payload[key]) && payload[key].some((value) => String(value || '').trim()));
+
+  if (!hasKeywords) {
+    throw new Error('Each payload must include at least one of productKeywords, industryKeywords, or companyTypeKeywords.');
+  }
 }
 
 async function runWithConcurrency(items, concurrency, worker) {
@@ -171,11 +187,12 @@ function dedupe(records) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const plan = readPlan(args);
-  const targetCount = Math.min(args.targetCount || plan.target_count || 50, 100);
+  const targetCount = Math.min(args.targetCount || plan.target_count || DEFAULT_COMPANY_TARGET_COUNT, 100);
   const saveBatch = args.saveBatch || defaultRawPath('discover-companies');
   const includePatterns = compilePatterns(plan.include);
   const excludePatterns = compilePatterns(plan.exclude);
   const requests = buildRequests(plan);
+  const latestPointer = readLatestBatchPointer({ ignoreErrors: true });
 
   const pageResults = await runWithConcurrency(requests, args.concurrency, async (request) => {
     const body = await postJson('/api/v1/companies/search-advanced', request.payload);
@@ -212,13 +229,6 @@ async function main() {
     target_count: targetCount,
     rows: batchRows
   };
-  writeJsonFile(saveBatch, batch);
-  writeLatestBatchPointer({
-    batchPath: saveBatch,
-    displayedRows: selected.length,
-    requestSummary: batch.request_summary
-  });
-
   const output = {
     batch_id: batchIdFromPath(saveBatch),
     scanned_pages: requests.length,
@@ -232,6 +242,22 @@ async function main() {
     raw_path: saveBatch,
     ...budgeted.metadata
   };
+  output.discovery_health = discoveryHealth({
+    targetCount,
+    visibleUniqueCount: selected.length,
+    usableCandidateCount: deduped.length,
+    available: deduped.length,
+    nextOffset: budgeted.metadata.next_offset,
+    hasNextPage: budgeted.metadata.truncated,
+    latestHealth: latestPointer && latestPointer.discovery_health
+  });
+  writeJsonFile(saveBatch, batch);
+  writeLatestBatchPointer({
+    batchPath: saveBatch,
+    displayedRows: selected.length,
+    requestSummary: batch.request_summary,
+    discoveryHealth: output.discovery_health
+  });
 
   if (args.compact) {
     process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);

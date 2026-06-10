@@ -8,7 +8,7 @@ Present API results in user-friendly form, never raw JSON unless the user explic
 
 Normal OKKI Go tool output must be compact and user-facing. Raw API JSON, long email bodies, full profile objects, full local state, and internal identifiers must not be streamed into the model unless the user explicitly asks for raw/debug output. For large raw data, save it to a local file and return a path plus a short summary.
 
-Compact wrappers include `output_budget`, `truncated`, `available`, and `next_offset`. When `truncated` is true, use `next_offset` for follow-up pagination; do not infer hidden rows from chat text.
+Compact wrappers include `output_budget`, `truncated`, `available`, `next_offset`, and `discovery_health`. When `truncated` is true or `discovery_health.recommended_mode` is `l0_pagination`, use `next_offset` for follow-up pagination; do not infer hidden rows from chat text. For company discovery, `target_count` defaults to 30; `low_yield_batch_streak` counts consecutive low-yield displayed result batches, not result rows or chat turns.
 
 Default visible caps:
 
@@ -128,6 +128,13 @@ When checking status, show sent/failed/total counts and failure reasons.
 
 Use when the user asks to find target customers or companies.
 
+Mode arbitration:
+
+- L0 Default Search handles ordinary search and pagination.
+- L1 Mentor Lite handles result analysis after an active batch exists.
+- L2 Mentor Guided handles search-method diagnosis, unclear buyer route, or new-salesperson guidance.
+- Web Research Add-on is separate and requires an explicit external/latest/source request.
+
 1. Run the API key check from `SKILL.md`.
 2. Read current-turn product/service, target company/category, geography, buyer route, exclusions, and requested count.
 3. Optionally read Profile memory if it is cheap and useful, but do not block the first search on Profile completeness.
@@ -138,6 +145,39 @@ Use when the user asks to find target customers or companies.
 8. Wait for user selection or refinement. Do not proactively call paid APIs.
 
 If the search is not constructible, ask only for the missing product/category or target geography/route.
+
+After results, follow pagination before expansion:
+
+- If the user asks for more and compact output has `has_next_page=true`, or `next_offset` exists and is less than `available`, fetch the next page with L0 Default Search.
+- If `available <= next_offset`, `next_offset` is missing, or the current route is exhausted, offer 2-3 candidate expansion branches from [expansion-playbook.md](./expansion-playbook.md).
+- If batch state is missing or expired, recover the latest batch pointer or rerun a free lookup before deciding.
+- Do not run hidden multi-route recovery after the user has seen results.
+
+## Workflow A1: Mentor Lite Result Review
+
+Use when the user asks which displayed companies to contact, unlock, avoid, or analyze.
+
+1. Reuse the current displayed batch; do not re-search by default.
+2. Apply the current route, result fields, and `local_priority_rule` when available.
+3. Group candidates as priority unlock, observe, and not recommended.
+4. Give one risk and one next action.
+5. Preserve paid unlock confirmation; advice cannot call `/companies/unlock`.
+
+Do not ask Product Context Lite questions in L1. If no batch exists and the user asks how to search or whether the route is right, switch to L2 Mentor Guided.
+
+## Workflow A2: Mentor Guided Search Strategy
+
+Use when the user is new, does not know what customers to find, says results are wrong, asks for better search methods, or says results look like suppliers instead of buyers.
+
+1. Build a Minimal Prospecting Profile from current-turn facts and optional Profile memory.
+2. Ask at most 1-2 Product Context Lite questions only if route choice is blocked.
+3. Create one provisional customer route and validate the buyer-side relationship.
+4. Apply the OKKI Recallability Guard: one primary search field plus optional geography; secondary signals go to `local_priority_rule`.
+5. Run one free company search for the first graph path when constructible.
+6. Display the company table, then compact priority unlock / observe / not recommended guidance.
+7. A second graph path requires user confirmation or Expansion.
+
+Do not browse the web, persist a Product Brief, or spend credits unless the user explicitly asks and confirms the relevant action.
 
 ## Workflow B: Selected Company Details and Emails
 

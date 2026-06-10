@@ -41,13 +41,28 @@ function writeLatestBatchPointer(options) {
   }
   const statePath = options.statePath || defaultBatchStatePath();
   const now = options.now ? parseNow(options.now) : new Date();
-  writeJsonFile(statePath, {
+  const pointer = {
     latest_batch: options.batchPath,
     displayed_rows: Number.isFinite(Number(options.displayedRows)) ? Number(options.displayedRows) : 0,
     request_summary: options.requestSummary || '',
     created_at: now.toISOString()
-  });
+  };
+  if (options.discoveryHealth && typeof options.discoveryHealth === 'object') {
+    pointer.discovery_health = options.discoveryHealth;
+  }
+  writeJsonFile(statePath, pointer);
   return statePath;
+}
+
+function readLatestBatchPointer(options = {}) {
+  const statePath = options.statePath || defaultBatchStatePath();
+  if (!fs.existsSync(statePath)) return null;
+  try {
+    return readJsonFile(statePath);
+  } catch (error) {
+    if (options.ignoreErrors) return null;
+    throw error;
+  }
 }
 
 function resolveBatchPath(batchArg, options = {}) {
@@ -93,6 +108,7 @@ module.exports = {
   defaultBatchStatePath,
   nowIso,
   parseNow,
+  readLatestBatchPointer,
   resolveBatchPath,
   writeLatestBatchPointer
 };

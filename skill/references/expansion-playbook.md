@@ -1,223 +1,109 @@
 # Prospecting Expansion Playbook
 
-This playbook defines target-side expansion after PMF Brief generation and free company search. It uses the PMF Brief and `query_plan_portfolio` from `discovery-playbook.md` and the Sales Mentor source-discipline rules from `sales-mentor-playbook.md`.
+Expansion is **new search branches** after a visible company batch or a guided customer-route hypothesis. It is not hidden recovery, not a default mentor mode, and not a paid action.
 
-Expansion is target-route modeling. It does not call paid endpoints, does not unlock companies, does not search contacts, and does not persist expansion history outside session memory.
+Expansion may generate more customer routes, but only user-confirmed routes are searched. It never unlocks companies, searches contacts, sends emails, or authorizes credit spend.
 
-## 1. Search Tiers
+## 1. Pagination Comes First
 
-Use four tiers:
+Before treating "more", "continue", "next page", "too few", "not enough", "expand", or "change batch" as Expansion, inspect the latest compact batch state.
 
-1. **L0 Target-Side Core Query:** strict, high-fit target routes derived from the PMF Brief.
-2. **L1 Target-Side Recovery:** recover sparse, homogeneous, or competitor-heavy results by changing target-side terms or route scope one step at a time.
-3. **L2 Target Route Expansion:** generate additional route plans such as trade category, installer/integrator, project trigger, operator, or procurement category.
-4. **L3 Exploration:** low-confidence or long-path ideas shown for user selection; no automatic search unless the user chooses them.
+Use these deterministic rules:
 
-Every first-round `search-advanced` result must pass through an expansion-mode decision after local-only filters have been applied. Use `filtered_results.length` when `employee_range` or another local-only filter exists; otherwise use the effective result count from the API response.
+1. If `has_next_page=true`, or `next_offset` exists and is less than `available`, stay in L0 pagination and fetch the next page.
+2. Only consider Expansion when there is no next page, `next_offset` is empty, or `available <= next_offset`.
+3. If batch state is missing or expired, do not guess. Restore the latest batch pointer or rerun a free lookup before deciding.
+4. User feedback like "these are not buyers", "all suppliers", or "not what I want" is diagnosis, not simple Expansion; route to L2 Mentor Guided unless the user only asks for next page and pagination exists.
 
-```text
-validated L0 core plan(s) complete
-  -> effective_total < 5 OR competitor-heavy/homogeneous?
-       yes -> L1 Target-Side Recovery
-              if still below target_count -> L2 Target Route Expansion
-       no  -> effective_total < brief.target_count?
-              yes -> L2 Target Route Expansion
-              no  -> Lite target-route suggestions
-```
+Useful markers for automated traces:
 
-Behavior markers:
+- `expansion_not_selected_when_next_page_exists`
+- `expansion_selected_when_current_batch_exhausted`
+- `post_result_too_few_skips_hidden_recovery`
+- `first_visible_output_under_60s_guard`
 
-- `global_or_broadening_blocked`
-- `target_side_recovery_applied`
-- `target_side_recovery_route_retained`
-- `target_route_expansion_candidates_built`
-- `target_route_candidate_has_path`
-- `results_grouped_by_query_plan`
+## 2. Trigger Conditions
 
-## 2. L0 Target-Side Core Query
+Expansion is appropriate when:
 
-Core plans use:
+- A displayed batch is exhausted and the user still wants more usable prospects.
+- The user asks for other customer types, other application scenarios, another cooperation mode, or another route.
+- L2 Mentor Guided has searched one graph path and the user confirms trying a second route.
+- The current route is low-yield after the small recovery budget.
 
-- `merchant_offer_anchor` as internal reasoning context.
-- Target geography.
-- Exactly one target route.
-- Target-side product/category, company-type, industry, or procurement terms.
-- Optional industry context only when it improves precision.
+Do not trigger Expansion when:
 
-Do not put every available Brief field into the first payload. Do not copy the merchant's product terms into `productKeywords` unless those terms are appropriate target-side terms for the chosen route.
+- The user asks "next page" and batch pagination is available.
+- The user asks for "20 more similar" and `next_offset` is available.
+- The user asks for search-method diagnosis; use L2 Mentor Guided.
+- The user asks for latest market information; use Web Research Add-on only if explicit.
 
-Example for a custom door-lock manufacturer searching Germany:
+## 3. Candidate Branches
 
-```text
-Preferred:
-Plan A: door/building hardware + importer/distributor + DE
-Plan B: architectural/building hardware + wholesaler/distributor + DE
-Plan C, if smart-lock context exists: access control/security systems + installer/integrator + DE
+When Expansion is allowed, offer **2-3 candidate expansion branches**. Each branch should be a distinct customer-side route:
 
-Avoid as default:
-door lock + DE
-```
+- channel/resale route
+- brand/OEM route
+- integration/engineering/project route
+- service/maintenance/retrofit route
+- direct use/operator route
+- project-trigger route
 
-## 3. L1 Target-Side Recovery
+Each branch must include:
 
-Trigger: the first route is too sparse, too homogeneous, or visibly competitor-heavy.
+- branch label
+- why this route could buy, specify, resell, integrate, maintain, retrofit, or use the offer
+- one recall-first payload idea
+- `local_priority_rule`
+- avoid or not recommended signals
 
-Target-Side Recovery replaces the old default global OR broadening. The recovery keeps route intent and geography unless the user explicitly asks for geography-free exploration.
+Do not pack multiple branches into one OR-style payload. The user confirms one branch; search only that branch. If the user says "try all", ask which one to start with unless they explicitly accept sequential searches.
 
-Allowed recovery moves:
+## 4. Recallability Guard
 
-1. Swap merchant-product terms to broader target-side category terms while preserving target route and geography, such as `door lock` to `door hardware` or `building hardware`.
-2. Swap to procurement or category wording while preserving route and geography, such as `custom lock` to `architectural hardware`.
-3. Broaden company type within the same route, such as importer to importer/distributor/wholesaler.
-4. Remove the least important industry/application keyword when it is narrowing the target route too much.
-5. Temporarily remove `withEmails`.
-6. Move to an adjacent route only when the route path stays clear, such as channel route to trade-category route, or trade-category route to installer/integrator route for smart-lock or access-control contexts.
+Every expansion branch must pass the OKKI Recallability Guard from `sales-mentor-playbook.md`:
 
-Hard rules:
+- First payload prefers one primary search field plus target geography.
+- Secondary buyer-route signals go to `local_priority_rule` when they may over-narrow recall.
+- Do not default to `productKeywords + companyTypeKeywords + industryKeywords`.
+- Do not use `crossFieldOperator: "AND"` as a mentor precision shortcut.
+- If recall is weak, change broad target-side words or switch one route; do not keep narrowing.
 
-- Do not switch the whole payload from `"AND"` to `"OR"` as the default move.
-- Do not remove target geography unless the user asked for geography-free exploration.
-- Do not combine unrelated target routes into one OR-style payload.
-- Do not preserve a merchant-product keyword in `productKeywords` merely to keep an anchor when that term is causing competitor-heavy search.
-- Disclose the retained target route and changed target-side terms.
-
-Message pattern:
-
-```text
-The first round is sparse, and directly searching "[merchant term]" may mix in peer manufacturers.
-I will keep [target geography] and [target route], change target-side product terms from "[old terms]" to "[new target-side terms]",
-and broaden company type from "[old type]" to "[new route-compatible types]".
-```
-
-## 4. L2 Target Route Expansion
-
-Target Route Expansion generates new target-side plans. It is not keyword-neighbor expansion and it does not append selected candidates to one expanded Brief with a global OR payload.
-
-Allowed route types:
-
-| Route Type | Meaning |
-|------------|---------|
-| `channel_route` | Importers, wholesalers, distributors, dealers, and resale channels. |
-| `trade_category_route` | Broader target-side category companies likely to carry or source the offer. |
-| `installer_integrator_route` | Installers, contractors, engineering firms, or system integrators that source products for projects. |
-| `project_trigger_route` | Companies connected to renovation, maintenance, replacement, expansion, opening, upgrade, or new-build events. |
-| `operator_route` | Asset operators with repeated or bulk use cases, such as hotels, apartments, schools, hospitals, factories, fleets, or property managers. |
-| `procurement_category_route` | Standard procurement/category language from CPV, UNSPSC, HS, NAICS, tenders, or local equivalents. |
-| `not_recommended` | Plausible-looking but weak or risky directions that should not be searched by default. |
-
-Each target route candidate must include:
-
-- `candidate`
-- `target_route_type`
-- `route_path`
-- `merchant_offer_anchor`
-- `target_company_should_be`
-- `target_side_projection`
-- `api_payload`
-- `fit_level`
-- `why_this_matches`
-- `competitor_risk`
-- `risk`
-
-Candidate template:
+Example branch:
 
 ```json
 {
-  "candidate": "hotel renovation contractors",
-  "target_route_type": "project_trigger_route",
-  "route_path": "custom door locks -> hotel room renovation -> contractor procurement",
-  "merchant_offer_anchor": ["custom door locks", "smart locks"],
-  "target_company_should_be": "Contractors or refurbishment firms working on hotel or apartment renovation projects.",
-  "target_side_projection": {
-    "product_terms": ["building hardware"],
-    "company_type_terms": ["renovation contractor", "refurbishment contractor"],
-    "industry_terms": ["hotel renovation", "apartment refurbishment"]
-  },
-  "api_payload": {
-    "productKeywords": ["building hardware"],
-    "companyTypeKeywords": ["renovation contractor", "refurbishment contractor"],
-    "industryKeywords": ["hotel renovation", "apartment refurbishment"],
+  "branch": "integration/project route",
+  "why": "automation integrators may specify or integrate equipment in production-line projects",
+  "search_payload": {
+    "productKeywords": ["industrial automation", "production line automation"],
     "includeCountry": ["DE"],
-    "crossFieldOperator": "AND",
     "from": 0,
-    "size": 50
+    "size": 20
   },
-  "fit_level": "medium_high",
-  "why_this_matches": "Hotel renovation contractors may source door locks in bulk during room upgrade projects.",
-  "competitor_risk": "low",
-  "risk": "Generic hotels are too broad unless renovation or procurement context is included."
+  "local_priority_rule": "prioritize integrator / retrofit / production line service signals",
+  "avoid": ["generic equipment manufacturer", "component supplier"]
 }
 ```
 
-The important distinction is that "hotel" is not searched because it is semantically near "door lock". It is considered only when the relation path connects hotel operations to renovation, room maintenance, property management, or another procurement event.
+## 5. Recovery and Timing Budget
 
-## 5. No Route-Library Mode
+Expansion is not a way to hide many slow searches.
 
-A large industry route library is not required at launch. When no verified route-library entry exists for the product/category, the model may still generate target-side routes.
+- The first visible output under 60 seconds is the priority.
+- Use one automatic recovery round by default in the current search action.
+- The hard cap of 3 automatic recovery rounds is only an exception for clearly improved, broader payloads.
+- L2 first round searches one graph path; additional graph paths require user confirmation.
+- After a user confirms a new branch, start a new search action and explain the new route briefly.
 
-Rules:
+## 6. Result Presentation After Expansion
 
-- Build at least one safe generic target route when product/service and geography context are enough for free company search.
-- Safe generic routes may be searched automatically if they preserve target geography, have a short route path, and pass the Target-Side Query Validator.
-- Mark these plans as `generic_controlled` rather than `verified`.
-- Good automatic fallback routes are usually `channel_route`, `trade_category_route`, and, when the offer context supports it, `installer_integrator_route`.
-- `project_trigger_route`, `operator_route`, and broad `procurement_category_route` candidates may be auto-searched only when projection contains a concrete procurement, installation, renovation, replacement, maintenance, upgrade, or new-build trigger.
-- Low-confidence or long-path ideas are L3 Exploration and require user selection before search.
-- Downgrade vague ideas to `not_recommended` when they lack a target role, category, procurement event, or target-side keyword projection.
+Keep expanded results explainable:
 
-Behavior markers:
+- Show the company table.
+- Label which branch produced the batch.
+- Add priority unlock / observe / not recommended guidance when the user asked for analysis or the route is guided.
+- Preserve internal row-to-domain mappings privately.
+- Do not run viewed classification unless the user explicitly asked for new/non-repeated companies.
 
-- `no_route_library_mode_entered`
-- `no_route_library_safe_route_built`
-- `no_route_library_exploration_selection_required`
-
-## 6. User Selection Format
-
-Accept these input forms for L2/L3 candidates:
-
-- Number list: `A1, A2, B1`
-- Route-wide selection: `all channel routes`, `all installer routes`
-- Natural language: `try channels and installers first, avoid hotels`
-- Stop signal: `enough`, `stop`, `skip expansion`
-
-If a selection is ambiguous, ask one clarifying question before another search.
-
-Selections create new query plans; they do not destructively overwrite the PMF Brief.
-
-## 7. Multi-Round Limits
-
-After each expanded search:
-
-1. Recompute cumulative effective total after local-only filters.
-2. If cumulative total meets or exceeds `target_count`, stop expansion and continue result grouping.
-3. If still below target and fewer than 3 L2 expansion rounds have run, ask whether the user wants another round.
-4. If the user stops or the 3-round limit is reached, continue with available results and explain that expansion stopped.
-
-L1 Target-Side Recovery does not count as an L2 expansion round. Lite target-route suggestions do not count unless the user selects one and starts a later expanded search.
-
-Expansion never implies paid unlock or contact retrieval. Paid-action and email-send confirmations remain governed by `discovery-playbook.md` Hard Guardrails and the main `SKILL.md`.
-
-## 8. Result Grouping After Expansion
-
-Results from different plans must stay explainable:
-
-- `Core`
-- `Target-Side Recovery`
-- `Target Route Expansion`
-- `Exploration`
-- `Not Recommended` suggestions, if any
-
-After an expansion search finishes:
-
-- Reapply local-only filters from `discovery-playbook.md`.
-- Recompute the effective total for stopping decisions.
-- Keep results grouped by query plan, target route, or search tier.
-- Re-run viewed classification from `discovery-playbook.md` Section 6 before final display.
-
-Final viewed-state labels remain:
-
-- `unlocked`: previously paid-unlocked within the active window.
-- `seen`: previously displayed within the active window.
-- `new`: not seen in the active window.
-
-Do not present all results as a single undifferentiated company list when they came from different hypotheses. Do not create separate persistent states for expanded, saved, or dismissed results in v1.2.x.
+Expansion never changes paid-action rules. Before `/companies/unlock`, `/contacts/search`, or email send, ask the confirmations required in `SKILL.md`.

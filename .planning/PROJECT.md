@@ -1,4 +1,4 @@
-# OKKI Go Discovery Harness 1.2.0
+# OKKI Go Discovery Harness 1.3.0
 
 ## What This Is
 
@@ -10,7 +10,20 @@ The work is brownfield: existing authentication, billing confirmation, company s
 
 The skill must turn vague B2B prospecting requests into safe, repeatable, source-backed search and outreach preparation without bypassing paid-action or email-send confirmations.
 
-## Current Milestone: v1.2.0 Discovery Harness
+## Current Milestone: v1.3.0 Optimized Mentor Mode
+
+**Goal:** Land the optimized mentor-mode design from `docs/OKKI_GO_OPTIMIZED_MENTOR_MODE_SKILL_DESIGN.md` as executable Skill and playbook behavior.
+
+**Target features:**
+- L0 Default Search remains fast and non-consultative.
+- L1 Mentor Lite gives compact result-grounded unlock priority and next-action advice.
+- L2 Mentor Guided builds a Minimal Prospecting Profile, uses customer-side relationship routes, and searches one recall-safe route first.
+- Expansion is pagination-aware and only creates new user-confirmed search branches after the current batch is exhausted or the user explicitly asks for a new route.
+- OKKI Recallability Guard keeps first payloads recall-first with one primary search field plus local priority rules.
+- Web Research Add-on stays explicit and separate from OKKI search.
+- Package and Skill release references move to `1.3.0`.
+
+## Previous Milestone: v1.2.0 Discovery Harness
 
 **Goal:** Land the merged discovery harness plan as executable skill behavior with documented playbooks, local state tooling, workflow integration, and regression coverage.
 
@@ -37,7 +50,8 @@ The skill must turn vague B2B prospecting requests into safe, repeatable, source
 - [ ] Implement local profile/viewed state helper with tests.
 - [ ] Integrate the harness into SKILL.md while preserving existing billing, authentication, and email-send safety.
 - [ ] Add eval scenarios and regression tests that prove the new harness does not drift or bypass safeguards.
-- [ ] Complete release-readiness review and version bump to 1.2.0.
+- [x] Complete release-readiness review and version bump to 1.2.0.
+- [ ] Implement optimized mentor-mode routing, playbooks, and version bump to 1.3.0.
 
 ### Out of Scope
 
@@ -76,6 +90,9 @@ The skill must turn vague B2B prospecting requests into safe, repeatable, source
 | Phase playbooks before code | SKILL.md and helper behavior depend on stable rule contracts | Pending |
 | Keep helper minimal and dependency-free | Avoid broad scripting expansion and preserve install simplicity | Pending |
 | Preserve existing paid/send safety as higher priority than discovery UX | The plan explicitly keeps billing and email safety unchanged | Pending |
+| Treat optimized mentor-mode PRD as Phase 6 input | The PRD already includes routing, mode layering, output contracts, and acceptance direction | Accepted |
+| Exclude eval implementation from Phase 6 | Eval is an automated verification tool, not the Skill implementation mainline for this phase | Accepted |
+| Use 1.3.0 as target version | L0/L1/L2 mentor behavior is user-visible capability expansion beyond 1.2.x | Accepted |
 
 ---
 *Last updated: 2026-05-28 after GSD formal initialization from merged implementation plan*

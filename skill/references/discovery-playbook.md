@@ -2,19 +2,23 @@
 
 This reference explains how to turn a B2B prospecting request into a fast free `POST /api/v1/companies/search-advanced` call.
 
-Default behavior is simple: infer target-company profile keywords, search, show results, then wait for the user to choose unlock/refinement. Do not run PMF Gate, Lite Onboarding, Brief confirmation, Expansion, Sales Mentor, or historical viewed deduplication before the first free search unless the user explicitly asks.
+Default behavior is simple: infer target-company profile keywords, search, show results, then wait for the user to choose unlock/refinement. Do not run PMF Gate, Lite Onboarding, Brief confirmation, Expansion, Sales Mentor, Product Context Lite, Success Customer Profile, or historical viewed deduplication before the first free search unless the user explicitly asks for that advanced mode.
 
 ## Round 1 Search Preference
 
 Round 1 is recall-first. Its job is to create a usable candidate pool, not to prove exact fit in one API call.
 
+This is the L0 Default Search path from Optimized Mentor Mode. If the user asks for strategy, result diagnosis, or unlock priority, read `sales-mentor-playbook.md`; if the user asks for more after a visible batch, inspect pagination before `expansion-playbook.md`.
+
 1. Before the first search, translate user words into OKKI index-language terms: upper-level category words, application words, service words, procurement language, local-language words, and common target-company profile terms. Do not rely on one exact SKU, model, or long-tail product phrase from the user.
 
 2. Use exactly one keyword dimension by default. Choose only one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords` for Round 1. Country or region filters are allowed when the user specifies geography.
 
-3. Prefer `productKeywords` for Round 1 when product, service, application, or buyer-need terms are available. Use 2-5 same-dimension terms in that field, such as synonyms, broader category terms, target-side application terms, or local-language terms.
+3. Every payload must include at least one non-empty keyword field: `productKeywords`, `companyTypeKeywords`, or `industryKeywords`. `includeCountry` narrows geography, but it is not searchable by itself.
 
-4. Do not use `industryKeywords` in Round 1 by default, and do not use `crossFieldOperator: "AND"` in Round 1 by default. Treat extra dimensions from the user as soft display or recovery clues.
+4. Prefer `productKeywords` for Round 1 when product, service, application, or buyer-need terms are available. Use 2-5 same-dimension terms in that field, such as synonyms, broader category terms, target-side application terms, or local-language terms.
+
+5. Do not use `industryKeywords` in Round 1 by default, and do not use `crossFieldOperator: "AND"` in Round 1 by default. Treat extra dimensions from the user as soft display or recovery clues.
 
 The first search should use model judgment, not a fixed template. Build one concise target-company hypothesis and search it with one keyword dimension plus optional geography. The guardrails below say what not to do; they do not require a specific keyword set.
 
@@ -133,6 +137,7 @@ Rules:
 - `size` must be 1-50. Paginate with `from` for larger counts.
 - When `target_count > 50`, use free pagination with `size: 50`, `from: 0`, then `from: 50`, and continue by page as needed. Do not call `/contacts/search` or `/companies/unlock` to satisfy company-count targets.
 - Use ISO 3166-1 alpha-2 country codes.
+- Include at least one non-empty keyword field in every API payload: `productKeywords`, `companyTypeKeywords`, or `industryKeywords`. Do not send country-only payloads.
 - Use `withEmails: 1` only when the user asks for companies with emails or when email availability is central to the task.
 - Do not add `withEmails: 1` just because leads should be contactable. Company discovery is free; contact availability can be checked after candidates exist.
 - In Round 1, use exactly one keyword dimension by default. Choose only one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords`.
@@ -144,6 +149,16 @@ Rules:
 - Do not invent unsupported fields such as `employee_range`, `decision_roles`, `website`, `homepage`, `url`, `contacts`, or `limit`.
 - Treat employee range, certifications, and similar constraints as local display/filtering guidance only if present in returned fields.
 - Decision roles are for later contact lookup or outreach; never put roles into company-search keywords.
+
+### OKKI Recallability Guard
+
+The OKKI Recallability Guard applies to both L0 recovery and L2 Mentor Guided routes:
+
+- Prefer a single primary search field in the first payload: only one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords`.
+- Keep `includeCountry` when the user supplied target geography.
+- Put extra buyer-route, cooperation-mode, role, application, or certification clues into local display filtering or `local_priority_rule` instead of first-round API filters.
+- Do not use `productKeywords + companyTypeKeywords` or `crossFieldOperator: "AND"` as the default way to look more precise.
+- For mentor routes, validate the buyer-side relationship before searching; supplier or peer manufacturer routes should not become priority buyer searches.
 
 Free company-search output must hide internal identifiers. Do not display `domain`, website, homepage, URL, link fields, or raw internal IDs. Store `domain` privately by row number for later `/companies/unlock`.
 
@@ -219,13 +234,63 @@ If the user asks for "new only", "exclude companies I saw", or similar, use the 
 
 If the first result set is sparse, zero, noisy, or peer-manufacturer-heavy, keep recovery lightweight. Do not automatically enter multi-round Expansion.
 
+An **Initial Discovery Pass** is the complete user-visible search action after one user request: the first free search, any lightweight automatic recovery, and the first result output. It should optimize recall and speed together, producing a usable candidate pool within 60 seconds whenever possible.
+
+### Discovery Health Gate
+
+Use compact wrapper `discovery_health` before interpreting weak-result follow-ups. It is the deterministic source; do not depend on enumerating user phrases.
+
+- `target_count` defaults to 30 when the user did not specify a count. One full page is the baseline for a usable discovery batch.
+- `recommended_mode: "l0_pagination"` means a next page is available; fetch it before low-yield diagnosis or Expansion.
+- `recommended_mode: "post_result_low_yield_diagnosis"` means the visible usable candidates are below target and no next page is available.
+- `low_yield_batch_streak` is the count of consecutive low-yield **displayed result batches** from the saved latest-batch pointer. It is not the number of result rows, chat turns, user complaints, or tool calls.
+- When `low_yield_batch_streak >= 2`, stop blind recovery and include a Mentor Guided option in the next user-facing response. Do not present only more keyword or search-route choices.
+
+Low-yield diagnosis should still offer concrete next searches. It is not a replacement for changing keywords or routes, but repeated low yield needs a visible route-diagnosis escape hatch. Output shape:
+
+```text
+What I can tell from this batch:
+- ...
+
+Next routes to try:
+1. ...
+2. ...
+3. ...
+
+Mentor option:
+- I can also switch to Mentor Guided mode to map who is likely to buy, who is only adjacent, which countries/terms are more recallable, and then search the best route first.
+```
+
+Apply the OKKI Brand Safety Guardian: do not describe low yield as OKKI Go having poor coverage, not being a search engine, not covering the whole web, or the database having no data unless a hard API/system error proves it. Tie the explanation to the current route, target-side projection, index-language terms, geography mix, or buyer-role assumptions, and give an executable next step.
+
+Search recovery must be diagnosis-driven, but lightweight. After a zero, sparse, or noisy result set, quickly classify the likely failure mode before choosing the next payload:
+
+- Vocabulary mismatch.
+- Over-constrained query.
+- Wrong keyword field.
+- Wrong buyer route.
+- Sparse geography or market.
+- Hard API/system evidence of source availability issues. Do not mention this to the user unless the API or system error proves it; otherwise use route, keyword, geography, or buyer-role diagnosis.
+
+Prefer recall-increasing recovery moves before precision-increasing moves:
+
+- Remove hard filters.
+- Rewrite terms into broader, local-language, or index-language terms.
+- Stay in the same intent while changing wording.
+- Replace a constraint instead of adding one.
+
+Do not treat zero results as evidence that the query needs to become more precise. Do not add a new hard constraint merely because it appears in the user's ICP. Keep precise ICP clues as local ranking or display filters until a candidate pool exists.
+
 Automatic recovery budget:
 
 - Each additional `search-companies.js` invocation after the first search counts as one automatic recovery round.
-- Run at most 3 automatic recovery rounds for one user request.
+- Use one automatic recovery round by default for one user-visible search action.
+- Run at most 3 automatic recovery rounds for one user request only as a hard exception when each payload is clearly broader or better targeted.
 - Keep each recovery payload concise and directly related to the current request.
-- After 3 automatic recovery rounds, stop and show the best current results or explain why the search is still weak, then ask whether to continue refining.
-- If the user explicitly asks to continue, find more, or make it more precise, that new request may start another recovery budget.
+- After 3 automatic recovery rounds, stop and show the best current results or explain why the search is still weak, then ask whether to continue refining. If no usable batch exists or low yield repeated, include Mentor Guided as an explicit option, not just more search branches.
+- If the user explicitly changes conditions or confirms a new Expansion branch, that starts a new search action and a new recovery budget.
+- If the user says "more", "continue", "next page", "too few", or "not enough" after results were shown, do not keep running hidden recovery. First inspect `has_next_page`, `next_offset`, and `available`; if there is a next page, paginate. If no page remains, use `expansion-playbook.md`.
+- The first visible output under 60 seconds takes priority over exhausting every recovery idea.
 
 ### Automatic recovery gradient
 
@@ -236,6 +301,8 @@ Use this order. It is designed for weaker models: do the first applicable step, 
 3. **Recovery 2: buyer-route shift.** If Recovery 1 is still weak, stop changing only synonyms. Shift to one adjacent buyer route with a clear path, such as channel route to installer/integrator route, or narrow importer route to trade-category supplier route. Keep geography. Use one route per payload. This is the first normal place to add or switch to `companyTypeKeywords`.
 4. **Recovery 3: narrow-field cleanup.** If Recovery 2 is still weak, remove the least important narrowing field, such as `industryKeywords`, or remove `withEmails` if the user did not require email-only results. You may broaden the same route from one company type to route-compatible types, such as `importer` to `importer`, `distributor`, and `wholesaler`.
 5. **Stop after the recovery budget.** After three recovery searches, stop automatic searching. Show the best current results or say that the search is still weak, then offer two or three next directions instead of continuing to guess.
+
+For L2 Mentor Guided, the first round searches one graph path. A second graph path requires user confirmation or Expansion.
 
 Direct target-company request rule:
 

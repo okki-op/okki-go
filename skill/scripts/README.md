@@ -8,13 +8,13 @@ Normal OKKI Go tool output must be compact and user-facing. Raw API JSON, long e
 
 Default private raw files should live under `/private/tmp/okki-go-batches`. Compact mode is a presentation filter, not data deletion: wrapper scripts save raw records or mappings when the compact output would otherwise omit private fields.
 
-Compact wrapper stdout includes `output_budget`, `truncated`, `available`, and `next_offset`. Batch-producing scripts update a latest batch pointer with a default 24h TTL so row-selector follow-ups can reuse the displayed mapping without re-searching.
+Compact wrapper stdout includes `output_budget`, `truncated`, `available`, `next_offset`, and `discovery_health`. Batch-producing scripts update a latest batch pointer with a default 24h TTL so row-selector follow-ups can reuse the displayed mapping without re-searching. For company discovery, `target_count` defaults to 30; `low_yield_batch_streak` counts consecutive low-yield displayed result batches, not result rows or chat turns.
 
 Default visible caps:
 
 | Output type | Default visible cap | Raw handling |
 |---|---:|---|
-| Company rows | 50 for single page, requested count for batch, hard cap 100 | Save raw batch file |
+| Company rows | 30 by default, requested count when provided, hard cap 100 | Save raw batch file |
 | Contacts | 20 visible, hard cap 100 | Save contact batch file |
 | profileEmails | 20 visible per company, hard cap 100 | Save company contact file |
 | Email task list | 20 tasks | Save raw status file |
@@ -31,6 +31,7 @@ node scripts/search-companies.js \
   --json '<search-advanced payload>' \
   --compact \
   --locale '<user-locale>' \
+  --target-count 30 \
   --fields company_name,country_name,email_count,employees_count,company_type,fit \
   --limit-output 50 \
   --save-raw /private/tmp/okki-go-batches/search-raw.json

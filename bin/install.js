@@ -30,7 +30,7 @@ const bold   = '\x1b[1m';
 // ─── Skill metadata ───────────────────────────────────────────────────────────
 const SKILL_NAME = 'okki-go';
 const DISPLAY_NAME = 'OKKI Go';
-const VERSION    = '1.2.1';
+const VERSION    = '1.3.0';
 
 // Friendly display names for each runtime
 const RUNTIME_LABELS = {

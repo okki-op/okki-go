@@ -6,6 +6,7 @@ const path = require('path');
 const PRIVATE_FIELD_PATTERN = /(domain|hash|id|website|homepage|url|link)$/i;
 const DEFAULT_BATCH_DIR = '/private/tmp/okki-go-batches';
 const DEFAULT_OUTPUT_HARD_CAP = 100;
+const DEFAULT_COMPANY_TARGET_COUNT = 30;
 const DEFAULT_LOCALE = 'en-US';
 const regionDisplayNamesByLocale = new Map();
 
@@ -72,6 +73,47 @@ function outputBudgetMetadata(options = {}) {
       applied_limit: budget.appliedLimit,
       offset: budget.offset
     }
+  };
+}
+
+function discoveryHealth(options = {}) {
+  const targetCount = positiveIntegerOrNull(options.targetCount) || DEFAULT_COMPANY_TARGET_COUNT;
+  const visibleUniqueCount = Math.max(0, Number.isFinite(Number(options.visibleUniqueCount))
+    ? Number(options.visibleUniqueCount)
+    : Number(options.returned) || 0);
+  const usableCandidateCount = Math.max(0, Number.isFinite(Number(options.usableCandidateCount))
+    ? Number(options.usableCandidateCount)
+    : visibleUniqueCount);
+  const available = Math.max(0, Number.isFinite(Number(options.available))
+    ? Number(options.available)
+    : usableCandidateCount);
+  const nextOffset = positiveIntegerOrNull(options.nextOffset);
+  const hasNextPage = Boolean(options.hasNextPage || (nextOffset !== null && nextOffset < available));
+  const latestHealth = options.latestHealth && typeof options.latestHealth === 'object'
+    ? options.latestHealth
+    : null;
+  const previousStreak = latestHealth && Number.isInteger(Number(latestHealth.low_yield_batch_streak))
+    ? Number(latestHealth.low_yield_batch_streak)
+    : 0;
+  const lowYield = !hasNextPage && usableCandidateCount < targetCount;
+  const lowYieldBatchStreak = lowYield ? previousStreak + 1 : 0;
+  const status = hasNextPage ? 'page_available' : lowYield ? 'low_yield' : 'healthy';
+  const recommendedMode = hasNextPage
+    ? 'l0_pagination'
+    : lowYield
+      ? 'post_result_low_yield_diagnosis'
+      : 'l0_default_search';
+
+  return {
+    target_count: targetCount,
+    visible_unique_count: visibleUniqueCount,
+    usable_candidate_count: usableCandidateCount,
+    has_next_page: hasNextPage,
+    low_yield: lowYield,
+    status,
+    recommended_mode: recommendedMode,
+    low_yield_batch_streak: lowYieldBatchStreak,
+    repeated_low_yield: lowYieldBatchStreak >= 2
   };
 }
 
@@ -316,9 +358,11 @@ module.exports = {
   countryCode,
   countryName,
   DEFAULT_BATCH_DIR,
+  DEFAULT_COMPANY_TARGET_COUNT,
   DEFAULT_LOCALE,
   DEFAULT_OUTPUT_HARD_CAP,
   defaultRawPath,
+  discoveryHealth,
   normalizeLocale,
   normalizeDomain,
   normalizeName,
