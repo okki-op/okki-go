@@ -2,6 +2,56 @@
 
 Use this reference when the OKKI Go skill needs an API key, first-use signup, key persistence, or authenticated `curl` examples.
 
+## Contents
+
+1. Agent-led Install Wizard
+2. Credential Resolution
+3. Email Verification
+4. Save API Key
+
+## Agent-led Install Wizard
+
+Use this flow when a user asks to install, set up, add, update, or enable OKKI Go. Do not rely on the npm package's interactive prompt. Ask the install questions in chat, map the answers to installer flags, then execute the installer yourself when the host provides shell/tool execution. Do not just display the command.
+
+Do not ask the user to choose a language. Use the user's current conversation language for all prompts and explanations.
+
+One-step execution path: when the user already named a runtime and install location, or a preinstalled agent knows its own known runtime and the default global location is appropriate, skip the wizard questions and execute the flagged installer directly.
+
+Ask only for missing install choices:
+
+1. AI assistant/runtime:
+   - Claude Code -> `--claude`
+   - OpenClaw -> `--openclaw`
+   - OpenCode -> `--opencode`
+   - Gemini CLI -> `--gemini`
+   - Cursor -> `--cursor`
+   - Windsurf -> `--windsurf`
+   - Codex -> `--codex`
+   - GitHub Copilot -> `--copilot`
+   - Cline -> `--cline`
+   - Accio Work -> `--accio`
+   - Install all -> `--all`
+   - Other -> ask for the assistant name and map to `--custom=<name>`
+2. Install location:
+   - Default global config -> `--global`
+   - Current working directory -> `--local`
+   - Custom base path -> ask for the base path and map to `--path <dir>`
+
+After collecting answers, construct:
+
+```bash
+npx -y @okki-global/okki-go@latest <location flag> <runtime flag>
+```
+
+Then execute the installer. If the host requires command approval, request approval using the host's normal mechanism. If the host has no command execution capability, or the user refuses execution approval, explain that installation cannot be completed from this agent surface and provide the exact command as a fallback.
+
+After successful install, continue with these next steps:
+
+1. Get your API Key: direct the user to https://go.okki.ai to sign up and get an `sk-...` key, unless the user already has one.
+2. Configure your key: prefer platform secrets/config when available; otherwise ask before saving to the user-level cache with `printf '%s\n' 'sk-xxxxxxxxxxxxxxxxxxxx' | node scripts/okki-auth.js login --with-api-key`.
+3. Verify without printing the key: run `bash scripts/resolve-api-key.sh --check`.
+4. Prompt the user to restart or open a new assistant session if the install target requires reloading skills.
+
 ## Credential Resolution
 
 Before the first API call in each session, run:

@@ -11,6 +11,7 @@ const {
   budgetedItems,
   defaultRawPath,
   outputBudgetMetadata,
+  applyDebugMetadata,
   responseList,
   responseTotal,
   truncateText
@@ -22,10 +23,10 @@ const HARD_CAP = 100;
 function usage() {
   console.error([
     'Usage:',
-    '  node scripts/email-status.js tasks --json \'{"page":1,"page_size":20}\' --compact',
-    '  node scripts/email-status.js task --task-id 1001 --compact [--save-raw PATH]',
-    '  node scripts/email-status.js mails --json \'{"statuses":"failed"}\' --compact',
-    '  node scripts/email-status.js mail --mail-id 2001 --compact [--include-body]'
+    '  node scripts/email-status.js tasks --json \'{"page":1,"page_size":20}\' --compact [--debug-metadata]',
+    '  node scripts/email-status.js task --task-id 1001 --compact [--save-raw PATH] [--debug-metadata]',
+    '  node scripts/email-status.js mails --json \'{"statuses":"failed"}\' --compact [--debug-metadata]',
+    '  node scripts/email-status.js mail --mail-id 2001 --compact [--include-body] [--debug-metadata]'
   ].join('\n'));
 }
 
@@ -42,7 +43,8 @@ function parseArgs(argv) {
     taskId: null,
     mailId: null,
     saveRaw: null,
-    includeBody: false
+    includeBody: false,
+    debugMetadata: false
   };
   for (let i = 1; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -60,6 +62,8 @@ function parseArgs(argv) {
       args.saveRaw = argv[++i];
     } else if (arg === '--include-body') {
       args.includeBody = true;
+    } else if (arg === '--debug-metadata') {
+      args.debugMetadata = true;
     } else if (arg === '--help' || arg === '-h') {
       usage();
       process.exit(0);
@@ -240,10 +244,17 @@ async function main() {
   }
 
   if (args.compact) {
-    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(emailStatusNormalOutput(output, args.debugMetadata), null, 2)}\n`);
     return;
   }
   process.stdout.write(`${JSON.stringify(body, null, 2)}\n`);
+}
+
+function emailStatusNormalOutput(output, debugMetadata) {
+  return applyDebugMetadata(output, [
+    'raw_path',
+    'output_budget'
+  ], debugMetadata);
 }
 
 main().catch((error) => {

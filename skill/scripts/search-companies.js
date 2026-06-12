@@ -13,6 +13,10 @@ const {
   DEFAULT_COMPANY_TARGET_COUNT,
   defaultRawPath,
   discoveryHealth,
+  applyDebugMetadata,
+  nextActionFromDiscoveryHealth,
+  normalizeDomain,
+  normalizeName,
   nowIso,
   parseFields,
   projectFields,
@@ -24,12 +28,18 @@ const {
   readLatestBatchPointer,
   writeLatestBatchPointer
 } = require('./lib/batch-state');
+const {
+  KEYWORD_FIELDS,
+  splitCompanySearchPayload
+} = require('./lib/company-search-payloads');
+const {
+  addCompanySearchDisplayTable
+} = require('./lib/company-search-display');
 
 const BASE_URL = process.env.OKKIGO_BASE_URL || 'https://go.okki.ai';
 const SKILL_VERSION = process.env.OKKIGO_SKILL_VERSION || '1.2.1';
 const SKILL_RUNTIME = process.env.OKKIGO_SKILL_RUNTIME || 'unknown';
 const MAX_SIZE = 50;
-const KEYWORD_FIELDS = ['companyTypeKeywords', 'productKeywords', 'industryKeywords'];
 const SUPPORTED_FIELDS = new Set([
   'companyTypeKeywords',
   'productKeywords',
@@ -47,7 +57,7 @@ function usage() {
     'Usage:',
     '  node scripts/search-companies.js --json \'<search-advanced payload>\'',
     '  node scripts/search-companies.js --file /path/to/payload.json',
-    '  node scripts/search-companies.js --json \'<payload>\' --compact [--locale en-US] [--target-count 30] [--limit-output 50] [--fields company_name,country_name,email_count,fit] [--save-raw PATH]',
+    '  node scripts/search-companies.js --json \'<payload>\' --compact [--locale en-US] [--target-count 30] [--limit-output 50] [--fields company_name,country_name,email_count,fit] [--save-raw PATH] [--debug-metadata]',
     '',
     'Example:',
     '  node scripts/search-companies.js --json \'{"productKeywords":["auto glass"],"companyTypeKeywords":["importer","distributor"],"includeCountry":["DE"],"withEmails":0,"size":20}\' --compact --locale zh-CN'
@@ -64,7 +74,8 @@ function parseArgs(argv) {
     limitOutput: null,
     saveRaw: null,
     locale: null,
-    targetCount: null
+    targetCount: null,
+    debugMetadata: false
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -86,6 +97,8 @@ function parseArgs(argv) {
       args.locale = argv[++i];
     } else if (arg === '--target-count') {
       args.targetCount = parsePositiveInteger(argv[++i], '--target-count');
+    } else if (arg === '--debug-metadata') {
+      args.debugMetadata = true;
     } else if (arg === '--help' || arg === '-h') {
       usage();
       process.exit(0);
@@ -329,9 +342,11 @@ function postJson(urlString, headers, payload) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const { payload, dropped, warnings } = normalizePayload(readPayload(args));
+  const splitSearch = splitCompanySearchPayload(payload);
+  const searchPayloads = splitSearch.payloads;
 
   if (args.printPayload) {
-    console.error(JSON.stringify({ payload, dropped, warnings }, null, 2));
+    console.error(JSON.stringify({ payload, payloads: searchPayloads, dropped, warnings }, null, 2));
     return;
   } else if (dropped.length > 0) {
     console.error(`Dropped unsupported fields: ${dropped.join(', ')}`);
@@ -350,14 +365,19 @@ async function main() {
   };
   if (installId) headers['X-Okki-Install-Id'] = installId;
 
-  const response = await postJson(`${BASE_URL}/api/v1/companies/search-advanced`, headers, payload);
-
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    console.error(response.body);
-    process.exit(response.statusCode >= 400 && response.statusCode < 600 ? 1 : 2);
+  const responses = [];
+  for (const searchPayload of searchPayloads) {
+    const response = await postJson(`${BASE_URL}/api/v1/companies/search-advanced`, headers, searchPayload);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      console.error(response.body);
+      process.exit(response.statusCode >= 400 && response.statusCode < 600 ? 1 : 2);
+    }
+    responses.push(response);
   }
   if (args.compact) {
-    const body = parseJson(response.body || '{}', 'OKKI Go response');
+    const body = mergeSearchBodies(responses.map((response, index) => (
+      parseJson(response.body || '{}', `OKKI Go response ${index + 1}`)
+    )));
     const rawPath = args.saveRaw || defaultRawPath('search-companies');
     const compact = compactSearchResponse(body, {
       payload,
@@ -366,7 +386,8 @@ async function main() {
       limitOutput: args.limitOutput || payload.size || DEFAULT_COMPANY_TARGET_COUNT,
       locale: args.locale,
       targetCount: args.targetCount || payload.size || DEFAULT_COMPANY_TARGET_COUNT,
-      latestPointer: readLatestBatchPointer({ ignoreErrors: true })
+      latestPointer: readLatestBatchPointer({ ignoreErrors: true }),
+      splitQueryCount: splitSearch.splitQueryCount
     });
     writeJsonFile(rawPath, compact.raw);
     writeLatestBatchPointer({
@@ -375,11 +396,53 @@ async function main() {
       requestSummary: compact.raw.request_summary,
       discoveryHealth: compact.output.discovery_health
     });
-    process.stdout.write(`${JSON.stringify(compact.output, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(companyNormalOutput(compact.output, {
+      debugMetadata: args.debugMetadata,
+      locale: args.locale
+    }), null, 2)}\n`);
     return;
   }
-  process.stdout.write(response.body);
-  if (response.body && !response.body.endsWith('\n')) process.stdout.write('\n');
+  const outputBody = responses.length === 1
+    ? responses[0].body
+    : JSON.stringify(mergeSearchBodies(responses.map((response, index) => (
+      parseJson(response.body || '{}', `OKKI Go response ${index + 1}`)
+    ))), null, 2);
+  process.stdout.write(outputBody);
+  if (outputBody && !outputBody.endsWith('\n')) process.stdout.write('\n');
+}
+
+function mergeSearchBodies(bodies) {
+  const rows = [];
+  let total = 0;
+  for (const body of bodies) {
+    const list = responseList(body);
+    rows.push(...list);
+    total += responseTotal(body, list.length);
+  }
+  return {
+    total,
+    list: dedupeCompanyRecords(rows)
+  };
+}
+
+function dedupeCompanyRecords(records) {
+  const byKey = new Map();
+  for (const record of records) {
+    const domain = normalizeDomain(record.domain || record.companyDomain || record.company_domain);
+    const name = normalizeName(record.company_name || record.companyName || record.name);
+    const key = domain ? `domain:${domain}` : name ? `name:${name}` : `raw:${byKey.size}`;
+    if (!byKey.has(key)) byKey.set(key, record);
+  }
+  return Array.from(byKey.values());
+}
+
+function companyNormalOutput(output, options = {}) {
+  return addCompanySearchDisplayTable(applyDebugMetadata(output, [
+    'batch_id',
+    'private_mapping_saved',
+    'raw_path',
+    'output_budget'
+  ], options.debugMetadata), { locale: options.locale });
 }
 
 function compactSearchResponse(body, options) {
@@ -392,9 +455,10 @@ function compactSearchResponse(body, options) {
     available: total
   });
   const fields = options.fields;
-  const rows = budgeted.items.map((record, index) => (
-    projectFields(compactCompanyRow(record, index + 1, { locale: options.locale }), fields)
+  const displayRows = budgeted.items.map((record, index) => (
+    compactCompanyRow(record, index + 1, { locale: options.locale })
   ));
+  const rows = displayRows.map((row) => projectFields(row, fields));
   const rawRows = list.map((record, index) => ({
     row: index + 1,
     domain: record.domain || record.companyDomain || record.company_domain || null,
@@ -406,11 +470,13 @@ function compactSearchResponse(body, options) {
   const output = {
     total,
     batch_id: batchIdFromPath(options.rawPath),
+    display_rows: displayRows,
     rows,
     private_mapping_saved: true,
     raw_path: options.rawPath,
     ...budgeted.metadata
   };
+  if (options.splitQueryCount > 1) output.split_query_count = options.splitQueryCount;
   output.discovery_health = discoveryHealth({
     targetCount: options.targetCount,
     visibleUniqueCount: rows.length,
@@ -420,6 +486,7 @@ function compactSearchResponse(body, options) {
     hasNextPage: budgeted.metadata.truncated,
     latestHealth: options.latestPointer && options.latestPointer.discovery_health
   });
+  output.next_action = nextActionFromDiscoveryHealth(output.discovery_health);
   return {
     output,
     raw: {

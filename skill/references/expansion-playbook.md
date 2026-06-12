@@ -1,109 +1,62 @@
 # Prospecting Expansion Playbook
 
-Expansion is **new search branches** after a visible company batch or a guided customer-route hypothesis. It is not hidden recovery, not a default mentor mode, and not a paid action.
+Expansion owns new customer-route branches after a visible batch is exhausted or the user explicitly asks for alternate routes. It is not hidden recovery and never authorizes paid actions.
 
-Expansion may generate more customer routes, but only user-confirmed routes are searched. It never unlocks companies, searches contacts, sends emails, or authorizes credit spend.
+## Pagination First
 
-## 1. Pagination Comes First
+Before Expansion, inspect compact batch metadata:
 
-Before treating "more", "continue", "next page", "too few", "not enough", "expand", or "change batch" as Expansion, inspect the latest compact batch state.
+1. If `has_next_page=true`, or `next_offset` exists and is less than `available`, stay in `L0_PAGINATION`.
+2. If batch state is missing or stale, recover the batch or rerun a free lookup before deciding.
+3. If the user says results are wrong, supplier-like, or not buyers, use `search-strategy.md` unless they only asked for the next page.
 
-Use these deterministic rules:
-
-1. If `has_next_page=true`, or `next_offset` exists and is less than `available`, stay in L0 pagination and fetch the next page.
-2. Only consider Expansion when there is no next page, `next_offset` is empty, or `available <= next_offset`.
-3. If batch state is missing or expired, do not guess. Restore the latest batch pointer or rerun a free lookup before deciding.
-4. User feedback like "these are not buyers", "all suppliers", or "not what I want" is diagnosis, not simple Expansion; route to L2 Mentor Guided unless the user only asks for next page and pagination exists.
-
-Useful markers for automated traces:
-
-- `expansion_not_selected_when_next_page_exists`
-- `expansion_selected_when_current_batch_exhausted`
-- `post_result_too_few_skips_hidden_recovery`
-- `first_visible_output_under_60s_guard`
-
-## 2. Trigger Conditions
+## Trigger Conditions
 
 Expansion is appropriate when:
 
-- A displayed batch is exhausted and the user still wants more usable prospects.
-- The user asks for other customer types, other application scenarios, another cooperation mode, or another route.
-- L2 Mentor Guided has searched one graph path and the user confirms trying a second route.
-- The current route is low-yield after the small recovery budget.
+- the current route is exhausted and the user wants more prospects
+- the user asks for other customer types, applications, cooperation modes, or routes
+- L2 searched one graph path and the user confirms trying a second route
+- the current route remains low-yield after the small recovery budget
 
-Do not trigger Expansion when:
+Do not use Expansion for "next page" when pagination exists, or for latest/source-backed market research.
 
-- The user asks "next page" and batch pagination is available.
-- The user asks for "20 more similar" and `next_offset` is available.
-- The user asks for search-method diagnosis; use L2 Mentor Guided.
-- The user asks for latest market information; use Web Research Add-on only if explicit.
+## Branch Proposal
 
-## 3. Candidate Branches
+Offer 2-3 distinct customer-side routes, such as:
 
-When Expansion is allowed, offer **2-3 candidate expansion branches**. Each branch should be a distinct customer-side route:
+- channel/resale
+- installation/integration
+- service/maintenance/retrofit
+- project/specification
+- direct operator/use
 
-- channel/resale route
-- brand/OEM route
-- integration/engineering/project route
-- service/maintenance/retrofit route
-- direct use/operator route
-- project-trigger route
-
-Each branch must include:
+Each branch should include:
 
 - branch label
-- why this route could buy, specify, resell, integrate, maintain, retrofit, or use the offer
+- why the route could buy, resell, install, integrate, maintain, retrofit, specify, or use the offer
 - one recall-first payload idea
-- `local_priority_rule`
-- avoid or not recommended signals
+- local priority rule
+- avoid/not-recommended signals
 
-Do not pack multiple branches into one OR-style payload. The user confirms one branch; search only that branch. If the user says "try all", ask which one to start with unless they explicitly accept sequential searches.
+The user confirms one branch. Search only that branch. If the user asks to try all, ask which branch to start with unless they explicitly accept sequential searches.
 
-## 4. Recallability Guard
+## Payload Guard
 
-Every expansion branch must pass the OKKI Recallability Guard from `sales-mentor-playbook.md`:
+Every branch payload applies the Company Search Keyword Contract from `SKILL.md`:
 
-- First payload prefers one primary search field plus target geography.
-- Secondary buyer-route signals go to `local_priority_rule` when they may over-narrow recall.
-- Do not default to `productKeywords + companyTypeKeywords + industryKeywords`.
-- Do not use `crossFieldOperator: "AND"` as a mentor precision shortcut.
-- If recall is weak, change broad target-side words or switch one route; do not keep narrowing.
+- one primary keyword field plus geography when supplied
+- Chinese target-side index terms by default
+- secondary buyer-route signals kept local when they may over-narrow recall
+- no default `AND` or packed three-field payloads
 
-Example branch:
+## Result Presentation
 
-```json
-{
-  "branch": "integration/project route",
-  "why": "automation integrators may specify or integrate equipment in production-line projects",
-  "search_payload": {
-    "productKeywords": ["industrial automation", "production line automation"],
-    "includeCountry": ["DE"],
-    "from": 0,
-    "size": 20
-  },
-  "local_priority_rule": "prioritize integrator / retrofit / production line service signals",
-  "avoid": ["generic equipment manufacturer", "component supplier"]
-}
-```
+After a confirmed branch search:
 
-## 5. Recovery and Timing Budget
+- show the company table
+- label the branch used
+- add priority/observe/not-recommended guidance only when the user asked for analysis or the route is guided
+- keep private/debug fields governed by `output-contracts.md`
 
-Expansion is not a way to hide many slow searches.
-
-- The first visible output under 60 seconds is the priority.
-- Use one automatic recovery round by default in the current search action.
-- The hard cap of 3 automatic recovery rounds is only an exception for clearly improved, broader payloads.
-- L2 first round searches one graph path; additional graph paths require user confirmation.
-- After a user confirms a new branch, start a new search action and explain the new route briefly.
-
-## 6. Result Presentation After Expansion
-
-Keep expanded results explainable:
-
-- Show the company table.
-- Label which branch produced the batch.
-- Add priority unlock / observe / not recommended guidance when the user asked for analysis or the route is guided.
-- Preserve internal row-to-domain mappings privately.
-- Do not run viewed classification unless the user explicitly asked for new/non-repeated companies.
-
-Expansion never changes paid-action rules. Before `/companies/unlock`, `/contacts/search`, or email send, ask the confirmations required in `SKILL.md`.
+Before unlock, contact search, or email send, use `paid-actions.md`.

@@ -30,9 +30,9 @@ function usage() {
     '  node scripts/okki-state.js profile reset',
     '',
     '  node scripts/okki-state.js viewed classify (--results-json JSON | --results-file PATH | --results-file -) [--window-days N] [--now ISO]',
-    '  node scripts/okki-state.js viewed classify (--results-json JSON | --results-file PATH | --results-file -) [--compact] [--window-days N] [--now ISO]',
-    '  node scripts/okki-state.js viewed mark-shown (--results-json JSON | --results-file PATH | --results-file -) [--brief-summary TEXT] [--compact] [--now ISO]',
-    '  node scripts/okki-state.js viewed mark-unlocked --domain DOMAIN [--country-code ISO] [--compact] [--now ISO]',
+    '  node scripts/okki-state.js viewed classify (--results-json JSON | --results-file PATH | --results-file -) [--compact] [--debug-metadata] [--window-days N] [--now ISO]',
+    '  node scripts/okki-state.js viewed mark-shown (--results-json JSON | --results-file PATH | --results-file -) [--brief-summary TEXT] [--compact] [--debug-metadata] [--now ISO]',
+    '  node scripts/okki-state.js viewed mark-unlocked --domain DOMAIN [--country-code ISO] [--compact] [--debug-metadata] [--now ISO]',
     '  node scripts/okki-state.js viewed mark-unlocked-batch (--json JSON | --file PATH) [--now ISO]',
     '  node scripts/okki-state.js viewed reset',
     '',
@@ -86,6 +86,10 @@ function parseArgs(argv) {
       }
       if (key === 'compact') {
         options.compact = true;
+        continue;
+      }
+      if (key === 'debug-metadata') {
+        options.debugMetadata = true;
         continue;
       }
       if (i + 1 >= argv.length || argv[i + 1].startsWith('--')) {
@@ -209,7 +213,7 @@ function handleViewed(command, options, now) {
           seen: classified.seen.length,
           new: classified.new.length
         },
-        ...compactStateBudget(results.length)
+        ...stateDebugMetadata(compactStateBudget(results.length), options.debugMetadata)
       });
       return;
     }
@@ -246,7 +250,7 @@ function handleViewed(command, options, now) {
         migrated: loaded.migrated || state.changed,
         updated: state.updated,
         total_items: state.state.items.length,
-        ...compactStateBudget(state.state.items.length)
+        ...stateDebugMetadata(compactStateBudget(state.state.items.length), options.debugMetadata)
       });
       return;
     }
@@ -281,7 +285,7 @@ function handleViewed(command, options, now) {
         migrated: loaded.migrated || state.changed,
         updated: 1,
         total_items: state.state.items.length,
-        ...compactStateBudget(state.state.items.length)
+        ...stateDebugMetadata(compactStateBudget(state.state.items.length), options.debugMetadata)
       });
       return;
     }
@@ -319,7 +323,7 @@ function handleViewed(command, options, now) {
       migrated: loaded.migrated,
       updated,
       total_items: state.items.length,
-      ...compactStateBudget(state.items.length)
+      ...stateDebugMetadata(compactStateBudget(state.items.length), options.debugMetadata)
     });
     return;
   }
@@ -1084,6 +1088,23 @@ function compactStateBudget(available) {
     returned: 0,
     available
   });
+}
+
+function stateDebugMetadata(metadata, debugMetadata) {
+  return applyDebugMetadataForState(metadata, debugMetadata);
+}
+
+function applyDebugMetadataForState(metadata, debugMetadata) {
+  const output = { ...metadata };
+  const debug = {};
+  if (Object.prototype.hasOwnProperty.call(output, 'output_budget')) {
+    debug.output_budget = output.output_budget;
+    delete output.output_budget;
+  }
+  if (debugMetadata && Object.keys(debug).length > 0) {
+    output.debug_metadata = debug;
+  }
+  return output;
 }
 
 function userError(message, code) {

@@ -17,7 +17,10 @@ echo -e "${CYAN}🔍 Checking for okki-go updates...${NC}"
 echo ""
 
 # Get current version
-CURRENT=$(grep "^version:" "$SKILL_DIR/SKILL.md" 2>/dev/null | awk '{print $2}')
+CURRENT=$(cat "$SKILL_DIR/VERSION" 2>/dev/null)
+if [ -z "$CURRENT" ]; then
+    CURRENT=$(grep "^version:" "$SKILL_DIR/SKILL.md" 2>/dev/null | awk '{print $2}')
+fi
 if [ -z "$CURRENT" ]; then
     CURRENT="unknown"
 fi

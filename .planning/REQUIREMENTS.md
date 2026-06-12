@@ -56,6 +56,44 @@
 - [x] **OMM-07**: Existing paid unlock, contact-search, and email-send confirmations remain authoritative.
 - [x] **OMM-08**: Package, installer, resolver, API reference, authentication examples, README, INSTALL, and SKILL version references align to 1.3.0.
 
+## v1.4.0 Requirements
+
+### Baseline and Guardrails
+
+- [x] **TLO-BASE-01**: Maintainer can inspect a baseline artifact listing current `SKILL.md`/reference sizes, representative prompts, expected behaviors, protected invariants, and existing eval/test coverage before optimization changes.
+- [x] **TLO-BASE-02**: Search recall, target-side Chinese-first keyword rules, one-primary-field default search, paid-action confirmations, same-language replies, compact privacy, and latest-batch row reuse are explicitly marked as protected behavior.
+- [x] **TLO-BASE-03**: Existing dirty worktree and moved/untracked eval state are documented so optimization work does not revert or overwrite unrelated changes.
+
+### Hot Path Router
+
+- [x] **TLO-ROUTER-01**: `skill/SKILL.md` functions as a short router, safety hot path, and compact command starter, with target length 150-220 lines and hard cap 300 unless an exception is documented.
+- [x] **TLO-ROUTER-02**: `SKILL.md` contains a strict workflow mode table and a "Read Only When" reference-loading table for L0 discovery, pagination, L1 review, L2 strategy, Expansion, paid actions, direct status/auth, and Web Research Add-on.
+- [x] **TLO-ROUTER-03**: `SKILL.md` keeps the six-rule Company Search Keyword Contract and paid-action safety summary visible while removing advanced mentor, expansion, profile, API schema, changelog, and duplicate output prose.
+
+### Reference Ownership
+
+- [x] **TLO-REF-01**: Normal search, result review, search strategy, expansion, paid actions, auth, merchant profile, API reference, and output contracts each have one canonical reference owner.
+- [x] **TLO-REF-02**: References over 100 lines include a short table of contents and can be selected directly from the router table without reading another reference first.
+- [x] **TLO-REF-03**: Duplicate field-hiding, paid-action, keyword, API-parameter, and local-state prose is removed or replaced with links to the owning reference.
+
+### Compact Output Contracts
+
+- [x] **TLO-OUTPUT-01**: `references/output-contracts.md` defines normal compact, detail, debug metadata, and raw/export output classes for every user-facing wrapper.
+- [x] **TLO-OUTPUT-02**: Field ownership is explicit for `domain`, raw IDs, `batch_id`, `raw_path`, `private_mapping_saved`, `output_budget`, pagination fields, latest-batch pointers, and viewed-state writes.
+- [x] **TLO-OUTPUT-03**: Normal wrapper stdout avoids raw API records, domains, raw URLs, private IDs, full profiles, full local state, full email bodies, and verbose metadata unless explicit raw/debug/detail/export behavior is requested.
+
+### Deterministic Routing
+
+- [x] **TLO-ROUTE-01**: Scripts expose deterministic `next_action` and/or `health_action` hints where they reduce model guesswork for pagination, low-yield handling, row mapping validity, output truncation, and next user action.
+- [x] **TLO-ROUTE-02**: Normal row-selection unlocks use saved batch pointers such as `--batch latest`; the model does not need to copy or preserve `domain` or visible `batch_id`.
+- [x] **TLO-ROUTE-03**: Token/latency improvements do not shrink default result counts, add stricter first-round API filters, or replace recall with premature precision.
+
+### Cost and Capability Evaluation
+
+- [ ] **TLO-EVAL-01**: Cost-behavior scenarios cover normal search, pagination, row unlock confirmation, confirmed unlock, result review, low-yield diagnosis, balance, contact search confirmation, email status, and outreach drafting without encoding a single-session fix.
+- [ ] **TLO-EVAL-02**: Static checks guard hot-path size, duplicate rule ownership, raw-output leakage, paid confirmations, and weak-model routing cues.
+- [ ] **TLO-EVAL-03**: Forward tests use generic user-like prompts and fresh or smaller agents, then failures are fixed by routing rows, wrapper fields, or command patterns before adding long prose.
+
 ## v2 Requirements
 
 ### Deferred Personalization
@@ -114,13 +152,32 @@
 | OMM-06 | Phase 6 | Complete |
 | OMM-07 | Phase 6 | Complete |
 | OMM-08 | Phase 6 | Complete |
+| TLO-BASE-01 | Phase 8 | Complete |
+| TLO-BASE-02 | Phase 8 | Complete |
+| TLO-BASE-03 | Phase 8 | Complete |
+| TLO-ROUTER-01 | Phase 9 | Complete |
+| TLO-ROUTER-02 | Phase 9 | Complete |
+| TLO-ROUTER-03 | Phase 9 | Complete |
+| TLO-REF-01 | Phase 10 | Complete |
+| TLO-REF-02 | Phase 10 | Complete |
+| TLO-REF-03 | Phase 10 | Complete |
+| TLO-OUTPUT-01 | Phase 11 | Complete |
+| TLO-OUTPUT-02 | Phase 11 | Complete |
+| TLO-OUTPUT-03 | Phase 11 | Complete |
+| TLO-ROUTE-01 | Phase 12 | Complete |
+| TLO-ROUTE-02 | Phase 12 | Complete |
+| TLO-ROUTE-03 | Phase 12 | Complete |
+| TLO-EVAL-01 | Phase 13 | Planned |
+| TLO-EVAL-02 | Phase 13 | Planned |
+| TLO-EVAL-03 | Phase 13 | Planned |
 
 **Coverage:**
 - v1.2.0 requirements: 23 total
 - v1.3.0 requirements: 8 total
-- Mapped to phases: 31
+- v1.4.0 requirements: 18 total
+- Mapped to phases: 49
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-28*
-*Last updated: 2026-06-09 after Phase 6 optimized mentor-mode landing*
+*Last updated: 2026-06-11 after adding v1.4.0 token and latency optimization requirements*

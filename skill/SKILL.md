@@ -1,51 +1,23 @@
 ---
-name: OKKI Go
-version: 1.3.0
+name: okki-go
 description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine - only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
-homepage: "https://go.okki.ai"
-requires:
-  - node
-  - curl
-  - jq
-env:
-  OKKIGO_API_KEY:
-    required: false
-    description: "Optional API Key override for Okki Go platform; user-level credential cache is also supported"
 ---
 
 # OKKI Go
 
-OKKI Go helps users quickly find B2B prospect companies, unlock selected company details, find decision-maker emails, draft/send outbound email, and check balance or email status.
+OKKI Go helps users find B2B prospect companies, unlock selected company details, find decision-maker emails, draft or send outbound email, and check balance or email status.
 
-Default principle: translate the user's business description into target-company profile keywords, run the free company search quickly, and let paid unlock/contact/email actions wait for explicit confirmation.
+Default principle: run free company discovery quickly from target-company terms, show the script-rendered company table, and wait for explicit confirmation before any paid unlock, contact search, or email send.
 
-References:
+## OKKI Data Source Boundary
 
-- Authentication, resolver, signup, and save-key details: [authentication.md](./references/authentication.md)
-- API parameters, response schemas, and error details: [api-reference.md](./references/api-reference.md)
-- Default company discovery and target-side keyword rules: [discovery-playbook.md](./references/discovery-playbook.md)
-- Workflow and output details: [workflows.md](./references/workflows.md)
-- Optional Merchant Profile memory: [merchant-profile-playbook.md](./references/merchant-profile-playbook.md)
-- Optimized Mentor Mode, result analysis, and source discipline: [sales-mentor-playbook.md](./references/sales-mentor-playbook.md)
-- Pagination-aware expansion: [expansion-playbook.md](./references/expansion-playbook.md)
+For ordinary OKKI Go prospecting, do not use public web search to find or replace company results. This includes requests to find companies, buyers, importers, distributors, customers, target accounts, or prospects.
 
-## Routing
+OKKI API errors, zero results, noisy rows, network failure, or when the API is busy must be handled inside OKKI flow: retry once, split a batch, simplify keywords, paginate, use L2 route diagnosis, ask one clarifying question, or tell the user OKKI Go is temporarily unavailable. Public web search is not a fallback.
 
-Use this skill when the user wants to:
+`WEB_RESEARCH_ADDON` is only for a user-explicit request for independent external/latest/source-backed research. It is not for ordinary find companies, buyers, importers, distributors, customers, target accounts, or prospects. Web Research Add-on is never an OKKI failure fallback and must not authorize paid actions or mutate OKKI payloads without confirmation.
 
-- Find companies, customers, buyers, importers, distributors, channels, target accounts, or prospects.
-- Get decision-maker emails for selected companies.
-- Search contacts by name, title, company, country, or email.
-- Draft or send outbound cold emails/EDM.
-- Check credit/EDM balance, email task status, or delivery results.
-- Upgrade plans or buy credit packs.
-
-Do NOT use this skill when:
-
-- Reading incoming email, managing inboxes, CRM pipelines, deals, or sales forecasts.
-- The user explicitly wants to search on another platform such as 1688, Alibaba, Google Maps, Amazon, LinkedIn, or a marketplace. Having a product listing on another platform is fine; searching on that platform is out of scope.
-
-## Quick Start
+## Quick Auth
 
 Before the first OKKI Go API call in each session:
 
@@ -53,366 +25,135 @@ Before the first OKKI Go API call in each session:
 bash scripts/resolve-api-key.sh --check
 ```
 
-If it returns `NO_KEY`, follow [authentication.md](./references/authentication.md). Never print, log, or store API keys outside a user-approved secure save path.
+If it returns `NO_KEY`, read `references/authentication.md`. Never print, log, or store API keys outside a user-approved secure save path.
 
-For free company discovery, prefer the deterministic wrapper:
+## Mode Routing
+
+Choose exactly one primary mode before tool use.
+
+| Mode | Use when | Read only when | Tool pattern |
+|---|---|---|---|
+| `L0_FAST_DISCOVERY` | User asks to find companies, buyers, importers, distributors, customers, target accounts, or prospects. | `references/search-fast-path.md` only if this file's quick command is insufficient. | One compact free company search or batch search. |
+| `L0_PAGINATION` | User says more, next, continue, or similar and current compact batch has a next page. | Usually none; use batch metadata. | Fetch next same-route page before Expansion. |
+| `L1_RESULT_REVIEW` | User asks which displayed results to unlock, contact, prioritize, avoid, or analyze. | `references/result-review.md` | Reuse current batch; no re-search by default. |
+| `L2_GUIDED_STRATEGY` | User asks how to search, says results are wrong/too few/suppliers, or needs route guidance. | `references/search-strategy.md` | Build a minimal profile, then search or propose one route. |
+| `EXPANSION` | Current route is exhausted or user asks for alternate customer routes. | `references/expansion-playbook.md` | Offer 2-3 branches; search one confirmed branch. |
+| `PAID_ACTION` | User asks to unlock, search contacts, or send email. | `references/paid-actions.md` | Ask or verify confirmation before paid tools. |
+| `DIRECT_STATUS` | Balance, pricing, auth, install, setup, or email status. | `references/authentication.md` only for auth/install/setup. | Use the agent-led install wizard for install/setup; direct compact/status command otherwise. |
+| `WEB_RESEARCH_ADDON` | User explicitly asks for independent external/latest/source-backed research. | Separate web guidance only after the OKKI boundary is satisfied. | Cite sources; do not mutate OKKI search payload without confirmation. |
+
+If two modes seem plausible, use this safety-preserving order: paid-action guardrails, direct status/auth, pagination, result review, fast discovery, guided strategy, Expansion, Web Research Add-on. Never choose Web Research Add-on for ordinary prospect discovery or OKKI error recovery.
+
+## Company Search Keyword Contract
+
+Apply this contract before every free company-search payload, including L0 search, recovery, Expansion, and L2 guided payloads.
+
+1. Target-side first: convert merchant-side product/service facts into target-company profile terms. Do not copy the seller's identity or long product phrases directly into payload keywords.
+2. Chinese index-language first: OKKI Go buyer-profile keyword fields are zh-primary. For `productKeywords`, `companyTypeKeywords`, and `industryKeywords`, generate concise Chinese index-language terms by default.
+3. Supplements only: keep English, local-language, brand, model, certification, acronym, or proper-noun terms only when they are likely searchable as-is. They supplement Chinese terms; they do not replace them.
+4. One primary keyword field first: Round 1 uses exactly one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords`, plus geography when provided.
+5. Recall before precision: keep buyer route, employee size, certification, decision role, and importer/distributor hints as soft display or recovery clues unless they are the chosen primary field.
+6. No over-narrow first search: do not default to `crossFieldOperator: "AND"`, do not pack all three keyword fields, and do not use email-only unless requested.
+
+Supported free company-search fields are only `companyTypeKeywords`, `productKeywords`, `industryKeywords`, `includeCountry`, `excludeCountry`, `withEmails`, `crossFieldOperator`, `from`, and `size`. `includeCountry` is only a filter and cannot be sent without a keyword field. Do not invent filters such as employee range, decision roles, website, homepage, contacts, or limit.
+
+## Command Starters
+
+Free L0 company search:
 
 ```bash
-node scripts/search-companies.js --json '<search-advanced payload>' --compact --locale '<user-locale>'
+node scripts/search-companies.js --json '<search-advanced payload>' --compact --locale '<user-locale>' --save-raw /private/tmp/okki-go-batches/<batch>.json
 ```
 
-The wrapper normalizes `withEmails`, `crossFieldOperator`, pagination, auth headers, and supported fields before calling the free `search-advanced` endpoint.
+Broad, paginated, "more", or count-based discovery:
 
-## Default Company Discovery
-
-Default company discovery is the MVP path. Do not turn it into research, onboarding, or consultation unless the user explicitly asks.
-
-## Optimized Mentor Mode
-
-Optimized Mentor Mode is a behavior layer, not the default search path. Use **Mode Arbitration** before prospecting follow-ups:
-
-- **L0 Default Search:** ordinary "find customers", "direct search", "more similar", "next page", and clear target-company requests. Search first, show a company table, then ask one next-step question.
-- **L1 Mentor Lite:** result-grounded analysis after a visible batch exists. Use it for "which should I contact first", "which are worth unlocking", "which look wrong", or "next step". Do not start active MPP questioning in L1; emit `mentor_lite_no_active_mpp_questioning` internally when eval markers are used.
-- **L2 Mentor Guided:** guided search strategy for new sales reps, unclear buyer routes, "teach me how to search", "results are not what I want", or "these look like suppliers, not buyers". Build a Minimal Prospecting Profile, make a provisional search hypothesis when context is weak, then search one route.
-
-Priority order:
-
-1. Paid unlock/contact/email-send guardrails always win.
-2. Web Research Add-on only runs when external research is explicit.
-3. "Direct search", "no mentor", or a clear L0 request stays L0.
-4. Analysis, prioritization, strategy, or search-method diagnosis upgrades to L1 or L2.
-
-Mentor outputs must stay compact. L1 normally gives priority unlock / observe / not recommended groups, one risk, and one action. L2 may show a short provisional profile and customer route before search, but the company table and unlock CTA remain first after results.
-
-### Discovery Health Gate
-
-Company-search compact wrappers emit `discovery_health`. Use it as the deterministic routing source instead of guessing from user wording.
-
-- Default target count is 30 when the user did not specify a count; fewer than one page of usable candidates is low yield.
-- If `discovery_health.recommended_mode` is `l0_pagination`, fetch the next page before diagnosis or Expansion.
-- If `recommended_mode` is `post_result_low_yield_diagnosis`, give a compact low-yield diagnosis, propose concrete keyword/route refinements, and include a clear Mentor Guided option that can systematically map more buyer routes before the next search.
-- `low_yield_batch_streak` means consecutive low-yield **displayed result batches** in the saved batch pointer. It is not the number of company rows, user messages, or tool calls. When `low_yield_batch_streak >= 2`, stop blind recovery and include a Mentor Guided option in the next user-facing response; do not present only more keyword/search-route choices.
-
-### OKKI Brand Safety Guardian
-
-This Guardian applies to all discovery, recovery, Expansion, and Mentor outputs. Do not explain weak results as OKKI Go having poor coverage, not being a search engine, not covering the whole web, or "the platform/library has no data" unless a hard API/system error proves it. Frame weak results as the current search route, target-side projection, index-language terms, geography mix, or buyer-role assumptions needing adjustment. Every weak-result explanation must include an executable next step.
-
-### Minimal Prospecting Profile
-
-L2 Mentor Guided must form a Minimal Prospecting Profile before generating routes:
-
-- Seller profile: product/service, capability boundary, application or problem solved, target geography, exclusions.
-- Temporary target customer profile: buyer type, why they might buy, role in the customer-side route, and what must be validated.
-- Product Context Lite: at most 1-2 immediate questions when one missing fact blocks route choice; it is not persisted.
-- Success Customer Profile: optional input only for high-precision ICP or result-priority analysis; never a default L0 gate.
-
-Current-turn facts are source of truth. Merchant Profile, Product Brief, and Success Customer Profile may inform L2, but none can authorize paid actions or force default search to wait.
-
-### OKKI Recallability Guard
-
-Before translating any mentor route into `search-advanced`, apply the **OKKI Recallability Guard**:
-
-- Prefer a **single primary search field** in the first payload: only one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords`, plus `includeCountry` when the user supplied geography.
-- Put secondary route signals into `local_priority_rule` for local result triage instead of API filters whenever recall may suffer.
-- Do not mechanically combine `productKeywords + companyTypeKeywords` or add `crossFieldOperator: "AND"` just because the graph path has multiple nodes.
-- Validate the buyer-side relationship: the company must plausibly buy, specify, resell, integrate, maintain, retrofit, or use the seller's offer.
-- Treat a supplier or peer manufacturer as observe or not recommended unless result fields show a customer-side role such as distributor, integrator, service provider, project buyer, or reseller.
-
-Use behavior markers such as `okki_recallability_guard_applied`, `single_primary_search_field_preferred`, and `paid unlock confirmation preserved` when eval traces need them.
-
-### Pagination Before Expansion
-
-For follow-ups like "more", "continue", "next page", "too few", "not enough", or "expand":
-
-- If compact output has `discovery_health.recommended_mode="l0_pagination"`, `has_next_page=true`, or `next_offset` exists and is below `available`, stay in L0 pagination. Expansion is not selected when next page exists; emit `expansion_not_selected_when_next_page_exists` in eval traces.
-- Only consider Expansion when there is no next page, `available <= next_offset`, or the current route is exhausted and the user still wants more usable prospects.
-- If batch state is missing or expired, recover or rerun the latest free search instead of guessing.
-- Expansion is new search branches, not hidden recovery. Offer 2-3 candidate expansion branches, let the user confirms one branch, then search only that branch.
-- The first visible output under 60 seconds matters more than exhausting every route in the background.
-
-Automatic recovery remains small: use one automatic recovery round by default for the current search action, with the existing hard cap only as an exception. L2 first round searches one graph path; the second graph path requires explicit user confirmation or Expansion.
-
-### Web Research Add-on
-
-Web Research Add-on is separate from OKKI search. It is allowed only when the user asks for external/latest/source-backed research. It must cite sources, must not authorize paid actions, and must not mutate search_payload without user confirmation.
-
-## Mandatory Prospecting Preflight
-
-Before prospecting, authenticate and use only current-turn facts plus optional Profile memory that is cheap to read. Profile memory can help but must not block the first free search.
-
-First-search goal: get usable recall quickly. Translate the user's words into OKKI index-language target-company terms, then search with one keyword dimension plus geography if the user specified it. Do not add a separate visible validation step before the first free search.
-
-Treat one user-visible prospecting request as an **Initial Discovery Pass**: the first free search, lightweight automatic recovery, and first result output. Optimize the whole pass for recall and speed, aiming to produce a usable candidate pool within 60 seconds whenever possible. Recovery should increase recall before increasing precision; keep precise ICP clues as local ranking or display signals until candidates exist.
-
-Flow:
-
-1. Authenticate.
-2. Read the latest user request and optional Profile memory.
-3. Treat the current user request as the source of truth for this search.
-4. Build a recall-first target-side `search-advanced` payload.
-5. Run the free company search.
-6. Display the returned companies in a user-friendly list without internal identifiers.
-7. Ask which company the user wants to unlock or what refinement they want next.
-
-Do not run these by default before the first free company search:
-
-- PMF Gate or full Brief confirmation.
-- Lite Onboarding or Merchant Profile completeness checks.
-- Query Plan Portfolio.
-- Expansion or unbounded recovery searches.
-- Sales Mentor analysis.
-- Historical `viewed` classification or mark-shown writes.
-- Large local scoring, ranking, or model-heavy deduplication.
-
-First-search guardrails:
-
-- Do not default to "email-only" results. Set `withEmails: 1` only when the user asks for companies with email addresses or makes email availability central to the request.
-- Every `search-advanced` payload must include at least one non-empty keyword field: `productKeywords`, `industryKeywords`, or `companyTypeKeywords`. `includeCountry` is only a filter and cannot be sent alone.
-- Use exactly one keyword dimension by default: choose only one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords`. Add `includeCountry` only when the user specifies geography.
-- Prefer `productKeywords` for Round 1 unless the user's request is primarily a company-type/category search with no product or application terms.
-- Put 2-5 same-dimension terms in that field when useful: synonyms, upstream category words, application words, service words, procurement language, or local-language words.
-- Treat extra dimensions from the user, such as importer, manufacturer, distributor, certification, employee size, decision role, and abstract industry, as soft display or recovery clues instead of first-search hard filters.
-- Do not use `industryKeywords` in Round 1 by default. It is usually a later refinement field.
-- Do not use `crossFieldOperator: "AND"` in Round 1 by default.
-- Do not copy the user's own company identity into target keywords. Convert merchant-side context into target-company categories, routes, or procurement language.
-- Do not use `crossFieldOperator: "OR"` as the default recovery move. First change target-side terms, remove an over-narrow field, remove `withEmails`, or adjust route scope.
-- Do not combine unrelated buyer routes in one payload.
-
-Ask a short clarifying question only when the free search is not constructible, usually because both product/category and target geography or buyer route are missing. If the user already gave product/company type but not geography, ask only for target geography or buyer route.
-
-Automatic recovery budget:
-
-- If the first free search is zero, sparse, or clearly noisy, you may run lightweight free recovery searches before asking the user.
-- Each additional `search-companies.js` invocation after the first search counts as one automatic recovery round.
-- Run at most 3 automatic recovery rounds for one user request.
-- Use the recovery gradient from [discovery-playbook.md](./references/discovery-playbook.md): first recover by target-side rewrite, then by buyer-route shift, then by narrow-field cleanup. Do not repeat the same failed keyword pattern.
-- After the budget is used, stop and show the best current results or explain that the search is still weak, then ask the user whether to continue refining. If results remain low-yield, include Mentor Guided as an explicit option instead of only offering more search routes.
-- A new user request such as "more", "continue", or "make it more precise" may start a new recovery budget.
-
-## Keyword Rule
-
-For company discovery, user-provided products, services, websites, certifications, and business descriptions are merchant-side context first.
-
-Do not mechanically copy the user's own product/business term into `productKeywords`.
-
-If the user directly names the target company profile, such as "Find German auto glass importers", treat that as a direct target-company request but still keep Round 1 recall-first. Use product/category index-language terms with the requested geography first; keep company type words such as `importer` for display filtering or recovery.
-
-Generate concise target-side keywords that describe the target company's own profile:
-
-- Products they sell, carry, service, install, distribute, procure, or list as business categories.
-- Company types such as `importer`, `distributor`, `dealer`, `retailer`, `wholesaler`, `installer`, or `contractor`.
-- Industries or application categories the target company belongs to.
-
-Avoid long combined phrases such as `"auto glass importer"` inside `productKeywords`. Put route words in `companyTypeKeywords` and product/category words in `productKeywords`.
-For Round 1, choose only one of those dimensions for the API payload. The other dimensions remain useful for later recovery or for explaining fit in the displayed results.
-
-Examples:
-
-| User says | Treat as | Better target-side payload direction |
-|-----------|----------|--------------------------------------|
-| "I am an auto glass manufacturer; find German customers." | Merchant product is auto glass. | Round 1: `productKeywords`: `["auto parts", "automotive glass", "vehicle parts", "Autoglas"]`; `includeCountry`: `["DE"]`. Use importer/distributor/dealer as soft or recovery clues. |
-| "We sell door locks; find US prospects." | Merchant product is door locks. | Round 1: `productKeywords`: `["door hardware", "building hardware", "security hardware"]`; `includeCountry`: `["US"]`. Use distributor/dealer/installer later if needed. |
-| "Find Middle East auto parts importers." | User directly names target companies. | Round 1: `productKeywords`: `["auto parts", "automotive aftermarket", "vehicle parts"]`; country codes for the chosen Middle East markets. Keep importer for display filtering or recovery. |
-
-For details and country normalization, read [discovery-playbook.md](./references/discovery-playbook.md).
-
-## Search Payload Rules
-
-`POST /api/v1/companies/search-advanced` is free and supports only:
-
-- `companyTypeKeywords`
-- `productKeywords`
-- `industryKeywords`
-- `includeCountry`
-- `excludeCountry`
-- `withEmails`
-- `crossFieldOperator`
-- `from`
-- `size`
-
-Rules:
-
-- Use ISO 3166-1 alpha-2 country codes.
-- Use `size` from the user's requested count when practical; default wrapper behavior is acceptable when no count is specified.
-- `size` must be at most 50. For larger requested counts, paginate free search with `from`.
-- `withEmails` is `1` or `0`. Omit it or set `0` unless the user asked for email-only leads.
-- `crossFieldOperator` is `"AND"` or `"OR"`. Omit it when a simple payload is enough. Use `"AND"` only when every chosen field should be required. Use `"OR"` only for a deliberate broad scan, not as the first recovery reflex.
-- Do not invent unsupported filters such as `employee_range`, `decision_roles`, `website`, `homepage`, `contacts`, or `limit`.
-- Employee range and similar unsupported dimensions are local-only filters.
-- Decision roles are used later for contact lookup or email drafting, not company-search keywords.
-
-## Result Display
-
-Free search results should be fast and close to the API response.
-
-Rules:
-
-- Normal OKKI Go tool output must be compact and user-facing. Raw API JSON, long email bodies, full profile objects, full local state, and internal identifiers must not be streamed into the model unless the user explicitly asks for raw/debug output.
-- If the user specifies a count, request and show that count when practical.
-- If the user does not specify a count, show the API/default first page or a reasonable first page.
-- Do not hard-code an 8-12 company display rule.
-- Do not run historical viewed deduplication by default.
-- Do not display `domain`, website, homepage, URL, link fields, raw internal IDs, or unlock keys in free company-search results.
-- Apply display/privacy rules silently. Do not tell the user that domain, website, URL, ID, unlock, batch, raw, or private-mapping fields were hidden, omitted, filtered, or saved unless the user explicitly asks for raw/debug details.
-- Do not show compact wrapper metadata such as `batch_id`, `raw_path`, `private_mapping_saved`, or `output_budget` in normal user replies; use it only internally for pagination and follow-up row selections.
-- Keep internal identifiers privately mapped to result numbers for later unlock.
-- Pass `--locale '<user-locale>'` to compact company-search, batch-discovery, and unlock commands when practical.
-- Show country/region as the localized `country_name` that matches the user's language. Use `country_code` only as an internal fallback when no localized name is available.
-- Show concise fields such as company name, localized country/region, industry/category, products/profile fit, email count, employee range, and why it may fit.
-- For broad, paginated, "more", or count-based requests above 20 results, use `discover-companies-batch.js --compact --locale '<user-locale>'` instead of multiple direct `search-companies.js` calls.
-- Never feed raw multi-page company JSON into the model for normal result presentation.
-- Save private row-to-domain mappings in a batch file and reference the batch ID privately.
-- Compact wrappers include `output_budget`, `truncated`, `available`, `next_offset`, and `discovery_health`; use those fields for pagination, low-yield routing, and follow-up row selections instead of guessing.
-- When the user refers to row numbers, "the first N", "these companies", or "the list above", use the latest saved batch pointer within the 24h TTL. Do not re-search by company name unless the latest batch file is missing, unreadable, or expired.
-- For local state writes, prefer batch/compact commands such as `mark-unlocked-batch`.
-
-After results, present the companies directly in the user's language and ask one simple next step:
-
-```text
-Found <N> matching companies:
-
-| # | Company | Country | Category/Industry | Products/Profile fit | Emails | Employees |
-| 1 | ... | ... | ... | ... | ... | ... |
-
-Pick a company number to unlock details and emails, or tell me how to refine the search.
+```bash
+node scripts/discover-companies-batch.js --json '<plan>' --target-count N --save-batch /private/tmp/okki-go-batches/<batch>.json --compact --locale '<user-locale>'
 ```
 
-Do not add a preface or footnote explaining which internal fields are not shown.
+Confirmed row unlock from the most recent displayed batch:
 
-If the user explicitly asks for "new only", "not the same as last time", "exclude viewed", or similar, then use `scripts/okki-state.js viewed` as described in [workflows.md](./references/workflows.md). Otherwise skip it.
+```bash
+node scripts/unlock-companies.js --batch latest --rows 1,3,5 --mark-unlocked --compact --locale '<user-locale>'
+```
 
-## Capabilities and Costs
+Confirmed cross-company contact search:
 
-| Feature | Endpoint Type | Cost |
-|---------|---------------|------|
-| Company search | `POST /companies/search-advanced` | Free |
-| Unlock selected company | `POST /companies/unlock` | 1 credit, 30-day domain dedup |
-| Company profile/detail | profile endpoints after unlock | Free |
-| Selected-company emails | `profileEmails` after unlock | Free |
-| Cross-company contact search | `POST /contacts/search` | 1 credit/request |
-| Batch outreach | `POST /emails/send/batch` | 1 EDM quota/email |
-| Personalized outreach | `POST /emails/send/personalized` | 1 EDM quota/email |
-| Email status and balance | status/balance endpoints | Free |
+```bash
+node scripts/search-contacts.js --json '<contacts/search payload>' --save-batch /private/tmp/okki-go-batches/<contacts>.json --compact
+```
 
-## Billing and Send Guardrails
+Email status:
+
+```bash
+node scripts/email-status.js tasks --json '{"page":1,"page_size":20}' --compact
+node scripts/email-status.js mails --json '{"statuses":"failed","page":1,"page_size":20}' --compact
+```
+
+Balance:
+
+```bash
+OKKIGO_API_KEY="$(bash scripts/resolve-api-key.sh --print)"
+curl -s -X GET "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
+  -H "Authorization: ApiKey ${OKKIGO_API_KEY}" \
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.3.0}"
+```
+
+Use compact wrappers and `--batch latest` for normal work. Do not call raw/non-compact output unless the user explicitly asks for raw, debug, export, or full detail.
+
+## Compact Output Rules
+
+Normal replies must be answer-ready and user-facing:
+
+- For free company discovery, use `display_table_markdown` exactly as the result table; do not reorder columns, rebuild the table from `rows`, or add hidden fields.
+- After the free-search table, write concise next-step guidance in the user's language using `next_action` and `discovery_health`.
+- Follow `references/output-contracts.md` for script-owned private fields, debug metadata, raw/export behavior, and unlocked company detail Markdown output.
+- Follow compact routing hints such as `next_action` and `discovery_health.health_action`; do not re-derive pagination or low-yield routing from chat text.
+- Use `--batch latest` for row selections from the latest displayed batch. If the batch is missing or stale, re-run a free lookup or ask the user to choose from a new list before any unlock confirmation.
+
+## Paid And Send Guardrails
 
 These rules are non-bypassable.
 
-### Unlock Confirmation
-
-Before every `/companies/unlock` call, ask for explicit credit confirmation unless the same user turn already names the selected company and explicitly accepts the unlock credit cost.
-
-A user-selected company is not enough to spend credits; ask for explicit unlock confirmation first. "Find emails", "get contacts", "show details", Profile reuse, Direct Search, PMF Gate skip, Expansion, and Sales Mentor recommendations also cannot authorize `/companies/unlock` without a separate credit confirmation.
-
-Use wording like:
+Unlock: before every `/companies/unlock` call, ask explicit credit confirmation unless the same user turn already names the selected company and explicitly accepts the unlock credit cost. Wording:
 
 ```text
 Unlocking this company costs 1 credit unless it was unlocked in the last 30 days. Proceed?
 ```
 
-After every paid call, report the charge and remaining balance. If unsure, call `GET /api/v1/credit/balance`.
+A row number, "find emails", "get contacts", Profile reuse, Expansion, Web Research, or Mentor recommendation is not confirmation. After a paid call, report charge, remaining balance when available, compact details, and warnings. Local viewed-state write failure is warning-only after a successful unlock; never repeat a paid unlock just to repair local state.
 
-After confirmation, use `unlock-companies.js --rows ... --compact --locale '<user-locale>'` with `--batch latest` for row selections from the most recently displayed batch, or pass the explicit batch path when known. Report charge, remaining balance, and compact company details. If batch mapping is unavailable or expired, tell the user you need to re-run a free lookup to locate the private records before unlocking. Latest batch reuse never replaces the required paid confirmation.
+Contact search: before the first `POST /contacts/search` in a session, state that contact search costs 1 credit per query and wait for confirmation. Subsequent same-session contact searches do not need re-confirmation unless the user refuses or scope materially changes.
 
-### Contact Search Confirmation
+Email send: never send before explicit recipient and content confirmation. Drafting is free; sending consumes EDM quota. After sending, keep output compact and do not echo full bodies unless requested.
 
-Before the first `POST /contacts/search` in a session, state that contact search costs 1 credit per query and wait for confirmation.
+## Reference Loading
 
-After the first-session paid confirmation, use `search-contacts.js --compact`. Use default `size:20` unless the user asked for more. Save raw contact results to a batch file when the user asks for many contacts.
+Read only the reference needed for the selected mode:
 
-### Email Send Confirmation
+| Reference | Read only when |
+|---|---|
+| `references/search-fast-path.md` | Building or paginating ordinary free company-search payloads beyond the quick command. |
+| `references/result-review.md` | Result prioritization, unlock advice, L1 review, or observe/not-recommended grouping over a visible batch. |
+| `references/search-strategy.md` | L2 guided strategy, low-yield diagnosis, supplier-vs-buyer correction, or search-route coaching. |
+| `references/expansion-playbook.md` | Current route is exhausted or user asks for alternate customer routes. |
+| `references/paid-actions.md` | Paid unlock, contact search, email send, balance commands, or missing batch recovery. |
+| `references/output-contracts.md` | Wrapper output schemas, field ownership, raw/debug/detail behavior, or script contract work. |
+| `references/workflows.md` | Legacy compatibility index when older docs refer to workflow names. |
+| `references/discovery-playbook.md` | Legacy compatibility index when older docs refer to discovery playbook. |
+| `references/sales-mentor-playbook.md` | Legacy compatibility index when older docs refer to sales mentor playbook. |
+| `references/merchant-profile-playbook.md` | User asks to save/reuse company info or guided strategy needs optional profile memory. |
+| `references/authentication.md` | API key missing/invalid, setup, secure save, install ID, or signup/legal flow. |
+| `references/api-reference.md` | Script development, direct API debugging, new endpoint support, or hard API errors. Not for normal usage. |
 
-Never send email before the user explicitly confirms both recipients and content. Profile, Discovery, Expansion, or Sales Mentor context can draft content but cannot replace send confirmation.
+## Language And Errors
 
-Pre-send review may show recipients and content for confirmation. Post-send output must be compact: task IDs, counts, status, and next status-check command. Do not echo full sent bodies after the send call; use `send-email.js ... --compact`.
+Reply in the user's language. Chinese user requests get Chinese prompts, result tables, and next-step questions.
 
-### Email Status
+Handle common errors quickly:
 
-Use `email-status.js --compact` for task/mail status. Do not display full email content unless explicitly requested. For failures, summarize failed rows and reasons first.
-
-## Optional Profile Memory
-
-Merchant Profile remains optional memory, not a default gate.
-
-Rules:
-
-- Current user input overrides Profile for the current search.
-- Missing or incomplete Profile must not block the first free company search.
-- Do not start Lite Onboarding during default company discovery.
-- Use Profile only when it helps without delay, or when the user explicitly asks to save/reuse company information.
-- Do not persist current-turn facts unless the user confirms saving.
-- Profile reuse cannot authorize unlock, contact search, or email sending.
-
-Use `scripts/okki-state.js` for local state; do not hand-edit OKKI Go state files.
-
-Common commands:
-
-```bash
-node scripts/okki-state.js profile read
-node scripts/okki-state.js profile redact
-node scripts/okki-state.js profile upsert --json '<json patch>'
-node scripts/okki-state.js viewed mark-unlocked --domain '<internal domain>' --country-code '<ISO>'
-```
-
-## Explicit Advanced Modes
-
-Use advanced modes only when the user asks for them or the first simple search needs user-approved refinement.
-
-Examples of explicit triggers:
-
-- "Find more", "continue expanding", "try another route".
-- "Make it more precise", "filter these", "analyze these customers".
-- "Do not repeat companies from last time".
-- "Save my company info" or "reuse my profile".
-- "Write a cold email" or "help me send outreach".
-
-Advanced capabilities:
-
-- Expansion: read [expansion-playbook.md](./references/expansion-playbook.md).
-- Sales analysis or journey advice: read [sales-mentor-playbook.md](./references/sales-mentor-playbook.md).
-- Profile setup/save/reuse: read [merchant-profile-playbook.md](./references/merchant-profile-playbook.md).
-- Historical viewed deduplication: read [workflows.md](./references/workflows.md).
-
-Advanced modes still cannot bypass paid or send confirmations.
-
-## Workflow Routing
-
-- **Company/customer discovery:** use Default Company Discovery and [discovery-playbook.md](./references/discovery-playbook.md).
-- **Selected-company details/emails:** ask unlock credit confirmation, call `/companies/unlock`, mark unlocked when internal domain is available, then use free profile/profileEmails endpoints.
-- **Cross-company contact search:** follow first-session contact search confirmation.
-- **Outreach drafting/sending:** draft from available company/contact/Profile context, then confirm recipients and content before sending.
-- **Balance, pricing, authentication, and email status:** skip company discovery and execute the direct workflow.
-- **Merchant Profile management:** use redacted profile view/export by default and explicit confirmation for reset or save.
-
-## Language Rule
-
-Reply in the same language the user uses. Chinese user requests get Chinese prompts, result displays, and next-step questions.
-
-## Error Handling and Pricing
-
-For HTTP errors and RFC 7807 formats, see [api-reference.md §14](./references/api-reference.md#14-错误码速查表).
-
-Key handling:
-
-- `401`: invalid or missing API key; follow authentication setup.
+- `401`: invalid or missing API key; read `references/authentication.md`.
 - `402`: insufficient credits; stop the paid flow and direct to https://go.okki.ai/pricing.
 - `403`: no EDM access; guide upgrade.
 
 When users ask about plans, upgrades, or credit packs, direct them to https://go.okki.ai/pricing.
-
-## Changelog
-
-### 1.3.0 (2026-06-09)
-
-- Added Optimized Mentor Mode with L0 Default Search, L1 Mentor Lite, and L2 Mentor Guided routing.
-- Added Minimal Prospecting Profile, Product Context Lite, optional Success Customer Profile, and customer-side relationship route rules for guided searches.
-- Added OKKI Recallability Guard so mentor routes prefer one primary search field plus local priority rules instead of over-narrow AND payloads.
-- Made Expansion pagination-aware: next pages are fetched before new route branches, and user confirmation is required before searching a new branch.
-- Preserved all unlock, contact-search, and email-send confirmations.
-
-### 1.2.1 (2026-06-03)
-
-- Re-centered the default company discovery path on fast free search.
-- Added the core merchant-side to target-side keyword rule.
-- Removed PMF Gate, Lite Onboarding, Brief confirmation, Expansion, Sales Mentor, and viewed deduplication from the default first-search flow.
-- Kept existing billing, contact-search, unlock, and email-send guardrails.

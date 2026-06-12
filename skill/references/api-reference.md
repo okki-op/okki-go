@@ -143,7 +143,7 @@ At least one of `companyTypeKeywords`, `productKeywords`, or `industryKeywords` 
 }
 ```
 
-> `domain` is an internal key. Store it privately with the row index and use it with `/companies/unlock` only after explicit unlock confirmation. Do not display `domain`, website, homepage, URL, or link fields in free company-search results.
+> `domain` is an internal key owned by wrapper scripts and saved batch/raw files. Normal skill usage should rely on compact rows and `--batch latest`; do not display `domain`, website, homepage, URL, or link fields in free company-search results.
 
 ---
 

@@ -14,6 +14,8 @@ const {
   DEFAULT_COMPANY_TARGET_COUNT,
   defaultRawPath,
   discoveryHealth,
+  applyDebugMetadata,
+  nextActionFromDiscoveryHealth,
   normalizeDomain,
   normalizeName,
   nowIso,
@@ -24,16 +26,22 @@ const {
   readLatestBatchPointer,
   writeLatestBatchPointer
 } = require('./lib/batch-state');
+const {
+  KEYWORD_FIELDS,
+  splitCompanySearchPayload
+} = require('./lib/company-search-payloads');
+const {
+  addCompanySearchDisplayTable
+} = require('./lib/company-search-display');
 
 const MAX_PAGE_SIZE = 50;
 const DEFAULT_CONCURRENCY = 4;
-const KEYWORD_FIELDS = ['companyTypeKeywords', 'productKeywords', 'industryKeywords'];
 
 function usage() {
   console.error([
     'Usage:',
-    '  node scripts/discover-companies-batch.js --plan /path/plan.json --target-count N --save-batch /private/tmp/okki-go-batches/batch.json --compact [--locale en-US]',
-    '  node scripts/discover-companies-batch.js --json \'<plan>\' --compact [--locale en-US]'
+    '  node scripts/discover-companies-batch.js --plan /path/plan.json --target-count N --save-batch /private/tmp/okki-go-batches/batch.json --compact [--locale en-US] [--debug-metadata]',
+    '  node scripts/discover-companies-batch.js --json \'<plan>\' --compact [--locale en-US] [--debug-metadata]'
   ].join('\n'));
 }
 
@@ -45,7 +53,8 @@ function parseArgs(argv) {
     saveBatch: null,
     compact: false,
     concurrency: DEFAULT_CONCURRENCY,
-    locale: null
+    locale: null,
+    debugMetadata: false
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -64,6 +73,8 @@ function parseArgs(argv) {
       args.locale = argv[++i];
     } else if (arg === '--concurrency') {
       args.concurrency = positiveInt(argv[++i], '--concurrency');
+    } else if (arg === '--debug-metadata') {
+      args.debugMetadata = true;
     } else if (arg === '--help' || arg === '-h') {
       usage();
       process.exit(0);
@@ -97,6 +108,8 @@ function readPlan(args) {
 
 function buildRequests(plan) {
   const requests = [];
+  let splitQueryCount = 0;
+  let originalQueryCount = 0;
   for (const payloadPlan of plan.payloads) {
     ensureSearchable(payloadPlan);
     const pages = positiveInt(payloadPlan.pages || 1, 'payload.pages');
@@ -104,12 +117,20 @@ function buildRequests(plan) {
     const startFrom = Number.isInteger(Number(payloadPlan.from)) && Number(payloadPlan.from) >= 0
       ? Number(payloadPlan.from)
       : 0;
-    for (let page = 0; page < pages; page += 1) {
-      const payload = { ...payloadPlan, size, from: startFrom + (page * size) };
-      delete payload.pages;
-      requests.push({ payload, page: page + 1 });
+    const basePayload = { ...payloadPlan };
+    delete basePayload.pages;
+    const splitSearch = splitCompanySearchPayload(basePayload);
+    originalQueryCount += pages;
+    splitQueryCount += splitSearch.payloads.length * pages;
+    for (const splitPayload of splitSearch.payloads) {
+      for (let page = 0; page < pages; page += 1) {
+        const payload = { ...splitPayload, size, from: startFrom + (page * size) };
+        requests.push({ payload, page: page + 1 });
+      }
     }
   }
+  requests.splitQueryCount = splitQueryCount;
+  requests.originalQueryCount = originalQueryCount;
   return requests;
 }
 
@@ -242,6 +263,9 @@ async function main() {
     raw_path: saveBatch,
     ...budgeted.metadata
   };
+  if (requests.splitQueryCount > requests.originalQueryCount) {
+    output.split_query_count = requests.splitQueryCount;
+  }
   output.discovery_health = discoveryHealth({
     targetCount,
     visibleUniqueCount: selected.length,
@@ -251,6 +275,7 @@ async function main() {
     hasNextPage: budgeted.metadata.truncated,
     latestHealth: latestPointer && latestPointer.discovery_health
   });
+  output.next_action = nextActionFromDiscoveryHealth(output.discovery_health);
   writeJsonFile(saveBatch, batch);
   writeLatestBatchPointer({
     batchPath: saveBatch,
@@ -260,10 +285,22 @@ async function main() {
   });
 
   if (args.compact) {
-    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(companyBatchNormalOutput(output, {
+      debugMetadata: args.debugMetadata,
+      locale: args.locale
+    }), null, 2)}\n`);
     return;
   }
   process.stdout.write(`${JSON.stringify(batch, null, 2)}\n`);
+}
+
+function companyBatchNormalOutput(output, options = {}) {
+  return addCompanySearchDisplayTable(applyDebugMetadata(output, [
+    'batch_id',
+    'private_mapping_saved',
+    'raw_path',
+    'output_budget'
+  ], options.debugMetadata), { locale: options.locale });
 }
 
 main().catch((error) => {

@@ -2,6 +2,14 @@
 
 This playbook defines the long-term Merchant Profile contract used by OKKI Go discovery and outreach workflows. It is a rule contract for `~/.config/okki-go/profile.json` v1.1; implementation details for reading and writing the file belong to `scripts/okki-state.js`.
 
+## Contents
+
+1. Profile Schema
+2. Trigger Modes and Lifecycle
+3. Discovery Reuse Rules
+4. Outreach Reuse Rules
+5. Sensitive Fields and Privacy
+
 ## 1. Profile Schema
 
 `profile.json` is stored at `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/profile.json` with file mode `0600`. The schema version is `"1.1"`.
@@ -56,7 +64,7 @@ Fields are split by inference risk.
 - outreach identity
 - sales context
 
-Completeness drives Progressive Enrichment and the three-tier confirmation flow in `discovery-playbook.md`.
+Completeness drives Progressive Enrichment and the profile confirmation flow. Normal L0 search stays owned by `search-fast-path.md`.
 
 ### Dynamic Trade Anchor
 
@@ -66,7 +74,7 @@ Completeness drives Progressive Enrichment and the three-tier confirmation flow 
 trade_mode = derive(profile.company.country, brief.geo_include)
 ```
 
-When `company.country` is missing, `trade_mode = unknown`; direct free company search may continue under `discovery-playbook.md`, but trade-mode-dependent mentor advice must degrade or be deferred.
+When `company.country` is missing, `trade_mode = unknown`; direct free company search may continue under `search-fast-path.md`, but trade-mode-dependent mentor advice must degrade or be deferred.
 
 ### Preferred Language Lazy Loading
 
@@ -167,9 +175,9 @@ Default inference rules:
 
 Run Lite Onboarding only when the user asks to save or set up reusable Merchant Profile defaults, or when they explicitly want guided profile setup. The user must already have passed the normal API key setup flow before API calls are attempted; onboarding itself does not bypass authentication.
 
-Before asking Lite Onboarding questions, apply Current-Turn Merchant Seed from `discovery-playbook.md`. Do not repeat questions for merchant facts the user already provided. For example, if the user says "我是中国的汽车玻璃制造商", skip L0 company country, L1 company type, and L2 primary product questions for the current session; ask only missing fields such as target market, customer region, decision roles, or whether to save the facts.
+Before asking Lite Onboarding questions, apply current-turn facts from the user request. Do not repeat questions for merchant facts the user already provided. For example, if the user says "我是中国的汽车玻璃制造商", skip L0 company country, L1 company type, and L2 primary product questions for the current session; ask only missing fields such as target market, customer region, decision roles, or whether to save the facts.
 
-Lite Onboarding asks merchant-profile defaults for future reuse. Product Context Lite in `sales-mentor-playbook.md` asks only what is needed for the current L2 search route. Boundary rules:
+Lite Onboarding asks merchant-profile defaults for future reuse. Product Context Lite in `search-strategy.md` asks only what is needed for the current L2 search route. Boundary rules:
 
 - If current-turn facts can build a free search or Minimal Prospecting Profile, skip Lite Onboarding.
 - If current-turn facts include product/company type but miss target geography or target route, ask only that current-search missing field.
@@ -178,7 +186,7 @@ Lite Onboarding asks merchant-profile defaults for future reuse. Product Context
 
 Ask exactly five lightweight questions:
 
-1. **L0 company country, required:** "Which country or region does your company mainly operate from?" Write to `profile.company.country`. This is the anchor for future `trade_mode` derivation. Use the ISO table in `discovery-playbook.md` for country code normalization.
+1. **L0 company country, required:** "Which country or region does your company mainly operate from?" Write to `profile.company.country`. This is the anchor for future `trade_mode` derivation. Use `api-reference.md` or wrapper normalization for country code details.
 2. **L1 company type, required:** manufacturer, trader, service provider, brand owner, or user-specified equivalent.
 3. **L2 primary product or service keywords, required:** one to three keywords.
 4. **L3 primary customer regions, required:** common options plus custom countries or regions.
@@ -288,7 +296,7 @@ Default mapping:
 | Employee range | `target_baseline.employee_range` |
 | Decision roles | confirmed/imported `target_baseline.decision_roles` |
 
-Merchant offer terms feed `merchant_offer_anchor` and PMF reasoning. They do not automatically become API `productKeywords`; `discovery-playbook.md` must project them through target-side routes first.
+Merchant offer terms feed `merchant_offer_anchor` and PMF reasoning. They do not automatically become API `productKeywords`; `search-fast-path.md` or `search-strategy.md` must project them through target-side routes first.
 
 When the user changes a Profile-derived default in the current search or Minimal Prospecting Profile, ask whether the change should update the Profile:
 

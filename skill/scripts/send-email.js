@@ -10,14 +10,15 @@ const {
 const {
   defaultRawPath,
   nowIso,
-  outputBudgetMetadata
+  outputBudgetMetadata,
+  applyDebugMetadata
 } = require('./lib/compact-output');
 
 function usage() {
   console.error([
     'Usage:',
-    '  node scripts/send-email.js batch --json \'<payload>\' --compact [--mapping-file PATH]',
-    '  node scripts/send-email.js personalized --file payload.json --compact'
+    '  node scripts/send-email.js batch --json \'<payload>\' --compact [--mapping-file PATH] [--debug-metadata]',
+    '  node scripts/send-email.js personalized --file payload.json --compact [--debug-metadata]'
   ].join('\n'));
 }
 
@@ -26,7 +27,7 @@ function parseArgs(argv) {
     usage();
     process.exit(0);
   }
-  const args = { mode: argv[0], json: null, file: null, compact: false, mappingFile: null };
+  const args = { mode: argv[0], json: null, file: null, compact: false, mappingFile: null, debugMetadata: false };
   for (let i = 1; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--json') {
@@ -37,6 +38,8 @@ function parseArgs(argv) {
       args.compact = true;
     } else if (arg === '--mapping-file') {
       args.mappingFile = argv[++i];
+    } else if (arg === '--debug-metadata') {
+      args.debugMetadata = true;
     } else if (arg === '--help' || arg === '-h') {
       usage();
       process.exit(0);
@@ -115,10 +118,17 @@ async function main() {
   }));
 
   if (args.compact) {
-    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(sendEmailNormalOutput(output, args.debugMetadata), null, 2)}\n`);
     return;
   }
   process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
+}
+
+function sendEmailNormalOutput(output, debugMetadata) {
+  return applyDebugMetadata(output, [
+    'mapping_saved',
+    'output_budget'
+  ], debugMetadata);
 }
 
 main().catch((error) => {

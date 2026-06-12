@@ -2,7 +2,7 @@
 
 ## Overview
 
-This roadmap lands the merged discovery harness from rule contracts to tested release. It starts with the playbooks because they define the behavioral contract, then implements the local state helper, then integrates SKILL.md, adds eval coverage, and finishes with a release-readiness audit.
+This roadmap lands the merged discovery harness from rule contracts to tested release, then continues into optimized mentor-mode and systemic token/latency optimization work. The current optimization milestone refactors information architecture and wrapper contracts without reducing search recall or weakening paid-action safeguards.
 
 ## Phases
 
@@ -16,6 +16,12 @@ This roadmap lands the merged discovery harness from rule contracts to tested re
 - [x] **Phase 4: Eval Coverage** - Add regression scenarios for high-risk harness behavior.
 - [x] **Phase 5: Verification and Release Readiness** - Run self-review, tests, version checks, and release notes.
 - [x] **Phase 6: Optimized Mentor Mode 1.3.0** - Land L0/L1/L2 mentor routing, pagination-aware Expansion, recallability guardrails, and 1.3.0 version consistency.
+- [x] **Phase 8: Baseline and Guardrails** - Capture size, behavior, protected invariants, and evaluation coverage before refactoring.
+- [x] **Phase 9: SKILL Router Hot Path** - Rebuild `SKILL.md` as a compact router, safety summary, and command starter.
+- [x] **Phase 10: Reference Ownership and Deduplication** - Split or trim references into strict operational owners with weak-model-friendly loading rules.
+- [x] **Phase 11: Compact Output Contracts** - Define and implement normal/detail/debug/raw output classes and field ownership across wrappers.
+- [x] **Phase 12: Deterministic Routing Hints** - Move repetitive pagination, low-yield, row-mapping, truncation, and next-action decisions into script outputs.
+- [ ] **Phase 13: Cost and Capability Evals** - Add cost-behavior, safety, privacy, search-recall, and weak-model forward tests.
 
 ## Phase Details
 
@@ -117,10 +123,100 @@ Plans:
 Plans:
 - [x] 06-01: Skill and playbook optimized mentor-mode retrofit
 
+### Phase 8: Baseline and Guardrails
+**Goal**: Establish the non-regression baseline before changing skill text or wrapper behavior.  
+**Depends on**: Phase 6 and the existing Phase 7 keyword-contract plan remaining undisturbed.  
+**Requirements**: [TLO-BASE-01, TLO-BASE-02, TLO-BASE-03]  
+**Success Criteria** (what must be TRUE):
+  1. A baseline artifact records current line/byte sizes for `skill/SKILL.md`, `skill/references/*.md`, and `skill/scripts/README.md`.
+  2. Representative prompts and expected behaviors are listed for ordinary search, pagination, row-selection unlock confirmation, confirmed unlock, result review, low-yield diagnosis, balance, contact search confirmation, and email status.
+  3. Protected invariants explicitly include search recall, Chinese-first target-side keyword rules, one-primary-field first search, paid confirmation, same-language replies, compact privacy, latest-batch row reuse, and warning-only local viewed-state degradation.
+  4. The current dirty worktree and eval relocation/deletion state are documented so unrelated user work is not reverted.
+  5. No implementation behavior changes are made in this phase.
+**Plans**: 1 plan
+
+Plans:
+- [x] 08-01: Baseline artifact and protected invariants
+
+### Phase 9: SKILL Router Hot Path
+**Goal**: Reduce hot-path context by turning `skill/SKILL.md` into a short router and safety surface.  
+**Depends on**: Phase 8.  
+**Requirements**: [TLO-ROUTER-01, TLO-ROUTER-02, TLO-ROUTER-03]  
+**Success Criteria** (what must be TRUE):
+  1. `skill/SKILL.md` is below 220 preferred lines or below 300 with a documented exception.
+  2. `SKILL.md` contains one primary mode table, a safety-preserving fallback order, and a "Read Only When" reference-loading table.
+  3. A simple "find buyers" prompt can be executed after reading only `SKILL.md`, or `SKILL.md` plus the fast-path reference if the quick command is insufficient.
+  4. Paid unlock, contact search, and email-send confirmation summaries remain visible in `SKILL.md`.
+  5. `SKILL.md` contains exactly one six-rule Company Search Keyword Contract and no instruction requiring the model to manually preserve `domain`.
+**Plans**: 1 plan
+
+Plans:
+- [x] 09-01: Router rewrite and hot-path safety review
+
+### Phase 10: Reference Ownership and Deduplication
+**Goal**: Make progressive disclosure real by assigning each rule to one canonical reference owner.  
+**Depends on**: Phase 9.  
+**Requirements**: [TLO-REF-01, TLO-REF-02, TLO-REF-03]  
+**Success Criteria** (what must be TRUE):
+  1. Search fast path, result review, search strategy, expansion, paid actions, output contracts, API reference, auth, and merchant profile each have a clear owning reference.
+  2. References over 100 lines include a short top-level table of contents.
+  3. References do not duplicate the full keyword contract, paid confirmation text, compact schemas, API parameter tables, or script-owned field instructions.
+  4. Weak models can choose the correct reference from `SKILL.md` without reading another reference first.
+  5. Advanced capabilities remain available and are linked from the router table.
+**Plans**: 1 plan
+
+Plans:
+- [x] 10-01: Reference split, ownership, and duplicate-prose removal
+
+### Phase 11: Compact Output Contracts
+**Goal**: Standardize wrapper output classes so normal workflows stay compact and answer-ready.  
+**Depends on**: Phase 10.  
+**Requirements**: [TLO-OUTPUT-01, TLO-OUTPUT-02, TLO-OUTPUT-03]  
+**Success Criteria** (what must be TRUE):
+  1. `skill/references/output-contracts.md` defines normal compact, detail, debug metadata, and raw/export schemas for every user-facing wrapper.
+  2. Field ownership for `domain`, raw IDs, `batch_id`, `raw_path`, `private_mapping_saved`, `output_budget`, pagination metadata, latest batch pointer, and local viewed state is explicit.
+  3. Wrapper audits classify stdout fields as answer-critical, routing-critical, debug-only, or raw/export-only.
+  4. Normal outputs do not print raw API objects, full local state, full profiles, full email bodies, internal IDs, domains, or raw URLs.
+  5. Row selections still work through saved batch pointers.
+**Plans**: 1 plan
+
+Plans:
+- [x] 11-01: Output contract reference and wrapper audit
+
+### Phase 12: Deterministic Routing Hints
+**Goal**: Reduce repeated model inference by exposing script-owned action hints without changing search recall.  
+**Depends on**: Phase 11.  
+**Requirements**: [TLO-ROUTE-01, TLO-ROUTE-02, TLO-ROUTE-03]  
+**Success Criteria** (what must be TRUE):
+  1. Scripts return `next_action` and/or `health_action` only where the hint removes real model guesswork.
+  2. Pagination, low-yield, row-mapping validity, output truncation, and next user action are not inferred from chat text when script metadata exists.
+  3. The model does not inspect raw files for normal presentation.
+  4. The model does not re-search to resolve row selections when the latest batch exists.
+  5. Token savings do not come from lower default result counts, stricter first-round filters, or premature precision.
+**Plans**: 1 plan
+
+Plans:
+- [x] 12-01: Script routing hints and command-pattern hardening
+
+### Phase 13: Cost and Capability Evals
+**Goal**: Prove the optimization reduces context/latency risk without damaging quality, safety, or weak-model behavior.  
+**Depends on**: Phase 12.  
+**Requirements**: [TLO-EVAL-01, TLO-EVAL-02, TLO-EVAL-03]  
+**Success Criteria** (what must be TRUE):
+  1. Eval prompts cover normal search, more/next pagination, low-yield diagnosis, unlock confirmation, confirmed unlock, balance, contact search confirmation, outreach drafting, and email status.
+  2. Static checks cover hot-path size, raw-output leakage, duplicate rule ownership, paid confirmations, and weak-model routing cues.
+  3. Search recall comparison and paid-confirmation checks block merging on regression.
+  4. Forward tests use generic prompts and fresh or smaller agents, not the diagnosis or the historical sample session.
+  5. Failures are addressed first with routing rows, wrapper fields, or command patterns before adding long prose.
+**Plans**: 1 plan
+
+Plans:
+- [ ] 13-01: Cost-behavior evals and weak-model forward-test harness
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order. Phase 7 is an existing keyword-contract plan; this optimization continues with Phase 8 to avoid overwriting that work.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -130,3 +226,9 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 4. Eval Coverage | 3/3 | Complete | 2026-05-28 |
 | 5. Verification and Release Readiness | 2/2 | Complete | 2026-05-29 |
 | 6. Optimized Mentor Mode 1.3.0 | 1/1 | Complete | 2026-06-09 |
+| 8. Baseline and Guardrails | 1/1 | Complete | 2026-06-11 |
+| 9. SKILL Router Hot Path | 1/1 | Complete | 2026-06-11 |
+| 10. Reference Ownership and Deduplication | 1/1 | Complete | 2026-06-11 |
+| 11. Compact Output Contracts | 1/1 | Complete | 2026-06-11 |
+| 12. Deterministic Routing Hints | 1/1 | Complete | 2026-06-11 |
+| 13. Cost and Capability Evals | 0/1 | Planned | — |

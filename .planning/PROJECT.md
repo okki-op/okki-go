@@ -10,7 +10,19 @@ The work is brownfield: existing authentication, billing confirmation, company s
 
 The skill must turn vague B2B prospecting requests into safe, repeatable, source-backed search and outreach preparation without bypassing paid-action or email-send confirmations.
 
-## Current Milestone: v1.3.0 Optimized Mentor Mode
+## Current Milestone: v1.4.0 Systemic Token and Latency Optimization
+
+**Goal:** Reduce model-visible token load and response latency across OKKI Go while preserving search recall, paid-action safety, multilingual output, and weak-model route reliability.
+
+**Target features:**
+- `SKILL.md` becomes a small router and safety hot path, with advanced behavior moved behind strict "read only when" references.
+- Normal user workflows use compact, answer-ready wrapper outputs by default, with raw/private/debug detail saved or exposed only on explicit request.
+- Repetitive row mapping, pagination, low-yield, output-budget, and next-action decisions are owned by scripts or explicit routing tables instead of model re-derivation.
+- Existing search keyword quality rules, especially Chinese-first target-side terms and one-primary-field recall, remain protected.
+- Paid unlock, contact search, and email send confirmations remain non-bypassable.
+- Weak models can choose modes, references, and command skeletons from explicit tables without loading unrelated playbooks.
+
+## Previous Milestone: v1.3.0 Optimized Mentor Mode
 
 **Goal:** Land the optimized mentor-mode design from `docs/OKKI_GO_OPTIMIZED_MENTOR_MODE_SKILL_DESIGN.md` as executable Skill and playbook behavior.
 
@@ -93,6 +105,10 @@ The skill must turn vague B2B prospecting requests into safe, repeatable, source
 | Treat optimized mentor-mode PRD as Phase 6 input | The PRD already includes routing, mode layering, output contracts, and acceptance direction | Accepted |
 | Exclude eval implementation from Phase 6 | Eval is an automated verification tool, not the Skill implementation mainline for this phase | Accepted |
 | Use 1.3.0 as target version | L0/L1/L2 mentor behavior is user-visible capability expansion beyond 1.2.x | Accepted |
+| Treat `docs/OKKI_GO_SKILL_SYSTEMIC_TOKEN_LATENCY_OPTIMIZATION_PLAN.md` as the v1.4.0 implementation plan | It already defines architecture, phases, non-negotiables, field ownership, script contracts, and eval dimensions | Accepted |
+| Start this optimization with Phase 8 because Phase 7 already exists as a keyword-contract plan | Avoid overwriting the existing untracked Phase 7 work while preserving the source plan's Phase 0-5 order | Accepted |
+| Do not optimize for one historical session | The cited session is only a symptom sample; changes must improve system-wide workflows | Accepted |
+| Preserve search recall and paid safety above token savings | The plan explicitly rejects stricter first-round API filters and confirmation shortcuts as optimization mechanisms | Accepted |
 
 ---
-*Last updated: 2026-05-28 after GSD formal initialization from merged implementation plan*
+*Last updated: 2026-06-11 after starting v1.4.0 systemic token and latency optimization*

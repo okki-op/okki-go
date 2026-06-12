@@ -76,6 +76,26 @@ function outputBudgetMetadata(options = {}) {
   };
 }
 
+function splitDebugMetadata(output, fields) {
+  const normal = { ...output };
+  const debug = {};
+  for (const field of fields) {
+    if (Object.prototype.hasOwnProperty.call(normal, field)) {
+      debug[field] = normal[field];
+      delete normal[field];
+    }
+  }
+  return { normal, debug };
+}
+
+function applyDebugMetadata(output, fields, includeDebugMetadata) {
+  const split = splitDebugMetadata(output, fields);
+  if (includeDebugMetadata && Object.keys(split.debug).length > 0) {
+    split.normal.debug_metadata = split.debug;
+  }
+  return split.normal;
+}
+
 function discoveryHealth(options = {}) {
   const targetCount = positiveIntegerOrNull(options.targetCount) || DEFAULT_COMPANY_TARGET_COUNT;
   const visibleUniqueCount = Math.max(0, Number.isFinite(Number(options.visibleUniqueCount))
@@ -103,6 +123,13 @@ function discoveryHealth(options = {}) {
     : lowYield
       ? 'post_result_low_yield_diagnosis'
       : 'l0_default_search';
+  const healthAction = hasNextPage
+    ? 'fetch_next_page'
+    : lowYieldBatchStreak >= 2
+      ? 'offer_guided_strategy'
+      : lowYield
+        ? 'ask_refinement'
+        : 'show_results';
 
   return {
     target_count: targetCount,
@@ -112,9 +139,19 @@ function discoveryHealth(options = {}) {
     low_yield: lowYield,
     status,
     recommended_mode: recommendedMode,
+    health_action: healthAction,
     low_yield_batch_streak: lowYieldBatchStreak,
     repeated_low_yield: lowYieldBatchStreak >= 2
   };
+}
+
+function nextActionFromDiscoveryHealth(health) {
+  if (!health || typeof health !== 'object') return 'ask_unlock_selection';
+  if (health.health_action === 'fetch_next_page') return 'paginate_next';
+  if (health.health_action === 'ask_refinement') return 'offer_refinement';
+  if (health.health_action === 'offer_guided_strategy') return 'offer_guided_strategy';
+  if (health.health_action === 'offer_expansion') return 'offer_expansion';
+  return 'ask_unlock_selection';
 }
 
 function budgetedItems(items, options = {}) {
@@ -246,17 +283,18 @@ function compactCompanyRow(record, row, options = {}) {
     country_code: code || null,
     country_name: countryName(code, options.locale) || null,
     company_type: type || '未知',
-    email_count: numericOrUnknown(firstNonEmpty(record.email_count, record.emailCount, record.emails_count)),
+    has_email: positiveCount(firstNonEmpty(record.email_count, record.emailCount, record.emails_count)),
+    has_whatsapp: positiveCount(firstNonEmpty(record.whatsapp_count, record.whatsappCount, record.whatsapps_count)),
     employees_count: firstNonEmpty(record.employees_count, record.employeeCount, record.employeesCount, record.employee_range) || '未知',
+    founding_time: firstNonEmpty(record.founding_time, record.foundingTime, record.founded_year, record.foundedYear) || '',
     fit: fitText(record, options)
   };
 }
 
-function numericOrUnknown(value) {
-  if (value === 0) return 0;
+function positiveCount(value) {
   if (value === null || value === undefined || value === '') return '未知';
   const number = Number(value);
-  return Number.isFinite(number) ? number : value;
+  return Number.isFinite(number) ? number > 0 : '未知';
 }
 
 function compactList(value, maxItems = 4) {
@@ -367,6 +405,7 @@ module.exports = {
   normalizeDomain,
   normalizeName,
   nowIso,
+  nextActionFromDiscoveryHealth,
   outputBudgetMetadata,
   parseFields,
   projectFields,
@@ -375,5 +414,7 @@ module.exports = {
   responseTotal,
   sanitizeForStdout,
   selectedRows,
+  applyDebugMetadata,
+  splitDebugMetadata,
   truncateText
 };

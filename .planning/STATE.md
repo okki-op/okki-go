@@ -2,19 +2,19 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-28)
+See: .planning/PROJECT.md (updated 2026-06-11)
 
 **Core value:** The skill must turn vague B2B prospecting requests into safe, repeatable, source-backed search and outreach preparation without bypassing paid-action or email-send confirmations.
-**Current focus:** v1.3.0 optimized mentor mode landing
+**Current focus:** v1.4.0 systemic token and latency optimization
 
 ## Current Position
 
-Phase: 6 of 6 (Optimized Mentor Mode 1.3.0)
+Phase: 13 of 13 (Cost and Capability Evals)
 Plan: 1 of 1 in current phase
-Status: Complete — optimized mentor-mode contract landed
-Last activity: 2026-06-09 - Landed L0/L1/L2 mentor mode, pagination-aware Expansion, recallability guardrails, and 1.3.0 version references
+Status: In progress — reference ownership duplication check added; broader cost/capability eval alignment remains
+Last activity: 2026-06-12 - Added prompt ownership regression and removed duplicate script-owned field handling prose from hot paths
 
-Progress: [██████████] 100%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -78,10 +78,24 @@ Recent decisions affecting current work:
 - `expansion-playbook.md` now treats Expansion as user-confirmed new search branches after pagination is exhausted or a new route is explicitly requested.
 - `discovery-playbook.md` and `workflows.md` now align default search, recovery budgets, L1/L2 routing, and follow-up pagination with the optimized mentor design.
 - Package, installer, resolver, API reference, authentication examples, README, INSTALL, and SKILL references now align to `1.3.0`.
+- v1.4.0 optimization uses `docs/OKKI_GO_SKILL_SYSTEMIC_TOKEN_LATENCY_OPTIMIZATION_PLAN.md` as the controlling plan and maps its Phase 0-5 sequence to roadmap Phases 8-13.
+- Phase 7 already exists as an untracked keyword-contract plan; this optimization starts at Phase 8 to avoid overwriting that work.
+- The historical session cited in the plan is only a symptom sample. Implementation must not special-case one conversation, product, geography, company, or email-count mismatch.
+- Search recall, Chinese-first target-side keyword generation, one-primary-field first search, paid-action confirmations, same-language replies, compact privacy, and latest-batch row reuse are non-negotiable optimization guardrails.
+- Token and latency savings should come from progressive disclosure, compact wrapper contracts, and deterministic script hints, not from smaller default result counts, stricter API filters, or weaker confirmation prompts.
+- Phase 8 baseline is recorded at `.planning/phases/08-baseline-and-guardrails/08-BASELINE.md`.
+- Phase 9 reduced `skill/SKILL.md` from 407 lines to 161 lines while keeping the six-rule Company Search Keyword Contract, paid-action confirmation summary, mode routing table, command starters, compact output rules, language rule, and error quick map.
+- Phase 10 added canonical references for `search-fast-path`, `result-review`, `search-strategy`, `paid-actions`, and `output-contracts`, while converting old `discovery-playbook`, `sales-mentor-playbook`, and `workflows` files into compatibility indexes.
+- Phase 10 removed prompt obligations that told the model to manually preserve or copy `domain`; field ownership now points to scripts and saved batch/raw files.
+- Phase 11 added `--debug-metadata` across user-facing wrappers. Normal compact stdout now hides `batch_id`, `raw_path`, `private_mapping_saved`, and verbose `output_budget`; explicit debug output places those fields under `debug_metadata`.
+- Phase 11 added `skill/scripts/test/debug-metadata.test.js` to prove normal compact output hides debug metadata while raw files remain saved.
+- Phase 12 added `discovery_health.health_action` and top-level `next_action` for company discovery wrappers so pagination and low-yield routing do not need to be re-derived by the model.
 
 ### Pending Todos
 
-- Align eval static checks/scenarios with v1.3.0 optimized mentor mode in a separate follow-up phase if automated evaluation remains required.
+- Align eval static checks/scenarios with v1.3.0 optimized mentor mode and v1.4.0 cost-behavior requirements in the eval phase.
+- Add broader representative cost-behavior scenarios and weak-model mode/reference cue checks.
+- Reconcile or update parent `../eval` expectations for debug metadata if those tests are part of the release gate.
 
 ### Blockers/Concerns
 
@@ -89,6 +103,8 @@ Recent decisions affecting current work:
 - Existing worktree still has unrelated and prior-phase modified/untracked files; do not revert or overwrite them.
 - Live local-agent behavior and paid OKKI API flows were not exercised in Phase 5; coverage is deterministic local-core plus safety-rule review.
 - Existing eval static check still expects the old PMF Gate boundary sentence; this was not changed because eval implementation is not part of Phase 6.
+- Current git status shows deleted tracked `eval/` files under this package and an untracked `../eval/` directory in the parent worktree; treat this as existing user/generated state unless explicitly asked to reconcile it.
+- Current `skill/SKILL.md` is 407 lines, above the v1.4.0 target. This is expected before Phase 9 and should be reduced only after Phase 8 baseline is recorded.
 
 ### Quick Tasks Completed
 

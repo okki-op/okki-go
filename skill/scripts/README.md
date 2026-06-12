@@ -8,7 +8,7 @@ Normal OKKI Go tool output must be compact and user-facing. Raw API JSON, long e
 
 Default private raw files should live under `/private/tmp/okki-go-batches`. Compact mode is a presentation filter, not data deletion: wrapper scripts save raw records or mappings when the compact output would otherwise omit private fields.
 
-Compact wrapper stdout includes `output_budget`, `truncated`, `available`, `next_offset`, and `discovery_health`. Batch-producing scripts update a latest batch pointer with a default 24h TTL so row-selector follow-ups can reuse the displayed mapping without re-searching. For company discovery, `target_count` defaults to 30; `low_yield_batch_streak` counts consecutive low-yield displayed result batches, not result rows or chat turns.
+Compact wrapper stdout includes routing-critical fields such as `truncated`, `available`, `next_offset`, `discovery_health`, and `next_action`. Company discovery also includes `display_table_markdown`, a fixed Markdown result table rendered by scripts, plus `discovery_health.health_action` so callers do not re-derive pagination or low-yield routing from chat text. Debug fields such as `batch_id`, `raw_path`, `private_mapping_saved`, and `output_budget` appear only with `--debug-metadata`. Batch-producing scripts update a latest batch pointer with a default 24h TTL so row-selector follow-ups can reuse the displayed mapping without re-searching. For company discovery, `target_count` defaults to 30; `low_yield_batch_streak` counts consecutive low-yield displayed result batches, not result rows or chat turns.
 
 Default visible caps:
 
@@ -32,12 +32,12 @@ node scripts/search-companies.js \
   --compact \
   --locale '<user-locale>' \
   --target-count 30 \
-  --fields company_name,country_name,email_count,employees_count,company_type,fit \
+  --fields company_name,country_name,has_email,has_whatsapp,employees_count,founding_time,company_type,fit \
   --limit-output 50 \
   --save-raw /private/tmp/okki-go-batches/search-raw.json
 ```
 
-`--compact` omits `domain`, raw IDs, website/homepage/URL/link fields from stdout and writes row-to-domain mapping plus raw records to `--save-raw`. `--locale` adds localized `country_name` values for user-facing display while preserving `country_code` for internal workflow use.
+`--compact` omits `domain`, raw IDs, website/homepage/URL/link fields, exact email counts, and exact WhatsApp counts from stdout, then writes row-to-domain mapping plus raw records to `--save-raw`. Search rows expose `has_email` and `has_whatsapp` booleans to avoid presenting free-search counts as confirmed unlocked contact totals. Company discovery stdout also includes `display_table_markdown` with localized fixed columns: `row`, `company_name`, `country_name`, `company_type`, `fit`, `has_email`, `more_info`. `more_info` displays WhatsApp availability, employee count, and founding time with labels. `--locale` adds localized `country_name` values and display-table labels for user-facing display while preserving `country_code` for internal workflow use.
 
 Batch discovery for "more", pagination-heavy, or count-based requests:
 
@@ -65,7 +65,11 @@ node scripts/unlock-companies.js \
   --locale '<user-locale>'
 ```
 
-`unlock-companies.js` reads saved row mappings, including `--batch latest` within the 24h TTL, calls paid `/companies/unlock`, fetches profile/profileEmails/balance, uses `mark-unlocked-batch`, and emits charge/balance/company summaries only. Compact output includes `raw_path`; it never prints `domain` or `companyHashId`. The skill workflow must still ask explicit paid confirmation before calling it.
+`unlock-companies.js` reads saved row mappings, including `--batch latest` within the 24h TTL, calls paid `/companies/unlock`, fetches profile/profileEmails/balance, uses `mark-unlocked-batch`, and emits charge/balance/company summaries only. Compact output hides `raw_path` unless `--debug-metadata` is explicit; it never prints `domain` or `companyHashId`. The skill workflow must still ask explicit paid confirmation before calling it.
+
+After unlock, normal compact output uses `company_details`, not a separate unlock-result table. The script shows at most the first 5 company details in stdout and writes all unlocked company details to a Markdown document at `details_markdown_path`. The Markdown document is the user-facing full-detail artifact; raw JSON remains for debug/recovery only. Unlocked details may show `display_website`, derived from profile website, profile domain, or the saved search domain.
+
+`--mark-unlocked` is local viewed-state bookkeeping for `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/viewed.json`; it is not part of the paid unlock transaction. In restricted sandboxes, callers can preflight that file or its parent directory and request file_system write permission before running a confirmed unlock. If the local state write fails after the unlock API succeeds, `unlock-companies.js` still exits 0, preserves `charged_count`, `charged`, `balance`, and the saved raw file, and emits `state_update_failed` plus a warning. Do not retry `/companies/unlock` to repair local viewed state.
 
 Cross-company contact search after first-session paid confirmation:
 

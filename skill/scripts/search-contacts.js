@@ -12,6 +12,7 @@ const {
   budgetedItems,
   defaultRawPath,
   nowIso,
+  applyDebugMetadata,
   responseList,
   responseTotal
 } = require('./lib/compact-output');
@@ -43,13 +44,13 @@ const SUPPORTED_FIELDS = new Set([
 function usage() {
   console.error([
     'Usage:',
-    '  node scripts/search-contacts.js --json \'<contacts/search payload>\' --compact [--save-batch PATH]',
-    '  node scripts/search-contacts.js --file payload.json --compact'
+    '  node scripts/search-contacts.js --json \'<contacts/search payload>\' --compact [--save-batch PATH] [--debug-metadata]',
+    '  node scripts/search-contacts.js --file payload.json --compact [--debug-metadata]'
   ].join('\n'));
 }
 
 function parseArgs(argv) {
-  const args = { json: null, file: null, compact: false, saveBatch: null, includePhone: false, limitOutput: null };
+  const args = { json: null, file: null, compact: false, saveBatch: null, includePhone: false, limitOutput: null, debugMetadata: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--json') {
@@ -64,6 +65,8 @@ function parseArgs(argv) {
       args.includePhone = true;
     } else if (arg === '--limit-output') {
       args.limitOutput = positiveInt(argv[++i], '--limit-output');
+    } else if (arg === '--debug-metadata') {
+      args.debugMetadata = true;
     } else if (arg === '--help' || arg === '-h') {
       usage();
       process.exit(0);
@@ -159,10 +162,18 @@ async function main() {
   };
 
   if (args.compact) {
-    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(contactNormalOutput(output, args.debugMetadata), null, 2)}\n`);
     return;
   }
   process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
+}
+
+function contactNormalOutput(output, debugMetadata) {
+  return applyDebugMetadata(output, [
+    'batch_id',
+    'raw_path',
+    'output_budget'
+  ], debugMetadata);
 }
 
 main().catch((error) => {
