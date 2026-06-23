@@ -58,10 +58,10 @@ If `low_yield_batch_streak >= 2`, stop blind synonym changes and offer Mentor Gu
 
 1. State the provisional buyer route briefly.
 2. Apply the Company Search Keyword Contract from `SKILL.md`.
-3. Use one primary keyword field plus geography when supplied.
-4. Put secondary route signals into local priority rules rather than hard filters when recall may suffer.
+3. Use a minimal keyword shape plus geography when supplied.
+4. Put secondary route signals into local priority rules rather than hard filters when recall may suffer. Local priority rules guide analysis after the company discovery output contract; they do not change displayed result rows or counts.
 5. Run or propose one free search route.
-6. Put the result table and unlock CTA before longer coaching.
+6. Present any new search result using `output-contracts.md`, then put the unlock/refine CTA before longer coaching.
 
 A second graph path requires user confirmation or `references/expansion-playbook.md`.
 

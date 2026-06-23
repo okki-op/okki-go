@@ -19,6 +19,10 @@ If no batch exists and the user asks how to search, switch to `references/search
 
 ## Output Shape
 
+Analysis groups are recommendations over the displayed batch. They must not replace, filter, renumber, or restate the script-owned result table as if they were the full result set.
+
+Use this same overlay wording when L0 already showed the full table; do not require a separate user request before giving brief priority guidance after discovery.
+
 Group rows into:
 
 - priority unlock: strongest buyer-side fit and enough profile signals to justify a small paid validation batch.

@@ -14,9 +14,9 @@ Read this for `L0_FAST_DISCOVERY` and `L0_PAGINATION`: ordinary company, buyer, 
 1. Run the auth check from `SKILL.md`.
 2. Extract current-turn seller facts and target geography or buyer route.
 3. Apply the Company Search Keyword Contract from `SKILL.md`.
-4. Build a free company-search payload with one primary keyword field plus geography when supplied.
+4. Build a free company-search payload with a minimal keyword shape plus geography when supplied.
 5. Run compact search.
-6. Present the script-rendered `display_table_markdown` result table.
+6. Present the result using the company discovery contract in `output-contracts.md`.
 7. Ask one next step: unlock selected rows, refine, or fetch more.
 
 Do not run Mentor, Profile onboarding, Web Research, Expansion, viewed dedupe, or paid APIs before the first free search unless the user explicitly asked for that mode.
@@ -26,6 +26,8 @@ Do not run Mentor, Profile onboarding, Web Research, Expansion, viewed dedupe, o
 L0 owns ordinary OKKI Go prospecting. If a company search has zero rows, noisy rows, network failure, timeout, 5xx, or system busy response, do not switch to public web search.
 
 Allowed recovery actions are OKKI-only: retry once, split a batch into smaller requests, simplify Chinese target-side keywords, change one buyer route, remove over-narrow constraints, paginate, ask one clarifying question, or tell the user OKKI Go is temporarily unavailable and offer to retry later.
+
+The wrapper scripts own the first transient retry for free company search. Do not add manual parallel retries around them. Batch discovery is serial by default to avoid tripping the upstream `searchPortraitRecall` flow-control resource.
 
 ## Constructible Search
 
@@ -48,6 +50,8 @@ Ask a short question only when no target-company keyword can be built. If produc
 - Do not default to `crossFieldOperator: "AND"`.
 - Do not invent unsupported filters such as employee range, decision roles, website, homepage, contacts, URL, or limit.
 - Treat importer/distributor/installer/employee/certification/decision-role hints as local display or recovery clues unless they are the chosen primary field.
+- Do not pack product + role phrases into `companyTypeKeywords`; use `productKeywords` for products and one buyer role per company-type route.
+- `size` and `from` do not reduce ES query rewrite clauses; if a route is too broad, change the keyword structure instead of only lowering pagination.
 
 Example:
 
@@ -55,6 +59,18 @@ Example:
 {
   "productKeywords": ["汽车玻璃", "挡风玻璃", "车窗玻璃", "汽车配件"],
   "includeCountry": ["DE"],
+  "from": 0,
+  "size": 20
+}
+```
+
+Product plus role example:
+
+```json
+{
+  "productKeywords": ["汽车玻璃", "挡风玻璃"],
+  "companyTypeKeywords": ["进口商"],
+  "includeCountry": ["IN", "PK", "BD"],
   "from": 0,
   "size": 20
 }
@@ -87,8 +103,6 @@ Do not infer hidden rows from chat text.
 
 ## Presentation
 
-For free company discovery results, use `display_table_markdown` exactly as the result table. Do not rebuild the table from `rows`, reorder columns, or add hidden fields such as domain, website, IDs, raw paths, or exact email/WhatsApp counts.
+Use `output-contracts.md` as the single owner for company discovery display, field visibility, recommendation overlays, and debug metadata. L0 owns search construction and pagination decisions only.
 
-After the table, write the next-step guidance naturally in the user's language. Use `next_action` and `discovery_health` for pagination, low-yield, refinement, or unlock-selection guidance.
-
-Rely on `output-contracts.md` for script-owned private fields and debug metadata. Use `--batch latest` for later row selections.
+After the table and any lightweight recommendation overlay, write the next-step guidance naturally in the user's language. Use `next_action` and `discovery_health` for pagination, low-yield, refinement, or unlock-selection guidance. For paid unlock row selections, use the script-provided `selection_handle` to prepare an unlock plan via `paid-actions.md`.

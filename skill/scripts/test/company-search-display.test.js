@@ -148,6 +148,7 @@ test('search-companies compact output includes a script-rendered fixed display t
   assert.equal(Object.hasOwn(output, 'display_rows'), false);
   assertFixedDisplayTable(output);
   assert.equal(output.next_action, 'ask_unlock_selection');
+  assert.match(output.selection_handle, /^sel_[a-f0-9]{24}$/);
   assert.equal(typeof output.discovery_health, 'object');
 });
 
@@ -221,5 +222,6 @@ test('discover-companies-batch compact output includes the same fixed display ta
   assert.equal(Object.hasOwn(output, 'display_rows'), false);
   assertFixedDisplayTable(output);
   assert.equal(output.next_action, 'ask_unlock_selection');
+  assert.match(output.selection_handle, /^sel_[a-f0-9]{24}$/);
   assert.equal(typeof output.discovery_health, 'object');
 });

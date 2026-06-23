@@ -26,10 +26,12 @@ const {
 const { writeJsonFile } = require('./lib/okki-api');
 const {
   readLatestBatchPointer,
+  writeSelectionHandle,
   writeLatestBatchPointer
 } = require('./lib/batch-state');
 const {
   KEYWORD_FIELDS,
+  normalizeCompanySearchPayload,
   splitCompanySearchPayload
 } = require('./lib/company-search-payloads');
 const {
@@ -37,20 +39,9 @@ const {
 } = require('./lib/company-search-display');
 
 const BASE_URL = process.env.OKKIGO_BASE_URL || 'https://go.okki.ai';
-const SKILL_VERSION = process.env.OKKIGO_SKILL_VERSION || '1.2.1';
+const SKILL_VERSION = process.env.OKKIGO_SKILL_VERSION || '1.3.1';
 const SKILL_RUNTIME = process.env.OKKIGO_SKILL_RUNTIME || 'unknown';
-const MAX_SIZE = 50;
-const SUPPORTED_FIELDS = new Set([
-  'companyTypeKeywords',
-  'productKeywords',
-  'industryKeywords',
-  'includeCountry',
-  'excludeCountry',
-  'withEmails',
-  'crossFieldOperator',
-  'from',
-  'size'
-]);
+const TRANSIENT_RETRY_DELAY_MS = 300;
 
 function usage() {
   console.error([
@@ -134,128 +125,7 @@ function parseJson(source, label) {
 }
 
 function normalizePayload(input) {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('Payload must be a JSON object.');
-  }
-
-  const normalized = {};
-  const dropped = [];
-
-  for (const [key, value] of Object.entries(input)) {
-    if (!SUPPORTED_FIELDS.has(key)) {
-      dropped.push(key);
-      continue;
-    }
-    if (value === undefined || value === null || value === '') continue;
-    normalized[key] = value;
-  }
-
-  normalizeArrayField(normalized, 'companyTypeKeywords');
-  normalizeArrayField(normalized, 'productKeywords');
-  normalizeArrayField(normalized, 'industryKeywords');
-  normalizeArrayField(normalized, 'includeCountry', true);
-  normalizeArrayField(normalized, 'excludeCountry', true);
-  validateCountryCodes(normalized, 'includeCountry');
-  validateCountryCodes(normalized, 'excludeCountry');
-  normalizeWithEmails(normalized);
-  normalizeCrossFieldOperator(normalized);
-  normalizePagination(normalized);
-  ensureSearchable(normalized);
-
-  return { payload: normalized, dropped, warnings: guardrailWarnings(normalized) };
-}
-
-function normalizeArrayField(payload, key, uppercase) {
-  if (!(key in payload)) return;
-
-  const values = Array.isArray(payload[key]) ? payload[key] : [payload[key]];
-  const cleaned = values
-    .filter((value) => typeof value === 'string' || typeof value === 'number')
-    .map((value) => String(value).trim())
-    .filter(Boolean)
-    .map((value) => uppercase ? value.toUpperCase() : value);
-
-  if (cleaned.length === 0) {
-    delete payload[key];
-  } else {
-    payload[key] = Array.from(new Set(cleaned));
-  }
-}
-
-function validateCountryCodes(payload, key) {
-  if (!(key in payload)) return;
-
-  const invalid = payload[key].filter((value) => !/^[A-Z]{2}$/.test(value));
-  if (invalid.length > 0) {
-    throw new Error(`${key} must contain ISO 3166-1 alpha-2 country codes. Invalid: ${invalid.join(', ')}`);
-  }
-}
-
-function normalizeWithEmails(payload) {
-  if (!('withEmails' in payload)) return;
-
-  const value = payload.withEmails;
-  if (value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'true') {
-    payload.withEmails = 1;
-  } else if (value === false || value === 0 || value === '0' || String(value).toLowerCase() === 'false') {
-    payload.withEmails = 0;
-  } else {
-    throw new Error('withEmails must be 0 or 1.');
-  }
-}
-
-function normalizeCrossFieldOperator(payload) {
-  if (!('crossFieldOperator' in payload)) return;
-
-  const value = String(payload.crossFieldOperator).trim().toUpperCase();
-  if (value !== 'AND' && value !== 'OR') {
-    throw new Error('crossFieldOperator must be "AND" or "OR".');
-  }
-  payload.crossFieldOperator = value;
-}
-
-function normalizePagination(payload) {
-  const from = payload.from === undefined ? 0 : Number(payload.from);
-  const size = payload.size === undefined ? DEFAULT_COMPANY_TARGET_COUNT : Number(payload.size);
-
-  if (!Number.isInteger(from) || from < 0) {
-    throw new Error('from must be a non-negative integer.');
-  }
-  if (!Number.isInteger(size) || size < 1) {
-    throw new Error('size must be a positive integer.');
-  }
-
-  payload.from = from;
-  payload.size = Math.min(size, MAX_SIZE);
-}
-
-function ensureSearchable(payload) {
-  const hasKeywords = KEYWORD_FIELDS
-    .some((key) => Array.isArray(payload[key]) && payload[key].length > 0);
-
-  if (!hasKeywords) {
-    throw new Error('Payload must include at least one of productKeywords, industryKeywords, or companyTypeKeywords.');
-  }
-}
-
-function guardrailWarnings(payload) {
-  const warnings = [];
-  const usedKeywordFields = KEYWORD_FIELDS
-    .filter((key) => Array.isArray(payload[key]) && payload[key].length > 0);
-
-  if (payload.withEmails === 1) {
-    warnings.push('withEmails:1 narrows company discovery; use it only when the user asked for email-only leads.');
-  }
-
-  if (payload.crossFieldOperator === 'AND' && usedKeywordFields.length === KEYWORD_FIELDS.length) {
-    warnings.push('AND with productKeywords + companyTypeKeywords + industryKeywords can over-narrow the first search.');
-  }
-
-  if (payload.crossFieldOperator === 'OR' && Array.isArray(payload.includeCountry) && payload.includeCountry.length > 0) {
-    warnings.push('Global OR with includeCountry can be noisy; prefer changing target-side terms before using OR.');
-  }
-
-  return warnings;
+  return normalizeCompanySearchPayload(input);
 }
 
 function resolveApiKey() {
@@ -339,6 +209,24 @@ function postJson(urlString, headers, payload) {
   });
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientCompanySearchResponse(response) {
+  if (!response) return false;
+  if ([429, 502, 503, 504].includes(Number(response.statusCode))) return true;
+  return /系统繁忙|system busy|temporarily unavailable|timeout|timed out|rate[- ]?limit|too many requests/i
+    .test(String(response.body || ''));
+}
+
+async function postCompanySearchWithRetry(urlString, headers, payload) {
+  const response = await postJson(urlString, headers, payload);
+  if (!isTransientCompanySearchResponse(response)) return response;
+  await sleep(TRANSIENT_RETRY_DELAY_MS);
+  return postJson(urlString, headers, payload);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const { payload, dropped, warnings } = normalizePayload(readPayload(args));
@@ -367,7 +255,7 @@ async function main() {
 
   const responses = [];
   for (const searchPayload of searchPayloads) {
-    const response = await postJson(`${BASE_URL}/api/v1/companies/search-advanced`, headers, searchPayload);
+    const response = await postCompanySearchWithRetry(`${BASE_URL}/api/v1/companies/search-advanced`, headers, searchPayload);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       console.error(response.body);
       process.exit(response.statusCode >= 400 && response.statusCode < 600 ? 1 : 2);
@@ -381,6 +269,7 @@ async function main() {
     const rawPath = args.saveRaw || defaultRawPath('search-companies');
     const compact = compactSearchResponse(body, {
       payload,
+      requestFrom: payload.from || 0,
       rawPath,
       fields: parseFields(args.fields),
       limitOutput: args.limitOutput || payload.size || DEFAULT_COMPANY_TARGET_COUNT,
@@ -390,6 +279,13 @@ async function main() {
       splitQueryCount: splitSearch.splitQueryCount
     });
     writeJsonFile(rawPath, compact.raw);
+    const selection = writeSelectionHandle({
+      batchPath: rawPath,
+      displayedRows: compact.output.returned,
+      requestSummary: compact.raw.request_summary,
+      discoveryHealth: compact.output.discovery_health
+    });
+    compact.output.selection_handle = selection.handle;
     writeLatestBatchPointer({
       batchPath: rawPath,
       displayedRows: compact.output.returned,
@@ -454,6 +350,8 @@ function compactSearchResponse(body, options) {
     requestedLimit: options.limitOutput,
     available: total
   });
+  const absoluteNextOffset = (options.requestFrom || 0) + budgeted.metadata.returned;
+  const absoluteTruncated = absoluteNextOffset < total;
   const fields = options.fields;
   const displayRows = budgeted.items.map((record, index) => (
     compactCompanyRow(record, index + 1, { locale: options.locale })
@@ -474,7 +372,9 @@ function compactSearchResponse(body, options) {
     rows,
     private_mapping_saved: true,
     raw_path: options.rawPath,
-    ...budgeted.metadata
+    ...budgeted.metadata,
+    truncated: absoluteTruncated,
+    next_offset: absoluteTruncated ? absoluteNextOffset : null
   };
   if (options.splitQueryCount > 1) output.split_query_count = options.splitQueryCount;
   output.discovery_health = discoveryHealth({
@@ -482,8 +382,8 @@ function compactSearchResponse(body, options) {
     visibleUniqueCount: rows.length,
     usableCandidateCount: rows.length,
     available: budgeted.metadata.available,
-    nextOffset: budgeted.metadata.next_offset,
-    hasNextPage: budgeted.metadata.truncated,
+    nextOffset: output.next_offset,
+    hasNextPage: output.truncated,
     latestHealth: options.latestPointer && options.latestPointer.discovery_health
   });
   output.next_action = nextActionFromDiscoveryHealth(output.discovery_health);

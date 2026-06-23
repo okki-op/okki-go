@@ -8,7 +8,7 @@ const https = require('https');
 const path = require('path');
 
 const BASE_URL = process.env.OKKIGO_BASE_URL || 'https://go.okki.ai';
-const SKILL_VERSION = process.env.OKKIGO_SKILL_VERSION || '1.2.1';
+const SKILL_VERSION = process.env.OKKIGO_SKILL_VERSION || '1.3.1';
 const SKILL_RUNTIME = process.env.OKKIGO_SKILL_RUNTIME || 'unknown';
 
 function resolveApiKey() {
@@ -84,6 +84,15 @@ async function postJson(apiPath, payload) {
 }
 
 async function requestJson(method, apiPath, payload) {
+  const result = await requestJsonWithMeta(method, apiPath, payload);
+  return result.body;
+}
+
+async function postJsonWithMeta(apiPath, payload) {
+  return requestJsonWithMeta('POST', apiPath, payload);
+}
+
+async function requestJsonWithMeta(method, apiPath, payload) {
   const response = await request(method, `${BASE_URL}${apiPath}`, authHeaders(), payload);
   let body;
   try {
@@ -99,7 +108,10 @@ async function requestJson(method, apiPath, payload) {
     throw error;
   }
 
-  return body;
+  return {
+    statusCode: response.statusCode,
+    body
+  };
 }
 
 function request(method, urlString, headers, payload) {
@@ -168,7 +180,9 @@ module.exports = {
   getJson,
   parseJson,
   postJson,
+  postJsonWithMeta,
   readJsonFile,
   requestJson,
+  requestJsonWithMeta,
   writeJsonFile
 };

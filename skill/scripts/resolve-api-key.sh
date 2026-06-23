@@ -7,7 +7,7 @@
 set -eu
 
 MODE="${1:---check}"
-SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.3.0}"
+SKILL_VERSION="${OKKIGO_SKILL_VERSION:-1.3.1}"
 export OKKIGO_SKILL_VERSION="$SKILL_VERSION"
 
 if [ "$MODE" != "--check" ] && [ "$MODE" != "--source" ] && [ "$MODE" != "--print" ]; then

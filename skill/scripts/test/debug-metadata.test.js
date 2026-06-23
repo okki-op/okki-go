@@ -224,6 +224,30 @@ test('local wrappers hide debug metadata unless explicitly requested', async (t)
   assert.equal(normalOutput.displayed_details_count, 5);
   assert.equal(normalOutput.details_markdown_saved, true);
   assert.equal(normalOutput.details_markdown_path, markdownPath);
+  assert.equal(typeof normalOutput.unlock_details_markdown, 'string');
+  assert.match(normalOutput.unlock_details_markdown, /# OKKI Go 解锁结果/);
+  assert.match(normalOutput.unlock_details_markdown, /计划解锁: 6 家/);
+  assert.match(normalOutput.unlock_details_markdown, /成功: 6 家/);
+  assert.match(normalOutput.unlock_details_markdown, /失败: 0 家/);
+  assert.doesNotMatch(normalOutput.unlock_details_markdown, /已尝试|未尝试/);
+  assert.equal(Object.hasOwn(normalOutput, 'stopped_count'), false);
+  assert.equal(normalOutput.next_action, 'draft_outreach');
+  assert.match(normalOutput.unlock_details_markdown, new RegExp(`全部详情见: ${escapeRegExp(markdownPath)}`));
+  assert.match(normalOutput.unlock_details_markdown, /\| 字段 \| 内容 \|/);
+  assert.match(normalOutput.unlock_details_markdown, /\| 原序号 \| 1 \|/);
+  assert.match(normalOutput.unlock_details_markdown, /\| 公司名 \| AutoTeile Import GmbH \|/);
+  assert.match(normalOutput.unlock_details_markdown, /\| 国家\/地区 \| Germany \|/);
+  assert.match(normalOutput.unlock_details_markdown, /\| 官网\/域名 \| autoteile\.example \|/);
+  assert.match(normalOutput.unlock_details_markdown, /\| 邮箱 \| buyer@autoteile\.example \|/);
+  assert.match(normalOutput.unlock_details_markdown, /\| 电话\/WhatsApp \| \+49 123 456 \|/);
+  const chatDescription = normalOutput.unlock_details_markdown.match(/\| 公司简介 \| ([\s\S]*?) \|/)[1];
+  assert.equal(chatDescription.length, 201);
+  assert.match(chatDescription, /…$/);
+  assert.match(chatDescription, /^This distributor profile is intentionally long/);
+  assert.match(normalOutput.unlock_details_markdown, /## 5\. Cologne Auto Supply/);
+  assert.equal(normalOutput.unlock_details_markdown.includes('## 6. Stuttgart Wheels'), false);
+  assert.equal(normalOutput.unlock_details_markdown.includes('有邮箱'), false);
+  assert.equal(normalOutput.unlock_details_markdown.includes('有 WhatsApp'), false);
   assert.equal(normalOutput.company_details.length, 5);
   assert.equal(normalOutput.company_details[0].company_name, 'AutoTeile Import GmbH');
   assert.equal(normalOutput.company_details[0].display_website, 'autoteile.example');
@@ -236,13 +260,19 @@ test('local wrappers hide debug metadata unless explicitly requested', async (t)
   assert.match(markdown, /# OKKI Go 公司详情/);
   assert.match(markdown, /## 1\. AutoTeile Import GmbH/);
   assert.match(markdown, /## 6\. Stuttgart Wheels/);
-  assert.match(markdown, /完整资料/);
+  assert.match(markdown, /全部公司详情/);
+  assert.match(markdown, /- 邮箱: buyer@autoteile\.example/);
+  assert.match(markdown, /- 电话\/WhatsApp: \+49 123 456/);
+  assert.match(markdown, /additional descriptive content that should remain complete in the markdown file/);
+  assert.equal(markdown.includes('- 有邮箱:'), false);
+  assert.equal(markdown.includes('- 有 WhatsApp:'), false);
 
   const debug = await runScript('unlock-companies.js', [
     '--batch', batchPath,
     '--rows', '1',
     '--compact',
     '--raw-file', rawPath,
+    '--markdown-file', path.join(tempDir, 'debug-company-details.md'),
     '--debug-metadata'
   ], { OKKIGO_BASE_URL: await createUnlockServer(t) });
   assert.equal(debug.status, 0, debug.stderr || debug.stdout);
@@ -254,6 +284,11 @@ test('local wrappers hide debug metadata unless explicitly requested', async (t)
 });
 
 function createUnlockServer(t) {
+  const longDescription = [
+    'This distributor profile is intentionally long to verify chat truncation. ',
+    'It contains operational coverage, import readiness, foodservice distribution notes, ',
+    'regional customer segments, and additional descriptive content that should remain complete in the markdown file.'
+  ].join('');
   const server = http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/api/v1/companies/unlock') {
       const chunks = [];
@@ -281,7 +316,9 @@ function createUnlockServer(t) {
         founded_year: 1998,
         employee_count: 75,
         employee_desc: '51-200',
-        description: `${name} is a German automotive parts distributor.`,
+        description: domain === 'autoteile.example'
+          ? longDescription
+          : `${name} is a German automotive parts distributor.`,
         profile: `${name} supplies automotive parts and services.`,
         social_links: ['https://www.linkedin.com/company/example']
       }));
@@ -352,4 +389,8 @@ function domainFromProfileUrl(url) {
     'hash-cologne-auto-example': 'cologne-auto.example',
     'hash-stuttgart-wheels-example': 'stuttgart-wheels.example'
   }[encoded] || encoded.replace(/^hash-/, '').replace(/-example$/, '.example').replace(/-/g, '.');
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

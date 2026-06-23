@@ -51,9 +51,10 @@ Apply this contract before every free company-search payload, including L0 searc
 1. Target-side first: convert merchant-side product/service facts into target-company profile terms. Do not copy the seller's identity or long product phrases directly into payload keywords.
 2. Chinese index-language first: OKKI Go buyer-profile keyword fields are zh-primary. For `productKeywords`, `companyTypeKeywords`, and `industryKeywords`, generate concise Chinese index-language terms by default.
 3. Supplements only: keep English, local-language, brand, model, certification, acronym, or proper-noun terms only when they are likely searchable as-is. They supplement Chinese terms; they do not replace them.
-4. One primary keyword field first: Round 1 uses exactly one of `productKeywords`, `companyTypeKeywords`, or `industryKeywords`, plus geography when provided.
+4. Minimal keyword shape first: Round 1 uses one product/industry field, or one buyer-role `companyTypeKeywords` field, plus geography when provided. A product field may be paired with a single buyer-role `companyTypeKeywords` value.
 5. Recall before precision: keep buyer route, employee size, certification, decision role, and importer/distributor hints as soft display or recovery clues unless they are the chosen primary field.
-6. No over-narrow first search: do not default to `crossFieldOperator: "AND"`, do not pack all three keyword fields, and do not use email-only unless requested.
+6. Separate products from roles: Put product or offer terms in `productKeywords`; put buyer roles in `companyTypeKeywords`. Do not combine product and buyer-role terms inside `companyTypeKeywords`.
+7. No over-narrow first search: do not default to `crossFieldOperator: "AND"`, do not pack all three keyword fields, and do not use email-only unless requested.
 
 Supported free company-search fields are only `companyTypeKeywords`, `productKeywords`, `industryKeywords`, `includeCountry`, `excludeCountry`, `withEmails`, `crossFieldOperator`, `from`, and `size`. `includeCountry` is only a filter and cannot be sent without a keyword field. Do not invent filters such as employee range, decision roles, website, homepage, contacts, or limit.
 
@@ -71,10 +72,24 @@ Broad, paginated, "more", or count-based discovery:
 node scripts/discover-companies-batch.js --json '<plan>' --target-count N --save-batch /private/tmp/okki-go-batches/<batch>.json --compact --locale '<user-locale>'
 ```
 
-Confirmed row unlock from the most recent displayed batch:
+Free company-search wrappers retry one transient busy/rate-limit/upstream failure before surfacing the error. Batch discovery defaults to serial API calls; raise `--concurrency` only for trusted internal debugging where the upstream `searchPortraitRecall` limit is known to tolerate it.
+
+Prepare selected rows for paid unlock after the user chooses displayed rows:
 
 ```bash
-node scripts/unlock-companies.js --batch latest --rows 1,3,5 --mark-unlocked --compact --locale '<user-locale>'
+node scripts/prepare-unlock-plan.js --selection-handle '<selection_handle>' --rows 1,3,5 --compact --locale '<user-locale>' --debug-metadata
+```
+
+Prepare a processed final unlock target set after recommendations, filtering, ranking, multi-page consolidation, or user edits:
+
+```bash
+node scripts/prepare-unlock-plan.js --selection-set-file /private/tmp/okki-go-batches/<target-set>.json --compact --locale '<user-locale>' --debug-metadata
+```
+
+Confirmed unlock after the user accepts the credit cost:
+
+```bash
+node scripts/unlock-companies.js --plan '<unlock_plan_id>' --mark-unlocked --compact --locale '<user-locale>' --artifact-dir '<agent-visible-output-dir>'
 ```
 
 Confirmed cross-company contact search:
@@ -96,32 +111,29 @@ Balance:
 OKKIGO_API_KEY="$(bash scripts/resolve-api-key.sh --print)"
 curl -s -X GET "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
   -H "Authorization: ApiKey ${OKKIGO_API_KEY}" \
-  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.3.0}"
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.3.1}"
 ```
 
-Use compact wrappers and `--batch latest` for normal work. Do not call raw/non-compact output unless the user explicitly asks for raw, debug, export, or full detail.
+Use compact wrappers for normal work. Do not call raw/non-compact output unless the user explicitly asks for raw, debug, export, or full detail.
 
 ## Compact Output Rules
 
-Normal replies must be answer-ready and user-facing:
+Normal replies must be answer-ready and user-facing while preserving script-owned output structure:
 
-- For free company discovery, use `display_table_markdown` exactly as the result table; do not reorder columns, rebuild the table from `rows`, or add hidden fields.
-- After the free-search table, write concise next-step guidance in the user's language using `next_action` and `discovery_health`.
-- Follow `references/output-contracts.md` for script-owned private fields, debug metadata, raw/export behavior, and unlocked company detail Markdown output.
+- Use script-rendered structured outputs as the visible structure. Do not rebuild, filter, reorder, rename, truncate, or summarize script-owned tables or details into a new structured format unless the user explicitly asks for a custom summary.
+- For any free company discovery search in any mode, follow `references/output-contracts.md`: show `display_table_markdown` exactly as the result table before recommendations or coaching.
+- For selected-company unlock, show the script-rendered `unlock_details_markdown`; for contact search, email send, and email status, use the script-provided rows, details, counts, paths, and warnings.
+- For selected-company unlock, pass `--artifact-dir` when the Agent has a writable workspace/artifacts/outputs directory. The wrapper falls back to an internal temporary detail path with a warning if the artifact path is not writable.
+- After each free-search table, add brief priority guidance, then concise next-step guidance in the user's language using `next_action` and `discovery_health`.
+- Follow `references/output-contracts.md` for script-owned private fields, result cardinality, debug metadata, raw/export behavior, and unlocked company detail Markdown output.
 - Follow compact routing hints such as `next_action` and `discovery_health.health_action`; do not re-derive pagination or low-yield routing from chat text.
-- Use `--batch latest` for row selections from the latest displayed batch. If the batch is missing or stale, re-run a free lookup or ask the user to choose from a new list before any unlock confirmation.
+- Use the script-provided `selection_handle` to prepare paid unlock plans for row selections. If selection state is missing or stale, re-run a free lookup or ask the user to choose from a new list before any unlock confirmation.
 
 ## Paid And Send Guardrails
 
 These rules are non-bypassable.
 
-Unlock: before every `/companies/unlock` call, ask explicit credit confirmation unless the same user turn already names the selected company and explicitly accepts the unlock credit cost. Wording:
-
-```text
-Unlocking this company costs 1 credit unless it was unlocked in the last 30 days. Proceed?
-```
-
-A row number, "find emails", "get contacts", Profile reuse, Expansion, Web Research, or Mentor recommendation is not confirmation. After a paid call, report charge, remaining balance when available, compact details, and warnings. Local viewed-state write failure is warning-only after a successful unlock; never repeat a paid unlock just to repair local state.
+Unlock: prepare an internal unlock plan for selected rows or a processed final target set, then ask explicit credit confirmation before running the plan. A single confirmation can cover one selected batch of rows or one processed final target set; if the user changes targets before confirmation, prepare a new plan. See `references/paid-actions.md` for wording and boundaries. A row number, "find emails", "get contacts", Profile reuse, Expansion, Web Research, or Mentor recommendation is not confirmation. Local viewed-state write failure is warning-only after a successful unlock; never repeat a paid unlock just to repair local state.
 
 Contact search: before the first `POST /contacts/search` in a session, state that contact search costs 1 credit per query and wait for confirmation. Subsequent same-session contact searches do not need re-confirmation unless the user refuses or scope materially changes.
 

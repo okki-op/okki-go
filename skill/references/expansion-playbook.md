@@ -45,7 +45,7 @@ The user confirms one branch. Search only that branch. If the user asks to try a
 
 Every branch payload applies the Company Search Keyword Contract from `SKILL.md`:
 
-- one primary keyword field plus geography when supplied
+- minimal keyword shape plus geography when supplied
 - Chinese target-side index terms by default
 - secondary buyer-route signals kept local when they may over-narrow recall
 - no default `AND` or packed three-field payloads
@@ -54,9 +54,8 @@ Every branch payload applies the Company Search Keyword Contract from `SKILL.md`
 
 After a confirmed branch search:
 
-- show the company table
+- show the company discovery result using `output-contracts.md`
 - label the branch used
 - add priority/observe/not-recommended guidance only when the user asked for analysis or the route is guided
-- keep private/debug fields governed by `output-contracts.md`
 
 Before unlock, contact search, or email send, use `paid-actions.md`.

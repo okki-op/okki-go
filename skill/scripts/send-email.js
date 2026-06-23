@@ -60,15 +60,16 @@ function readPayload(args) {
   return args.file ? readJsonFile(args.file) : parseJson(args.json, '--json');
 }
 
-function validatePayload(payload) {
+function validatePayload(payload, mode) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw new Error('Payload must be a JSON object.');
   }
-  if (!Array.isArray(payload.recipients) || payload.recipients.length === 0) {
-    throw new Error('Payload must include recipients[].');
+  const listKey = mode === 'batch' ? 'recipients' : 'emails';
+  if (!Array.isArray(payload[listKey]) || payload[listKey].length === 0) {
+    throw new Error(`Payload for ${mode} mode must include ${listKey}[].`);
   }
-  if (payload.recipients.length > 100) {
-    throw new Error('Payload recipients[] must not exceed 100.');
+  if (payload[listKey].length > 100) {
+    throw new Error(`Payload ${listKey}[] must not exceed 100.`);
   }
 }
 
@@ -84,13 +85,31 @@ function taskIds(response) {
 
 function totalSubmitted(response, payload) {
   if (response && Number.isFinite(Number(response.total))) return Number(response.total);
-  return Array.isArray(payload.recipients) ? payload.recipients.length : 0;
+  if (Array.isArray(payload.recipients)) return payload.recipients.length;
+  if (Array.isArray(payload.emails)) return payload.emails.length;
+  return 0;
+}
+
+function acceptedCount(response, payload) {
+  if (response && Number.isFinite(Number(response.accepted_count))) return Number(response.accepted_count);
+  if (response && Number.isFinite(Number(response.acceptedCount))) return Number(response.acceptedCount);
+  if (response && Number.isFinite(Number(response.accepted))) return Number(response.accepted);
+  return totalSubmitted(response, payload) - rejectedCount(response);
+}
+
+function rejectedCount(response) {
+  if (response && Number.isFinite(Number(response.rejected_count))) return Number(response.rejected_count);
+  if (response && Number.isFinite(Number(response.rejectedCount))) return Number(response.rejectedCount);
+  if (response && Number.isFinite(Number(response.rejected))) return Number(response.rejected);
+  if (response && Array.isArray(response.rejected_recipients)) return response.rejected_recipients.length;
+  if (response && Array.isArray(response.rejectedRecipients)) return response.rejectedRecipients.length;
+  return 0;
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const payload = readPayload(args);
-  validatePayload(payload);
+  validatePayload(payload, args.mode);
   const endpoint = args.mode === 'batch'
     ? '/api/v1/emails/send/batch'
     : '/api/v1/emails/send/personalized';
@@ -106,8 +125,12 @@ async function main() {
   const output = {
     submitted: true,
     mode: args.mode,
+    status: response && response.status ? response.status : 'submitted',
     total: totalSubmitted(response, payload),
+    accepted_count: acceptedCount(response, payload),
+    rejected_count: rejectedCount(response),
     task_ids: taskIds(response),
+    next_status_command: 'node scripts/email-status.js tasks --json \'{"page":1,"page_size":20}\' --compact',
     mapping_saved: mappingPath
   };
   Object.assign(output, outputBudgetMetadata({

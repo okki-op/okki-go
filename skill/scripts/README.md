@@ -8,7 +8,7 @@ Normal OKKI Go tool output must be compact and user-facing. Raw API JSON, long e
 
 Default private raw files should live under `/private/tmp/okki-go-batches`. Compact mode is a presentation filter, not data deletion: wrapper scripts save raw records or mappings when the compact output would otherwise omit private fields.
 
-Compact wrapper stdout includes routing-critical fields such as `truncated`, `available`, `next_offset`, `discovery_health`, and `next_action`. Company discovery also includes `display_table_markdown`, a fixed Markdown result table rendered by scripts, plus `discovery_health.health_action` so callers do not re-derive pagination or low-yield routing from chat text. Debug fields such as `batch_id`, `raw_path`, `private_mapping_saved`, and `output_budget` appear only with `--debug-metadata`. Batch-producing scripts update a latest batch pointer with a default 24h TTL so row-selector follow-ups can reuse the displayed mapping without re-searching. For company discovery, `target_count` defaults to 30; `low_yield_batch_streak` counts consecutive low-yield displayed result batches, not result rows or chat turns.
+Compact wrapper stdout includes routing-critical fields such as `truncated`, `available`, `next_offset`, `discovery_health`, and `next_action`. Company discovery also includes `display_table_markdown`, a fixed Markdown result table rendered by scripts, and opaque `selection_handle` for preparing paid unlock plans. Debug fields such as `batch_id`, `raw_path`, `private_mapping_saved`, and `output_budget` appear only with `--debug-metadata`. Batch-producing scripts update a latest batch pointer with a default 24h TTL for free follow-up compatibility, but paid unlock execution should use prepared unlock plans. For company discovery, `target_count` defaults to 30; `low_yield_batch_streak` counts consecutive low-yield displayed result batches, not result rows or chat turns.
 
 Default visible caps:
 
@@ -52,22 +52,47 @@ node scripts/discover-companies-batch.js \
 
 The numeric values in examples are placeholders; scripts use the requested target count and generic row selectors such as `1,3,7-9`.
 
-The batch script scans configured pages, deduplicates by domain then company name, saves private mapping, updates the latest batch pointer, and emits compact rows plus scanned/deduped/returned counts.
+The batch script scans configured pages, deduplicates by domain then company name, saves private mapping, updates the latest batch pointer, creates a `selection_handle`, and emits compact rows plus scanned/deduped/returned counts.
 
-Unlock selected rows after explicit credit confirmation:
+Free company search retries one transient busy/rate-limit/upstream failure before surfacing the error. Batch discovery defaults to serial requests so large or split searches do not spike the upstream portrait-recall flow-control resource. Search wrappers split `companyTypeKeywords` to one value per API request to reduce enhanced-recall ES rewrite pressure; this is mechanical only and does not semantically split compound phrases such as `汽车玻璃供应商`. Use `--concurrency` only for internal debugging or a known-safe environment.
+
+Prepare selected rows before asking for explicit credit confirmation:
+
+```bash
+node scripts/prepare-unlock-plan.js \
+  --selection-handle HANDLE \
+  --rows ROWS \
+  --compact \
+  --locale '<user-locale>' \
+  --debug-metadata
+```
+
+Prepare a processed target set when recommendations, filtering, ranking, multi-page consolidation, or user edits produce the final companies to unlock:
+
+```bash
+node scripts/prepare-unlock-plan.js \
+  --selection-set-file /private/tmp/okki-go-batches/final-unlock-targets.json \
+  --compact \
+  --locale '<user-locale>' \
+  --debug-metadata
+```
+
+Unlock the prepared plan after explicit credit confirmation:
 
 ```bash
 node scripts/unlock-companies.js \
-  --batch latest \
-  --rows ROWS \
+  --plan PLAN_ID \
   --mark-unlocked \
   --compact \
-  --locale '<user-locale>'
+  --locale '<user-locale>' \
+  --artifact-dir '<agent-visible-output-dir>'
 ```
 
-`unlock-companies.js` reads saved row mappings, including `--batch latest` within the 24h TTL, calls paid `/companies/unlock`, fetches profile/profileEmails/balance, uses `mark-unlocked-batch`, and emits charge/balance/company summaries only. Compact output hides `raw_path` unless `--debug-metadata` is explicit; it never prints `domain` or `companyHashId`. The skill workflow must still ask explicit paid confirmation before calling it.
+`prepare-unlock-plan.js` freezes row selections or a processed target set into an opaque `unlock_plan_id` without calling paid APIs. Normal output shows `selected_companies` and `max_credit_cost`; the plan id and target-set fingerprint are only under `debug_metadata` for the agent to use after confirmation. If the user changes the final targets before confirmation, prepare a new plan; active-plan state rejects the old one. `unlock-companies.js --plan` reads that frozen mapping, calls paid `/companies/unlock`, fetches profile/profileEmails/balance for successful rows, uses `mark-unlocked-batch` only for successful rows, and emits charge/balance/company summaries. Compact output hides `raw_path` unless `--debug-metadata` is explicit; it never prints `domain` or `companyHashId`. The skill workflow must still ask explicit paid confirmation before calling it.
 
-After unlock, normal compact output uses `company_details`, not a separate unlock-result table. The script shows at most the first 5 company details in stdout and writes all unlocked company details to a Markdown document at `details_markdown_path`. The Markdown document is the user-facing full-detail artifact; raw JSON remains for debug/recovery only. Unlocked details may show `display_website`, derived from profile website, profile domain, or the saved search domain.
+After unlock, normal compact output uses script-rendered `unlock_details_markdown` plus compatibility `company_details`, not a model-built unlock-result table. The script shows at most the first 5 successful company details in stdout and writes all successful company details plus any failure/not-executed rows to a Markdown document at `details_markdown_path`. The top summary shows planned, success, failure, charge, and balance; failed or not-executed rows appear only when present. `next_action` is `draft_outreach` when at least one company succeeds. The Markdown document is the user-facing full-detail artifact; raw JSON remains for debug/recovery only. Unlocked details may show `display_website`, derived from profile website, profile domain, or the saved search domain.
+
+Details Markdown artifact path order is `--markdown-file`, then `--artifact-dir`, then `OKKIGO_ARTIFACT_DIR`, then current working directory `okki-go-artifacts/`, then internal temporary storage. `unlock-companies.js` preflights the selected details Markdown path before paid API calls. If an explicit or default artifact path is not writable, it falls back to internal temporary storage and emits a warning. If no details Markdown path is writable, it exits before paid API calls with `DETAILS_MARKDOWN_PRECHECK_FAILED`, `paid_api_called: false`, `unlock_executed: false`, `next_action: "authorize_artifact_dir"`, and a recovery suggestion.
 
 `--mark-unlocked` is local viewed-state bookkeeping for `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/viewed.json`; it is not part of the paid unlock transaction. In restricted sandboxes, callers can preflight that file or its parent directory and request file_system write permission before running a confirmed unlock. If the local state write fails after the unlock API succeeds, `unlock-companies.js` still exits 0, preserves `charged_count`, `charged`, `balance`, and the saved raw file, and emits `state_update_failed` plus a warning. Do not retry `/companies/unlock` to repair local viewed state.
 
@@ -80,7 +105,7 @@ node scripts/search-contacts.js \
   --compact
 ```
 
-Default visible size is 20. Internal contact IDs are saved in the raw file, not stdout. Phone numbers are hidden unless `--include-phone` is used because the user requested phone/contact details.
+Default visible size is 20; requested contact search size may be up to 100. Internal contact IDs are saved in the raw file, not stdout. Phone numbers are hidden unless `--include-phone` is used because the user requested phone/contact details.
 
 Email status:
 

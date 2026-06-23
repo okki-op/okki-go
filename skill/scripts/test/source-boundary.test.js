@@ -37,3 +37,21 @@ test('web research add-on is explicit and lower priority than OKKI discovery', (
   assert.match(skill, /not for ordinary find companies, buyers, importers, distributors, customers, target accounts, or prospects/i);
   assert.match(skill, /Web Research Add-on is never an OKKI failure fallback/i);
 });
+
+test('company search guidance separates product terms from buyer roles to avoid ES rewrite overload', () => {
+  const skill = readSkillFile('SKILL.md');
+  const fastPath = readSkillFile('references/search-fast-path.md');
+  const scriptsReadme = readSkillFile('scripts/README.md');
+
+  assert.match(skill, /Put product or offer terms in `productKeywords`/);
+  assert.match(skill, /put buyer roles in `companyTypeKeywords`/);
+  assert.match(skill, /Do not combine product and buyer-role terms inside `companyTypeKeywords`/);
+
+  assert.match(fastPath, /Do not pack product \+ role phrases into `companyTypeKeywords`/);
+  assert.match(fastPath, /"productKeywords": \["汽车玻璃", "挡风玻璃"\]/);
+  assert.match(fastPath, /"companyTypeKeywords": \["进口商"\]/);
+  assert.match(fastPath, /`size` and `from` do not reduce ES query rewrite clauses/);
+
+  assert.match(scriptsReadme, /companyTypeKeywords` to one value per API request/);
+  assert.match(scriptsReadme, /does not semantically split compound phrases/);
+});

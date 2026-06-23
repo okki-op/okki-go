@@ -95,7 +95,7 @@ function normalizePayload(input) {
     payload[key] = value;
   }
   payload.page = positiveInt(payload.page || 1, 'page');
-  payload.size = Math.min(positiveInt(payload.size || DEFAULT_SIZE, 'size'), DEFAULT_SIZE);
+  payload.size = positiveInt(payload.size || DEFAULT_SIZE, 'size');
   for (const key of ['has_email', 'has_phone', 'has_linkedin', 'has_facebook', 'has_company_name']) {
     if (key in payload) payload[key] = normalizeFlag(payload[key], key);
   }
@@ -153,6 +153,9 @@ async function main() {
 
   const output = {
     charged: true,
+    charge_type: 'credit_per_query',
+    charge_summary: 'Contact search costs 1 credit per query; balance is not included in this wrapper response.',
+    balance_available: false,
     total,
     batch_id: batchIdFromPath(saveBatch),
     contacts: contacts.map((record, index) => compactContact(record, index + 1, args)),

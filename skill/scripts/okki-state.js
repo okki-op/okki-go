@@ -8,7 +8,7 @@ const { outputBudgetMetadata } = require('./lib/compact-output');
 
 const VERSION = '1.1';
 const FILE_MODE = 0o600;
-const VALID_SOURCES = new Set(['user_confirmed', 'user_provided', 'agent_inferred', 'imported']);
+const VALID_SOURCES = new Set(['user_confirmed', 'user_provided', 'user_provided_current_turn', 'agent_inferred', 'imported']);
 const DEFAULT_WINDOW_DAYS = 30;
 
 const B_CLASS_FIELDS = [

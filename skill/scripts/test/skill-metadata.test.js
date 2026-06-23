@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const SKILL_DIR = path.resolve(__dirname, '..', '..');
+const REPO_ROOT = path.resolve(SKILL_DIR, '..');
 const ALLOWED_FRONTMATTER_KEYS = new Set([
   'allowed-tools',
   'description',
@@ -14,6 +15,10 @@ const ALLOWED_FRONTMATTER_KEYS = new Set([
 
 function read(relativePath) {
   return fs.readFileSync(path.join(SKILL_DIR, relativePath), 'utf8');
+}
+
+function readRepo(relativePath) {
+  return fs.readFileSync(path.join(REPO_ROOT, relativePath), 'utf8');
 }
 
 function frontmatterKeys(skillMarkdown) {
@@ -83,4 +88,42 @@ test('authentication reference defines agent-led install execution wizard', () =
   assert.match(auth, /Configure your key/i);
   assert.match(auth, /restart/i);
   assert.match(auth, /bash scripts\/resolve-api-key\.sh --check/);
+});
+
+test('skill version defaults stay aligned with package patch version', () => {
+  const packageJson = JSON.parse(readRepo('package.json'));
+  const expectedVersion = packageJson.version;
+
+  assert.equal(expectedVersion, '1.3.1');
+  assert.match(read('scripts/lib/okki-api.js'), new RegExp(`OKKIGO_SKILL_VERSION \\|\\| '${expectedVersion}'`));
+  assert.match(read('scripts/search-companies.js'), new RegExp(`OKKIGO_SKILL_VERSION \\|\\| '${expectedVersion}'`));
+  assert.match(read('scripts/resolve-api-key.sh'), new RegExp(`OKKIGO_SKILL_VERSION:-${expectedVersion}`));
+  assert.match(read('SKILL.md'), new RegExp(`OKKIGO_SKILL_VERSION:-${expectedVersion}`));
+  assert.match(read('references/api-reference.md'), new RegExp(`X-Okki-Skill-Version: ${expectedVersion}`));
+  assert.match(read('references/authentication.md'), new RegExp(`skillVersion": "${expectedVersion}`));
+});
+
+test('SKILL.md remains a concise router and leaves detailed contracts to references', () => {
+  const skill = read('SKILL.md');
+  const lines = skill.split('\n');
+
+  assert.ok(lines.length < 220, `SKILL.md has ${lines.length} lines`);
+  assert.match(skill, /A single confirmation can cover one selected batch of rows/);
+  assert.doesNotMatch(skill, /Unlocking the selected N companies costs up to N credits/);
+  assert.doesNotMatch(skill, /accepted\/rejected counts/);
+  assert.doesNotMatch(skill, /user_provided_current_turn/);
+});
+
+test('single-owner references keep paid and output details out of unrelated files', () => {
+  const paidActions = read('references/paid-actions.md');
+  const outputContracts = read('references/output-contracts.md');
+  const fastPath = read('references/search-fast-path.md');
+
+  assert.match(paidActions, /selected unlock batch/);
+  assert.match(paidActions, /do not ask again for each internal `\/companies\/unlock` request/);
+  assert.match(outputContracts, /charge type summary/);
+  assert.match(outputContracts, /accepted\/rejected counts when derivable/);
+
+  assert.doesNotMatch(fastPath, /credit per company/);
+  assert.doesNotMatch(fastPath, /accepted\/rejected counts/);
 });

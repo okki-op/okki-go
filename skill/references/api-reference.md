@@ -16,7 +16,7 @@
 ```http
 Authorization: ApiKey sk-your-key-here
 X-Okki-Install-Id: <anonymous install id>
-X-Okki-Skill-Version: 1.3.0
+X-Okki-Skill-Version: 1.3.1
 X-Okki-Skill-Runtime: <agent runtime>
 ```
 
@@ -143,7 +143,7 @@ At least one of `companyTypeKeywords`, `productKeywords`, or `industryKeywords` 
 }
 ```
 
-> `domain` is an internal key owned by wrapper scripts and saved batch/raw files. Normal skill usage should rely on compact rows and `--batch latest`; do not display `domain`, website, homepage, URL, or link fields in free company-search results.
+> `domain` is an internal key owned by wrapper scripts and saved batch/raw files. Normal skill usage should rely on compact rows and opaque `selection_handle`/unlock plans; do not display `domain`, website, homepage, URL, or link fields in free company-search results.
 
 ---
 

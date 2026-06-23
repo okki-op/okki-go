@@ -24,10 +24,11 @@ const {
 } = require('./lib/compact-output');
 const {
   readLatestBatchPointer,
+  writeSelectionHandle,
   writeLatestBatchPointer
 } = require('./lib/batch-state');
 const {
-  KEYWORD_FIELDS,
+  normalizeCompanySearchPayload,
   splitCompanySearchPayload
 } = require('./lib/company-search-payloads');
 const {
@@ -35,7 +36,8 @@ const {
 } = require('./lib/company-search-display');
 
 const MAX_PAGE_SIZE = 50;
-const DEFAULT_CONCURRENCY = 4;
+const DEFAULT_CONCURRENCY = 1;
+const TRANSIENT_RETRY_DELAY_MS = 300;
 
 function usage() {
   console.error([
@@ -111,15 +113,13 @@ function buildRequests(plan) {
   let splitQueryCount = 0;
   let originalQueryCount = 0;
   for (const payloadPlan of plan.payloads) {
-    ensureSearchable(payloadPlan);
     const pages = positiveInt(payloadPlan.pages || 1, 'payload.pages');
-    const size = Math.min(positiveInt(payloadPlan.size || 50, 'payload.size'), MAX_PAGE_SIZE);
-    const startFrom = Number.isInteger(Number(payloadPlan.from)) && Number(payloadPlan.from) >= 0
-      ? Number(payloadPlan.from)
-      : 0;
     const basePayload = { ...payloadPlan };
     delete basePayload.pages;
-    const splitSearch = splitCompanySearchPayload(basePayload);
+    const normalized = normalizeCompanySearchPayload(basePayload, { defaultSize: 50 }).payload;
+    const size = Math.min(normalized.size || 50, MAX_PAGE_SIZE);
+    const startFrom = normalized.from || 0;
+    const splitSearch = splitCompanySearchPayload(normalized);
     originalQueryCount += pages;
     splitQueryCount += splitSearch.payloads.length * pages;
     for (const splitPayload of splitSearch.payloads) {
@@ -132,15 +132,6 @@ function buildRequests(plan) {
   requests.splitQueryCount = splitQueryCount;
   requests.originalQueryCount = originalQueryCount;
   return requests;
-}
-
-function ensureSearchable(payload) {
-  const hasKeywords = KEYWORD_FIELDS
-    .some((key) => Array.isArray(payload[key]) && payload[key].some((value) => String(value || '').trim()));
-
-  if (!hasKeywords) {
-    throw new Error('Each payload must include at least one of productKeywords, industryKeywords, or companyTypeKeywords.');
-  }
 }
 
 async function runWithConcurrency(items, concurrency, worker) {
@@ -168,6 +159,33 @@ function compilePatterns(values) {
     .map((value) => String(value).trim())
     .filter(Boolean)
     .map((value) => new RegExp(value, 'i'));
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientCompanySearchError(error) {
+  const statusCode = Number(error && error.statusCode);
+  if ([429, 502, 503, 504].includes(statusCode)) return true;
+
+  const text = [
+    error && error.message,
+    error && typeof error.body === 'string' ? error.body : '',
+    error && error.body && typeof error.body === 'object' ? JSON.stringify(error.body) : ''
+  ].filter(Boolean).join(' ');
+
+  return /系统繁忙|system busy|temporarily unavailable|timeout|timed out|rate[- ]?limit|too many requests/i.test(text);
+}
+
+async function postCompanySearchWithRetry(payload) {
+  try {
+    return await postJson('/api/v1/companies/search-advanced', payload);
+  } catch (error) {
+    if (!isTransientCompanySearchError(error)) throw error;
+    await sleep(TRANSIENT_RETRY_DELAY_MS);
+    return postJson('/api/v1/companies/search-advanced', payload);
+  }
 }
 
 function searchableText(record) {
@@ -216,7 +234,7 @@ async function main() {
   const latestPointer = readLatestBatchPointer({ ignoreErrors: true });
 
   const pageResults = await runWithConcurrency(requests, args.concurrency, async (request) => {
-    const body = await postJson('/api/v1/companies/search-advanced', request.payload);
+    const body = await postCompanySearchWithRetry(request.payload);
     return {
       body,
       rows: responseList(body),
@@ -277,6 +295,13 @@ async function main() {
   });
   output.next_action = nextActionFromDiscoveryHealth(output.discovery_health);
   writeJsonFile(saveBatch, batch);
+  const selection = writeSelectionHandle({
+    batchPath: saveBatch,
+    displayedRows: selected.length,
+    requestSummary: batch.request_summary,
+    discoveryHealth: output.discovery_health
+  });
+  output.selection_handle = selection.handle;
   writeLatestBatchPointer({
     batchPath: saveBatch,
     displayedRows: selected.length,

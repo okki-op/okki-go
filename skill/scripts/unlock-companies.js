@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
+const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -8,7 +9,7 @@ const path = require('path');
 const {
   getJson,
   readJsonFile,
-  postJson,
+  postJsonWithMeta,
   writeJsonFile
 } = require('./lib/okki-api');
 const {
@@ -17,6 +18,7 @@ const {
   compactList,
   countryCode,
   countryName,
+  DEFAULT_BATCH_DIR,
   defaultRawPath,
   nowIso,
   outputBudgetMetadata,
@@ -25,26 +27,31 @@ const {
   truncateText
 } = require('./lib/compact-output');
 const { resolveBatchPath } = require('./lib/batch-state');
+const { resolveUnlockPlan } = require('./lib/batch-state');
 
 const VIEWED_STATE_WARNING = '公司已解锁，但本地已查看记录未更新。解锁结果仍然有效；不要因此重新解锁。下次使用 --mark-unlocked 前，可预先授权 OKKI Go viewed 状态目录写入权限以保存本地记录。';
 
 function usage() {
   console.error([
     'Usage:',
-    '  node scripts/unlock-companies.js --batch batch.json --rows ROWS --compact [--locale en-US] [--mark-unlocked] [--raw-file PATH] [--markdown-file PATH] [--debug-metadata]',
-    '  node scripts/unlock-companies.js --batch latest --rows ROWS --compact [--locale en-US] [--mark-unlocked] [--raw-file PATH] [--markdown-file PATH] [--debug-metadata]',
-    '  node scripts/unlock-companies.js --batch batch.json --rows ROWS --detail [--locale en-US] [--raw-file PATH] [--markdown-file PATH] [--debug-metadata]'
+    '  node scripts/unlock-companies.js --plan PLAN_ID --compact [--locale en-US] [--mark-unlocked] [--artifact-dir DIR] [--raw-file PATH] [--markdown-file PATH] [--audit-file PATH] [--debug-metadata]',
+    '  node scripts/unlock-companies.js --batch batch.json --rows ROWS --compact [--locale en-US] [--mark-unlocked] [--artifact-dir DIR] [--raw-file PATH] [--markdown-file PATH] [--audit-file PATH] [--debug-metadata]',
+    '  node scripts/unlock-companies.js --batch latest --rows ROWS --compact [--locale en-US] [--mark-unlocked] [--artifact-dir DIR] [--raw-file PATH] [--markdown-file PATH] [--audit-file PATH] [--debug-metadata]',
+    '  node scripts/unlock-companies.js --batch batch.json --rows ROWS --detail [--locale en-US] [--artifact-dir DIR] [--raw-file PATH] [--markdown-file PATH] [--audit-file PATH] [--debug-metadata]'
   ].join('\n'));
 }
 
 function parseArgs(argv) {
   const args = {
+    plan: null,
     batch: null,
     rows: null,
     compact: false,
     detail: false,
     rawFile: null,
     markdownFile: null,
+    artifactDir: null,
+    auditFile: null,
     markUnlocked: false,
     now: null,
     locale: null,
@@ -52,7 +59,9 @@ function parseArgs(argv) {
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--batch') {
+    if (arg === '--plan') {
+      args.plan = argv[++i];
+    } else if (arg === '--batch') {
       args.batch = argv[++i];
     } else if (arg === '--rows') {
       args.rows = argv[++i];
@@ -64,6 +73,10 @@ function parseArgs(argv) {
       args.rawFile = argv[++i];
     } else if (arg === '--markdown-file') {
       args.markdownFile = argv[++i];
+    } else if (arg === '--artifact-dir') {
+      args.artifactDir = argv[++i];
+    } else if (arg === '--audit-file') {
+      args.auditFile = argv[++i];
     } else if (arg === '--mark-unlocked') {
       args.markUnlocked = true;
     } else if (arg === '--now') {
@@ -78,6 +91,10 @@ function parseArgs(argv) {
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
+  }
+  if (args.plan) {
+    if (args.batch || args.rows) throw new Error('--plan cannot be combined with --batch or --rows');
+    return args;
   }
   if (!args.batch) throw new Error('Missing --batch');
   if (!args.rows) throw new Error('Missing --rows');
@@ -103,11 +120,41 @@ function validateLatestBatchPointer(resolvedBatch, batch) {
   }
 }
 
-async function unlockOne(row) {
-  const unlock = await postJson('/api/v1/companies/unlock', {
+async function unlockOne(row, context = {}) {
+  const payload = {
     domain: row.domain,
     countryCode: countryCode(row)
+  };
+  const auditBase = unlockAuditBase(row, context, payload);
+  writeUnlockAudit(context.auditFile, {
+    ...auditBase,
+    event: 'unlock_request'
   });
+
+  let unlock;
+  try {
+    const response = await postJsonWithMeta('/api/v1/companies/unlock', payload);
+    unlock = response.body;
+    writeUnlockAudit(context.auditFile, {
+      ...auditBase,
+      event: 'unlock_success',
+      http_status: response.statusCode,
+      unlock_hash_present: Boolean(unlock && (unlock.companyHashId || unlock.company_hash_id)),
+      charged_if_known: unlock && Object.prototype.hasOwnProperty.call(unlock, 'charged') ? Boolean(unlock.charged) : null
+    });
+  } catch (error) {
+    writeUnlockAudit(context.auditFile, {
+      ...auditBase,
+      event: 'unlock_failure',
+      http_status: error.statusCode || null,
+      okki_error_message: error.message || null,
+      okki_error_body_summary: summarizeAuditBody(error.body),
+      exception_name: error.name || null,
+      exception_message: error.message || null
+    });
+    if (context.auditFile && !error.auditPath) error.auditPath = context.auditFile;
+    throw error;
+  }
   const hash = unlock.companyHashId || unlock.company_hash_id;
   let profile = null;
   let profileEmails = null;
@@ -119,6 +166,108 @@ async function unlockOne(row) {
     ]);
   }
   return { row, unlock, profile, profileEmails };
+}
+
+function failedUnlockItem(row, error) {
+  return {
+    row,
+    unlock: {
+      charged: false,
+      error: error.message || String(error),
+      statusCode: error.statusCode || null
+    },
+    profile: null,
+    profileEmails: null
+  };
+}
+
+function stoppedUnlockItem(row, error) {
+  return {
+    row,
+    unlock: {
+      charged: false,
+      skipped: true,
+      error: error && error.message ? `Not executed after prior failure: ${error.message}` : 'Not executed after prior failure',
+      statusCode: null
+    },
+    profile: null,
+    profileEmails: null
+  };
+}
+
+function isRowLevelUnlockFailure(error) {
+  return error && (error.statusCode === 404 || error.statusCode === 422);
+}
+
+function isStoppedItem(item) {
+  return Boolean(item && item.unlock && item.unlock.skipped);
+}
+
+function isFailedItem(item) {
+  return Boolean(item && item.unlock && item.unlock.error && !isStoppedItem(item));
+}
+
+function isSuccessfulItem(item) {
+  return Boolean(item && item.unlock && !item.unlock.error && !isStoppedItem(item) && (item.unlock.companyHashId || item.unlock.company_hash_id));
+}
+
+function unlockAuditBase(row, context, payload) {
+  const source = context.source || {};
+  const active = context.activePlan && context.activePlan.active ? context.activePlan.active : {};
+  return {
+    audit_id: context.auditId,
+    timestamp: nowIso(),
+    event: null,
+    plan_id: context.planId || null,
+    selection_handle: source.selection_handle || source.selectionHandle || null,
+    batch_path: source.batch_path || source.batchPath || context.batchPath || null,
+    row: row.row,
+    company_name: row.company_name || null,
+    domain: row.domain || null,
+    countryCode: payload.countryCode || null,
+    request_index: context.requestIndex,
+    request_payload_fingerprint: auditFingerprint(payload),
+    active_plan_scope: active.scope_key || null,
+    active_plan_id_at_execution: active.unlock_plan_id || null
+  };
+}
+
+function writeUnlockAudit(filePath, event) {
+  if (!filePath) return;
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.appendFileSync(filePath, `${JSON.stringify(event)}\n`, { mode: 0o600 });
+  try {
+    fs.chmodSync(filePath, 0o600);
+  } catch (_) {
+    // Best effort on platforms that do not support POSIX modes.
+  }
+}
+
+function auditFingerprint(value) {
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify(value))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function summarizeAuditBody(body) {
+  if (body === null || body === undefined) return null;
+  if (typeof body === 'string') return truncateAuditText(body);
+  if (typeof body !== 'object') return truncateAuditText(String(body));
+  const summary = {};
+  for (const key of ['detail', 'title', 'message', 'error', 'code']) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      summary[key] = truncateAuditText(body[key]);
+    }
+  }
+  return Object.keys(summary).length > 0 ? summary : { type: Array.isArray(body) ? 'array' : 'object' };
+}
+
+function truncateAuditText(value) {
+  const text = cleanString(value);
+  if (text.length <= 500) return text;
+  return `${text.slice(0, 500)}...`;
 }
 
 function emailsFrom(profileEmails) {
@@ -206,7 +355,7 @@ function companyDetails(item, mode, options = {}) {
       'Unknown company',
     country_code: code || null,
     country_name: countryName(code, options.locale) || null,
-    status: item.unlock.companyHashId ? 'unlocked' : 'failed',
+    status: isStoppedItem(item) ? 'not_executed' : item.unlock.companyHashId ? 'unlocked' : 'failed',
     charged: Boolean(item.unlock.charged),
     display_website: displayWebsite || null,
     founded_year: firstVisible(raw.founding_time, raw.foundingTime, profile && (profile.founded_year || profile.founding_year), profile && profile.foundedYear),
@@ -344,43 +493,251 @@ function localStateErrorMessage(error) {
   return 'local viewed state update failed.';
 }
 
+function outputFileStamp() {
+  return new Date().toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\..*$/, '')
+    .replace('T', '-');
+}
+
+function detailsFileName() {
+  return `company-details-${outputFileStamp()}.md`;
+}
+
+function internalDetailsPath() {
+  return path.join(process.env.OKKIGO_DETAILS_TEMP_DIR || DEFAULT_BATCH_DIR, detailsFileName());
+}
+
+function cwdArtifactDetailsPath() {
+  return path.join(process.cwd(), 'okki-go-artifacts', detailsFileName());
+}
+
+function normalizePath(value) {
+  const text = cleanString(value);
+  return text ? path.resolve(text) : null;
+}
+
+function preflightWritableFile(filePath) {
+  const resolved = normalizePath(filePath);
+  if (!resolved) {
+    return { ok: false, path: filePath, error: 'missing path' };
+  }
+  try {
+    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+    if (fs.existsSync(resolved)) {
+      const stat = fs.statSync(resolved);
+      if (stat.isDirectory()) return { ok: false, path: resolved, error: 'path is a directory' };
+    }
+    const handle = fs.openSync(resolved, 'a');
+    fs.closeSync(handle);
+    return { ok: true, path: resolved };
+  } catch (error) {
+    return { ok: false, path: resolved, error: filesystemErrorMessage(error) };
+  }
+}
+
+function filesystemErrorMessage(error) {
+  const text = String(error && (error.code || error.message) || error || '');
+  const code = text.match(/\b(EPERM|EACCES|EROFS|ENOENT|ENOTDIR|EISDIR|EINVAL)\b/);
+  if (code) return code[1];
+  return text || 'not writable';
+}
+
+function artifactFallbackWarning(candidate, fallbackPath) {
+  const label = candidate.explicit
+    ? '显式提供的详情文档 artifact/markdown 路径不可写'
+    : '默认详情文档 artifact 路径不可写';
+  return `${label}，已在扣费前回退到内部临时详情路径 ${fallbackPath}。原因: ${candidate.reason || 'not writable'}。`;
+}
+
+function detailsPrecheckFailure(candidates) {
+  return {
+    error_code: 'DETAILS_MARKDOWN_PRECHECK_FAILED',
+    paid_api_called: false,
+    unlock_executed: false,
+    next_action: 'authorize_artifact_dir',
+    recovery_suggestion: '本次未解锁、未扣费。失败原因是详情文档没有任何可写位置。请授权 Agent 使用一个可写文件夹，或改用一个已可写目录后重试。',
+    attempted_details_paths: candidates.map((candidate) => ({
+      path: candidate.path,
+      kind: candidate.kind,
+      reason: candidate.reason || null
+    }))
+  };
+}
+
+function resolveDetailsMarkdownTarget(args) {
+  const candidates = [];
+  if (args.markdownFile) {
+    candidates.push({
+      kind: 'markdown_file',
+      path: args.markdownFile,
+      artifact: true,
+      explicit: true,
+      artifactDir: path.dirname(normalizePath(args.markdownFile) || args.markdownFile)
+    });
+  } else if (args.artifactDir) {
+    const dir = normalizePath(args.artifactDir);
+    candidates.push({
+      kind: 'artifact_dir',
+      path: dir ? path.join(dir, detailsFileName()) : null,
+      artifact: true,
+      explicit: true,
+      artifactDir: dir
+    });
+  } else if (process.env.OKKIGO_ARTIFACT_DIR) {
+    const dir = normalizePath(process.env.OKKIGO_ARTIFACT_DIR);
+    candidates.push({
+      kind: 'env_artifact_dir',
+      path: dir ? path.join(dir, detailsFileName()) : null,
+      artifact: true,
+      explicit: true,
+      artifactDir: dir
+    });
+  } else {
+    const defaultArtifactPath = cwdArtifactDetailsPath();
+    candidates.push({
+      kind: 'cwd_artifact_dir',
+      path: defaultArtifactPath,
+      artifact: true,
+      explicit: false,
+      artifactDir: path.dirname(defaultArtifactPath)
+    });
+  }
+
+  const internalPath = internalDetailsPath();
+  candidates.push({
+    kind: 'internal_temp',
+    path: internalPath,
+    artifact: false,
+    explicit: false,
+    artifactDir: null
+  });
+
+  const warnings = [];
+  const attempted = [];
+  for (const candidate of candidates) {
+    const preflight = preflightWritableFile(candidate.path);
+    const checked = {
+      ...candidate,
+      path: preflight.path || candidate.path,
+      reason: preflight.ok ? null : preflight.error
+    };
+    attempted.push(checked);
+    if (preflight.ok) {
+      if (candidate.kind === 'internal_temp' && attempted.length > 1) {
+        warnings.push(artifactFallbackWarning(attempted[attempted.length - 2], checked.path));
+      }
+      return {
+        ok: true,
+        path: checked.path,
+        artifact: candidate.artifact,
+        artifactDir: candidate.artifact ? candidate.artifactDir : null,
+        accessNote: candidate.artifact
+          ? '详情文档已写入 Agent 提供或默认的用户交付物目录。'
+          : '详情文档已写入内部临时路径；该路径可能不方便直接打开。',
+        warnings,
+        attempted
+      };
+    }
+  }
+
+  return {
+    ok: false,
+    errorOutput: detailsPrecheckFailure(attempted)
+  };
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const resolvedBatch = resolveBatchPath(args.batch, { now: args.now });
-  const batch = readJsonFile(resolvedBatch.batchPath);
-  validateLatestBatchPointer(resolvedBatch, batch);
-  const rows = Array.isArray(batch.rows) ? batch.rows : [];
-  const selected = selectedRows(rows, args.rows);
+  const resolved = resolveUnlockRows(args);
+  const selected = resolved.selected;
   validateBatchRows(selected);
   const rawPath = args.rawFile || defaultRawPath('unlock-companies');
-  const markdownPath = args.markdownFile || defaultRawPath('company-details').replace(/\.json$/i, '.md');
+  const auditPath = args.auditFile || defaultRawPath('unlock-audit').replace(/\.json$/i, '.jsonl');
+  const detailsTarget = resolveDetailsMarkdownTarget(args);
+  if (!detailsTarget.ok) {
+    process.stdout.write(`${JSON.stringify(detailsTarget.errorOutput, null, 2)}\n`);
+    process.exitCode = 2;
+    return;
+  }
+  const markdownPath = detailsTarget.path;
   const statePreflight = args.markUnlocked ? viewedStatePreflight() : null;
+  const auditId = `unlock_audit_${crypto.randomBytes(12).toString('hex')}`;
 
   const results = [];
-  for (const row of selected) {
-    results.push(await unlockOne(row));
+  for (let index = 0; index < selected.length; index += 1) {
+    const context = {
+      auditFile: auditPath,
+      auditId,
+      requestIndex: index + 1,
+      planId: resolved.planId,
+      source: resolved.source,
+      batchPath: resolved.batchPath,
+      activePlan: resolved.activePlan
+    };
+    try {
+      results.push(await unlockOne(selected[index], context));
+    } catch (error) {
+      results.push(failedUnlockItem(selected[index], error));
+      if (!isRowLevelUnlockFailure(error)) {
+        for (let rest = index + 1; rest < selected.length; rest += 1) {
+          results.push(stoppedUnlockItem(selected[rest], error));
+        }
+        break;
+      }
+    }
   }
 
   const balance = await getJson('/api/v1/credit/balance').catch(() => null);
   const raw = {
     version: '1.0',
     created_at: nowIso(),
-    batch_id: batchIdFromPath(resolvedBatch.batchPath),
+    batch_id: batchIdFromPath(resolved.batchPath),
     rows: rawRows(results),
     balance
   };
   writeJsonFile(rawPath, raw);
-  const stateUpdate = args.markUnlocked ? tryMarkUnlockedBatch(results.map((item) => item.row)) : null;
   const mode = args.detail ? 'detail' : 'compact';
-  const details = results.map((item) => companyDetails(item, mode, { locale: args.locale }));
+  const successfulResults = results.filter(isSuccessfulItem);
+  const stateUpdate = args.markUnlocked ? tryMarkUnlockedBatch(successfulResults.map((item) => item.row)) : null;
+  const details = successfulResults.map((item) => companyDetails(item, mode, { locale: args.locale }));
+  const fileDetails = mode === 'detail'
+    ? details
+    : successfulResults.map((item) => companyDetails(item, 'detail', { locale: args.locale }));
+  const chargedCount = results.filter((item) => item.unlock && item.unlock.charged).length;
+  const failureDetails = results.filter((item) => isFailedItem(item) || isStoppedItem(item)).map((item) => failureDetail(item));
+  const successCount = successfulResults.length;
+  const failedCount = results.filter(isFailedItem).length;
+  const stoppedCount = results.filter(isStoppedItem).length;
+  const runStatus = stoppedCount > 0
+    ? 'stopped'
+    : failedCount > 0
+      ? 'completed_with_failures'
+      : 'completed';
   writeMarkdownFile(markdownPath, {
     createdAt: raw.created_at,
-    chargedCount: results.filter((item) => item.unlock && item.unlock.charged).length,
+    chargedCount,
     balance,
-    details
+    details: fileDetails,
+    failureDetails,
+    plannedCount: selected.length,
+    successCount,
+    failedCount,
+    stoppedCount
   });
   const visibleDetails = details.slice(0, 5);
-  const warnings = [];
+  const unlockDetailsMarkdown = renderUnlockChatMarkdown({
+    chargedCount,
+    balance,
+    details: visibleDetails,
+    failureDetails,
+    plannedCount: selected.length,
+    successCount,
+    failedCount,
+    stoppedCount,
+    detailsMarkdownPath: markdownPath
+  });
+  const warnings = [...detailsTarget.warnings];
   if (stateUpdate && stateUpdate.error) {
     warnings.push(VIEWED_STATE_WARNING);
     if (statePreflight && !statePreflight.ok) {
@@ -388,17 +745,29 @@ async function main() {
     }
   }
   const output = {
-    batch_id: batchIdFromPath(resolvedBatch.batchPath),
-    latest_batch_used: resolvedBatch.latestBatchUsed,
-    charged_count: results.filter((item) => item.unlock && item.unlock.charged).length,
+    batch_id: batchIdFromPath(resolved.batchPath),
+    latest_batch_used: resolved.latestBatchUsed,
+    unlock_plan_used: Boolean(resolved.unlockPlanUsed),
+    run_status: runStatus,
+    planned_count: selected.length,
+    success_count: successCount,
+    failed_count: failedCount,
+    charged_count: chargedCount,
     balance,
+    unlock_details_markdown: unlockDetailsMarkdown,
     company_details: visibleDetails,
     total_details_count: details.length,
     displayed_details_count: visibleDetails.length,
+    next_action: successCount > 0 ? 'draft_outreach' : undefined,
     details_markdown_saved: true,
     details_markdown_path: markdownPath,
+    details_markdown_artifact: detailsTarget.artifact,
+    artifact_dir: detailsTarget.artifactDir,
+    artifact_access_note: detailsTarget.accessNote,
     raw_saved: true,
     raw_path: rawPath,
+    audit_saved: true,
+    audit_path: auditPath,
     ...outputBudgetMetadata({
       defaultCap: mode === 'detail' ? 50 : 50,
       hardCap: 50,
@@ -413,42 +782,140 @@ async function main() {
     output.state_update_error = stateUpdate.error;
   }
   if (warnings.length > 0) output.warnings = warnings;
+  if (!output.next_action) delete output.next_action;
+  if (stoppedCount > 0) output.stopped_count = stoppedCount;
 
   process.stdout.write(`${JSON.stringify(unlockNormalOutput(output, args.debugMetadata), null, 2)}\n`);
 }
 
-function writeMarkdownFile(filePath, context) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, renderMarkdown(context), 'utf8');
+function failureDetail(item) {
+  return {
+    row: item.row.row,
+    company_name: item.row.company_name || 'Unknown company',
+    country_code: countryCode(item.row) || null,
+    status: isStoppedItem(item) ? 'not_executed' : 'failed',
+    reason: cleanString(item.unlock && item.unlock.error) || '-',
+    charged: Boolean(item.unlock && item.unlock.charged)
+  };
 }
 
-function renderMarkdown(context) {
+function resolveUnlockRows(args) {
+  if (args.plan) {
+    const resolvedPlan = resolveUnlockPlan(args.plan, { now: args.now });
+    return {
+      batchPath: resolvedPlan.plan.source && resolvedPlan.plan.source.batch_path,
+      latestBatchUsed: false,
+      unlockPlanUsed: true,
+      planId: resolvedPlan.plan.unlock_plan_id,
+      source: resolvedPlan.plan.source || {},
+      activePlan: resolvedPlan.active,
+      selected: resolvedPlan.plan.rows
+    };
+  }
+  const resolvedBatch = resolveBatchPath(args.batch, { now: args.now });
+  const batch = readJsonFile(resolvedBatch.batchPath);
+  validateLatestBatchPointer(resolvedBatch, batch);
+  const rows = Array.isArray(batch.rows) ? batch.rows : [];
+  return {
+    batchPath: resolvedBatch.batchPath,
+    latestBatchUsed: resolvedBatch.latestBatchUsed,
+    unlockPlanUsed: false,
+    planId: null,
+    source: {
+      batch_path: resolvedBatch.batchPath,
+      batch_id: batchIdFromPath(resolvedBatch.batchPath)
+    },
+    activePlan: null,
+    selected: selectedRows(rows, args.rows)
+  };
+}
+
+function writeMarkdownFile(filePath, context) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, renderUnlockDetailsMarkdown(context), 'utf8');
+}
+
+function renderUnlockChatMarkdown(context) {
+  const lines = [
+    '# OKKI Go 解锁结果',
+    '',
+    `计划解锁: ${context.plannedCount} 家`,
+    `成功: ${context.successCount} 家`,
+    `失败: ${context.failedCount} 家`,
+    `本次扣费: ${context.chargedCount}`
+  ];
+  if (context.stoppedCount > 0) lines.push(`未执行: ${context.stoppedCount} 家`);
+  const balanceText = balanceSummary(context.balance);
+  lines.push(`剩余积分: ${balanceText || '-'}`);
+  lines.push('');
+  lines.push(`> 聊天中最多展示 5 家；全部详情见: ${context.detailsMarkdownPath}`);
+  lines.push('');
+
+  context.details.forEach((detail, index) => {
+    lines.push(`## ${index + 1}. ${detail.company_name}`);
+    lines.push('');
+    lines.push('| 字段 | 内容 |');
+    lines.push('|---|---|');
+    lines.push(`| 原序号 | ${mdCell(detail.row)} |`);
+    lines.push(`| 公司名 | ${mdCell(detail.company_name)} |`);
+    lines.push(`| 国家/地区 | ${mdCell(detail.country_name || detail.country_code)} |`);
+    lines.push(`| 官网/域名 | ${mdCell(detail.display_website)} |`);
+    lines.push(`| 公司类型 | ${mdCell(detail.company_type)} |`);
+    lines.push(`| 成立时间 | ${mdCell(detail.founded_year)} |`);
+    lines.push(`| 员工规模 | ${mdCell(detail.employees)} |`);
+    lines.push(`| 主营产品 | ${mdCell(detail.main_products)} |`);
+    lines.push(`| 邮箱 | ${mdCell(detail.email_preview)} |`);
+    lines.push(`| 电话/WhatsApp | ${mdCell(detail.phone_preview)} |`);
+    lines.push(`| 社交链接 | ${mdCell(detail.social_links)} |`);
+    lines.push(`| 公司简介 | ${mdCell(truncateChatDescription(detail.description))} |`);
+    lines.push('');
+  });
+
+  if (context.failureDetails && context.failureDetails.length > 0) {
+    lines.push('| 原序号 | 公司名 | 状态 | 原因 | 是否扣费 |');
+    lines.push('|---|---|---|---|---|');
+    for (const detail of context.failureDetails) {
+      lines.push(`| ${mdCell(detail.row)} | ${mdCell(detail.company_name)} | ${mdCell(displayFailureStatus(detail.status))} | ${mdCell(detail.reason)} | ${detail.charged ? '是' : '否'} |`);
+    }
+    lines.push('');
+  }
+
+  if (context.successCount > 0) {
+    lines.push('下一步可以基于已解锁公司和已有联系人信息起草开发信草稿，先不发送。');
+    lines.push('');
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
+function renderUnlockDetailsMarkdown(context) {
   const lines = [
     '# OKKI Go 公司详情',
     '',
     `生成时间: ${context.createdAt}`,
-    `解锁数量: ${context.details.length}`,
+    `计划解锁: ${context.plannedCount || context.details.length}`,
+    `成功: ${context.successCount || context.details.length}`,
+    `失败: ${context.failedCount || 0}`,
     `本次扣费: ${context.chargedCount}`
   ];
+  if (context.stoppedCount > 0) lines.push(`未执行: ${context.stoppedCount}`);
   const balanceText = balanceSummary(context.balance);
   if (balanceText) lines.push(`剩余积分: ${balanceText}`);
-  lines.push('', '> 完整资料包含本次已解锁的全部公司。', '');
+  lines.push('', '> 本文件包含本次解锁的全部公司详情。', '');
 
   context.details.forEach((detail, index) => {
     lines.push(`## ${index + 1}. ${detail.company_name}`);
     lines.push('');
     lines.push(`- 原序号: ${valueOrDash(detail.row)}`);
-    lines.push(`- 官网/域名: ${valueOrDash(detail.display_website)}`);
     lines.push(`- 国家/地区: ${valueOrDash(detail.country_name || detail.country_code)}`);
+    lines.push(`- 官网/域名: ${valueOrDash(detail.display_website)}`);
+    lines.push(`- 公司类型: ${valueOrDash(detail.company_type)}`);
     lines.push(`- 成立时间: ${valueOrDash(detail.founded_year)}`);
     lines.push(`- 员工规模: ${valueOrDash(detail.employees)}`);
-    lines.push(`- 公司类型: ${valueOrDash(detail.company_type)}`);
-    lines.push(`- 主营产品: ${valueOrDash(detail.main_products.join(', '))}`);
-    lines.push(`- 有邮箱: ${detail.has_email ? '是' : '否'}`);
-    lines.push(`- 有 WhatsApp: ${detail.has_whatsapp ? '是' : '否'}`);
-    lines.push(`- 邮箱预览: ${valueOrDash(detail.email_preview.join(', '))}`);
-    lines.push(`- 电话预览: ${valueOrDash(detail.phone_preview.join(', '))}`);
-    lines.push(`- 社交链接: ${valueOrDash(detail.social_links.join(', '))}`);
+    lines.push(`- 主营产品: ${valueOrDash(detail.main_products)}`);
+    lines.push(`- 邮箱: ${valueOrDash(detail.email_preview)}`);
+    lines.push(`- 电话/WhatsApp: ${valueOrDash(detail.phone_preview)}`);
+    lines.push(`- 社交链接: ${valueOrDash(detail.social_links)}`);
     lines.push('');
     lines.push('### 公司简介');
     lines.push('');
@@ -468,7 +935,20 @@ function renderMarkdown(context) {
     lines.push('');
   });
 
+  if (context.failureDetails && context.failureDetails.length > 0) {
+    lines.push('| 原序号 | 公司名 | 状态 | 原因 | 是否扣费 |');
+    lines.push('|---|---|---|---|---|');
+    for (const detail of context.failureDetails) {
+      lines.push(`| ${mdCell(detail.row)} | ${mdCell(detail.company_name)} | ${mdCell(displayFailureStatus(detail.status))} | ${mdCell(detail.reason)} | ${detail.charged ? '是' : '否'} |`);
+    }
+    lines.push('');
+  }
+
   return `${lines.join('\n')}\n`;
+}
+
+function displayFailureStatus(status) {
+  return status === 'not_executed' ? '未执行' : '失败';
 }
 
 function balanceSummary(balance) {
@@ -480,6 +960,10 @@ function balanceSummary(balance) {
 }
 
 function valueOrDash(value) {
+  if (Array.isArray(value)) {
+    const text = value.map(cleanString).filter(Boolean).join(', ');
+    return text || '-';
+  }
   const text = cleanString(value);
   return text || '-';
 }
@@ -488,16 +972,27 @@ function mdCell(value) {
   return valueOrDash(value).replace(/\|/g, '\\|');
 }
 
+function truncateChatDescription(value) {
+  const text = cleanString(value);
+  if (text.length <= 200) return text;
+  return `${text.slice(0, 200)}…`;
+}
+
 function unlockNormalOutput(output, debugMetadata) {
   return applyDebugMetadata(output, [
     'batch_id',
+    'unlock_plan_used',
     'raw_path',
+    'audit_path',
     'output_budget'
   ], debugMetadata);
 }
 
 main().catch((error) => {
   console.error(error.message);
+  if (error.auditPath) {
+    console.error(`Unlock audit saved: ${error.auditPath}`);
+  }
   usage();
   process.exit(2);
 });
