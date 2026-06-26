@@ -1,0 +1,12 @@
+# Local planning/design artifacts. These should stay out of the
+# standalone okki-go repository when this skill directory is published.
+.planning/
+docs/
+
+# Local/runtime noise.
+.DS_Store
+node_modules/
+coverage/
+results/
+.tmp/
+*.log
