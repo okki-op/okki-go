@@ -31,6 +31,19 @@ const bold   = '\x1b[1m';
 const SKILL_NAME = 'okki-go';
 const DISPLAY_NAME = 'OKKI Go';
 const VERSION    = '1.3.2';
+const DEFAULT_SOURCE_PACKAGE = '@okki-global/okki-go';
+
+function safeEnvValue(value, fallback = '') {
+  const normalized = String(value || '').trim();
+  if (!normalized) return fallback;
+  return normalized.slice(0, 160);
+}
+
+const INSTALL_ATTRIBUTION = {
+  sourcePackage: safeEnvValue(process.env.OKKIGO_SOURCE_PACKAGE, DEFAULT_SOURCE_PACKAGE),
+  channelCode: safeEnvValue(process.env.OKKIGO_CHANNEL_CODE, 'organic'),
+  campaignId: safeEnvValue(process.env.OKKIGO_CAMPAIGN_ID, ''),
+};
 
 // Friendly display names for each runtime
 const RUNTIME_LABELS = {
@@ -153,6 +166,44 @@ function safeInstallId() {
   try { return ensureInstallId(); } catch { return undefined; }
 }
 
+function attributionEventProperties() {
+  return {
+    source_package: INSTALL_ATTRIBUTION.sourcePackage,
+    channel_code: INSTALL_ATTRIBUTION.channelCode,
+    campaign_id: INSTALL_ATTRIBUTION.campaignId,
+  };
+}
+
+function saveInstallAttribution(installId) {
+  const dir = getOkkiConfigDir();
+  const file = path.join(dir, 'install-attribution.json');
+  const now = new Date().toISOString();
+  let existing = {};
+
+  if (fs.existsSync(file)) {
+    try {
+      existing = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      existing = {};
+    }
+  }
+
+  const attribution = {
+    installId,
+    sourcePackage: INSTALL_ATTRIBUTION.sourcePackage,
+    channelCode: INSTALL_ATTRIBUTION.channelCode,
+    campaignId: INSTALL_ATTRIBUTION.campaignId,
+    skillVersion: VERSION,
+    firstInstalledAt: existing.firstInstalledAt || now,
+    lastInstalledAt: now,
+  };
+
+  ensureDir(dir);
+  fs.writeFileSync(file, JSON.stringify(attribution, null, 2) + '\n', { mode: 0o600 });
+  try { fs.chmodSync(file, 0o600); } catch { /* best effort */ }
+  return attribution;
+}
+
 function trackInstallerEvent(event, properties = {}) {
   if (analyticsDisabled()) return;
   const installId = properties.install_id || safeInstallId();
@@ -169,6 +220,7 @@ function trackInstallerEvent(event, properties = {}) {
       skill_version: VERSION,
       node_version: process.version,
       os_platform: process.platform,
+      ...attributionEventProperties(),
       ...properties,
     },
   });
@@ -541,7 +593,16 @@ function saveLocalPatches(skillDir, oldManifest) {
 }
 
 function generateManifest(skillDir, runtime, installId) {
-  const manifest = { version: VERSION, runtime, installId, installedAt: new Date().toISOString(), files: {} };
+  const manifest = {
+    version: VERSION,
+    runtime,
+    installId,
+    installedAt: new Date().toISOString(),
+    sourcePackage: INSTALL_ATTRIBUTION.sourcePackage,
+    channelCode: INSTALL_ATTRIBUTION.channelCode,
+    campaignId: INSTALL_ATTRIBUTION.campaignId,
+    files: {}
+  };
   const { mainFile } = getSkillMeta(runtime);
 
   // Main skill file
@@ -664,6 +725,7 @@ function installRuntime(runtime, installMode, customPath) {
   if (!skillDir) return;
   const label = runtimeLabel(runtime);
   const installId = ensureInstallId();
+  saveInstallAttribution(installId);
   trackInstallerEvent('SkillInstallStarted', {
     install_id: installId,
     runtime,
