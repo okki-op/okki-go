@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PACKAGES_DIR="$ROOT_DIR/channel-packages/packages"
+NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmjs.org/}"
 
 DRY_RUN=false
 ONLY_PACKAGE=""
@@ -36,7 +37,10 @@ done
 cd "$ROOT_DIR"
 node scripts/generate-channel-packages.js
 
-mapfile -t package_dirs < <(find "$PACKAGES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+package_dirs=()
+while IFS= read -r package_dir; do
+  package_dirs+=("$package_dir")
+done < <(find "$PACKAGES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
 
 if [[ ${#package_dirs[@]} -eq 0 ]]; then
   echo "No generated channel packages found in $PACKAGES_DIR" >&2
@@ -51,10 +55,16 @@ for package_dir in "${package_dirs[@]}"; do
     continue
   fi
 
+  matched=true
   echo "Publishing $package_name"
   if [[ "$DRY_RUN" == true ]]; then
-    (cd "$package_dir" && npm publish --access public --dry-run)
+    (cd "$package_dir" && npm publish --access public --registry "$NPM_REGISTRY" --dry-run)
   else
-    (cd "$package_dir" && npm publish --access public)
+    (cd "$package_dir" && npm publish --access public --registry "$NPM_REGISTRY")
   fi
 done
+
+if [[ -n "$ONLY_PACKAGE" && "${matched:-false}" != true ]]; then
+  echo "No generated channel package matched: $ONLY_PACKAGE" >&2
+  exit 1
+fi
