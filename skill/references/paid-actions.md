@@ -18,6 +18,7 @@ Read this for `PAID_ACTION`: unlock, cross-company contact search, or sending em
 - Cross-company `POST /contacts/search` requires first-session confirmation that it costs 1 credit per query.
 - Email send requires explicit recipient and content confirmation.
 - Profile, Web Research, Expansion, result review, and search strategy cannot authorize paid actions.
+- Digests and Action Envelopes do not authorize paid/send/write actions; they only make scope deterministic enough to ask for or verify explicit confirmation.
 
 ## 2. Company Unlock
 
@@ -79,6 +80,8 @@ Report:
 After selected-company unlock, the normal next step is drafting outreach from the unlocked company/profileEmails data when useful. Do not present paid `contacts/search` as the normal next step; use it only when the user explicitly asks for cross-company contact search.
 
 Field ownership, raw/debug behavior, and private metadata handling are governed by `output-contracts.md`. Free-search domains stay hidden, but unlocked company details may show `display_website` derived from profile website/domain or saved search domain.
+
+`companyHashId` is script-owned. The only valid source for `companyHashId` is the `/companies/unlock` response for the confirmed plan. Do not use free-search ID, raw `id`, row number, domain, or model memory as `companyHashId`; profile and profileEmails lookups must use the hash returned by the unlock wrapper.
 
 ## 3. Contact Search
 
