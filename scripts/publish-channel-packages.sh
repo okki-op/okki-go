@@ -37,6 +37,11 @@ done
 cd "$ROOT_DIR"
 node scripts/generate-channel-packages.js
 
+npm_publish_args=(--access public --registry "$NPM_REGISTRY")
+if [[ -n "${NPM_TOKEN:-}" ]]; then
+  npm_publish_args+=("--//registry.npmjs.org/:_authToken=$NPM_TOKEN")
+fi
+
 package_dirs=()
 while IFS= read -r package_dir; do
   package_dirs+=("$package_dir")
@@ -58,9 +63,9 @@ for package_dir in "${package_dirs[@]}"; do
   matched=true
   echo "Publishing $package_name"
   if [[ "$DRY_RUN" == true ]]; then
-    (cd "$package_dir" && npm publish --access public --registry "$NPM_REGISTRY" --dry-run)
+    (cd "$package_dir" && npm publish "${npm_publish_args[@]}" --dry-run)
   else
-    (cd "$package_dir" && npm publish --access public --registry "$NPM_REGISTRY")
+    (cd "$package_dir" && npm publish "${npm_publish_args[@]}")
   fi
 done
 
