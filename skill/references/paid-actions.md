@@ -126,7 +126,7 @@ Balance is free:
 OKKIGO_API_KEY="$(bash scripts/resolve-api-key.sh --print)"
 curl -s -X GET "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
   -H "Authorization: ApiKey ${OKKIGO_API_KEY}" \
-  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.3.2}"
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.3.3}"
 ```
 
 `--mark-unlocked` only updates local viewed state. If local state write fails after unlock succeeds, tell the user the company was unlocked but local viewed records were not updated. Do not repeat the paid unlock.

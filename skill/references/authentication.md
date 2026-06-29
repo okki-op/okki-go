@@ -144,7 +144,7 @@ xargs -0 curl -s -X POST "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/auth/reg
       "termsUrl": "https://go.okki.ai/legal/terms",
       "privacyUrl": "https://go.okki.ai/legal/privacy",
       "channel": "agent",
-      "skillVersion": "1.3.2",
+      "skillVersion": "1.3.3",
       "locale": "en-US",
       "affirmationText": "I have read and agree to the Terms of Service and acknowledge the Privacy Policy."
     }

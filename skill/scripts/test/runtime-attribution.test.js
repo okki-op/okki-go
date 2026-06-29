@@ -122,7 +122,7 @@ test('runtime attribution reads installed attribution file and manifest fallback
     sourcePackage: '@okki-global/okki-go-taroball',
     channelCode: 'taroball',
     campaignId: 'op_taroball_default',
-    skillVersion: '1.3.2'
+    skillVersion: '1.3.3'
   });
   writeJson(path.join(skillRoot, '.okki-go-manifest.json'), {
     runtime: 'codex'
@@ -134,7 +134,7 @@ test('runtime attribution reads installed attribution file and manifest fallback
   assert.equal(attribution.sourcePackage, '@okki-global/okki-go-taroball');
   assert.equal(attribution.channelCode, 'taroball');
   assert.equal(attribution.campaignId, 'op_taroball_default');
-  assert.equal(attribution.skillVersion, '1.3.2');
+  assert.equal(attribution.skillVersion, '1.3.3');
   assert.equal(attribution.runtime, 'codex');
 });
 
@@ -143,7 +143,7 @@ test('runtime attribution falls back to manifest and does not mark organic insta
   const skillRoot = makeTempDir(t);
   writeJson(path.join(skillRoot, '.okki-go-manifest.json'), {
     installId: 'install-manifest',
-    version: '1.3.2',
+    version: '1.3.3',
     runtime: 'claude',
     sourcePackage: '@okki-global/okki-go',
     channelCode: 'organic',
@@ -152,7 +152,7 @@ test('runtime attribution falls back to manifest and does not mark organic insta
 
   const headers = runtimeAttributionHeaders({ env: {}, configHome, skillRoot });
   assert.equal(headers['X-Okki-Install-Id'], 'install-manifest');
-  assert.equal(headers['X-Okki-Skill-Version'], '1.3.2');
+  assert.equal(headers['X-Okki-Skill-Version'], '1.3.3');
   assert.equal(headers['X-Okki-Skill-Runtime'], 'claude');
   assert.equal(Object.hasOwn(headers, 'X-Okki-Source-Type'), false);
   assert.equal(Object.hasOwn(headers, 'X-Okki-Source-Package'), false);
@@ -165,7 +165,7 @@ test('runtime attribution fails open when attribution JSON is damaged', (t) => {
   fs.writeFileSync(path.join(configHome, 'okki-go', 'install-attribution.json'), '{bad json');
 
   const headers = runtimeAttributionHeaders({ env: {}, configHome, skillRoot });
-  assert.equal(headers['X-Okki-Skill-Version'], '1.3.2');
+  assert.equal(headers['X-Okki-Skill-Version'], '1.3.3');
   assert.equal(headers['X-Okki-Skill-Runtime'], 'unknown');
   assert.equal(Object.hasOwn(headers, 'X-Okki-Source-Type'), false);
 });
@@ -177,13 +177,13 @@ test('runtime attribution exposes curl argument output for authentication exampl
     sourcePackage: '@okki-global/okki-go-taroball',
     channelCode: 'taroball',
     campaignId: 'op_taroball_default',
-    skillVersion: '1.3.2'
+    skillVersion: '1.3.3'
   });
 
   const args = curlHeaderArgumentLines(runtimeAttributionHeaders({ env: {}, configHome, skillRoot: makeTempDir(t) }));
   assert.deepEqual(args.slice(0, 4), [
     '-H',
-    'X-Okki-Skill-Version: 1.3.2',
+    'X-Okki-Skill-Version: 1.3.3',
     '-H',
     'X-Okki-Skill-Runtime: unknown'
   ]);
@@ -222,7 +222,7 @@ test('shared API helper sends wrapper attribution headers', async (t) => {
     sourcePackage: '@okki-global/okki-go-taroball',
     channelCode: 'taroball',
     campaignId: 'op_taroball_default',
-    skillVersion: '1.3.2'
+    skillVersion: '1.3.3'
   });
 
   const result = await runScript('search-contacts.js', [
@@ -249,7 +249,7 @@ test('search-companies sends same wrapper attribution headers as shared helper',
     sourcePackage: '@okki-global/okki-go-taroball',
     channelCode: 'taroball',
     campaignId: 'op_taroball_default',
-    skillVersion: '1.3.2'
+    skillVersion: '1.3.3'
   });
 
   const result = await runScript('search-companies.js', [
