@@ -2,6 +2,7 @@
 # standalone okki-go repository when this skill directory is published.
 .planning/
 docs/
+channel-packages/packages/
 
 # Local/runtime noise.
 .DS_Store

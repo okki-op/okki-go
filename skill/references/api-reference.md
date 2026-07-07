@@ -3,7 +3,7 @@
 **Version:** 1.0.0
 **Base URL:** `https://go.okki.ai`
 **认证方式:** `Authorization: ApiKey sk-your-key-here`
-**Skill 归因 Headers:** `X-Okki-Install-Id`、`X-Okki-Skill-Version`、`X-Okki-Skill-Runtime`
+**Skill 归因 Headers:** `X-Okki-Install-Id`、`X-Okki-Skill-Version`、`X-Okki-Skill-Runtime`、`X-Okki-Source-*`
 **错误格式:** RFC 7807 Problem Details
 **速率限制:** 60 次/分钟（所有鉴权接口共享）
 
@@ -18,7 +18,15 @@ Authorization: ApiKey sk-your-key-here
 X-Okki-Install-Id: <anonymous install id>
 X-Okki-Skill-Version: 1.3.4
 X-Okki-Skill-Runtime: <agent runtime>
+X-Okki-Source-Type: npm_wrapper
+X-Okki-Source-Package: @okki-global/okki-go-taroball
+X-Okki-Channel-Code: taroball
+X-Okki-Campaign-Id: op_taroball_default
+X-Okki-Agent: <optional agent name>
+X-Okki-Agent-Model: <optional model name>
 ```
+
+`X-Okki-Source-*` 只在 wrapper 渠道或显式渠道存在时发送。主包 organic 安装不会被强制标记为 `npm_wrapper`。运行时脚本会从当前进程环境、`${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/install-attribution.json` 和已安装 `.okki-go-manifest.json` 读取这些非密钥字段；文件缺失或损坏时应 fail-open，不影响 API 请求。
 
 本地安装器会复用 `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/install-id`。设置 `OKKIGO_ANALYTICS_DISABLED=1` 可关闭安装器与本地 resolver 的 best-effort analytics。
 

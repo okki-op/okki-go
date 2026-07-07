@@ -1,0 +1,9 @@
+[
+  {
+    "packageName": "@okki-global/okki-go-taroball",
+    "binName": "okki-go-taroball",
+    "channelCode": "taroball",
+    "campaignId": "op_taroball_default",
+    "publicLabel": "Taroball"
+  }
+]
