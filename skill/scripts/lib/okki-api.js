@@ -8,7 +8,7 @@ const https = require('https');
 const path = require('path');
 
 const BASE_URL = process.env.OKKIGO_BASE_URL || 'https://go.okki.ai';
-const SKILL_VERSION = process.env.OKKIGO_SKILL_VERSION || '1.3.2';
+const SKILL_VERSION = process.env.OKKIGO_SKILL_VERSION || '1.3.4';
 const SKILL_RUNTIME = process.env.OKKIGO_SKILL_RUNTIME || 'unknown';
 
 function resolveApiKey() {

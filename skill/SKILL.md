@@ -1,11 +1,11 @@
 ---
 name: okki-go
-description: "B2B lead prospecting and outreach via the Okki Go platform. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine - only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
+description: "OKKI Go is a B2B prospecting engine for AI agents and sales teams. Use this skill to (1) search global companies, (2) find decision-maker contact emails, (3) send cold outreach emails/EDM, (4) check email delivery status, (5) check credits/quota balance, or (6) upgrade plans/buy credits. Do NOT trigger if the user wants to search ON a DIFFERENT platform (e.g. 'search 1688 for suppliers', 'find products on Alibaba'). Having a product listing on another platform is fine - only skip when the search action itself targets another platform. Also NOT for: reading incoming emails, CRM management, or account settings."
 ---
 
 # OKKI Go
 
-OKKI Go helps users find B2B prospect companies, unlock selected company details, find decision-maker emails, draft or send outbound email, and check balance or email status.
+OKKI Go is a B2B prospecting engine for AI agents and sales teams. It helps users find B2B prospect companies, unlock selected company details, find decision-maker emails, draft or send outbound email, and check balance or email status.
 
 Default principle: run free company discovery quickly from target-company terms, show the script-rendered company table, and wait for explicit confirmation before any paid unlock, contact search, or email send.
 
@@ -131,7 +131,7 @@ Balance:
 OKKIGO_API_KEY="$(bash scripts/resolve-api-key.sh --print)"
 curl -s -X GET "${OKKIGO_BASE_URL:-https://go.okki.ai}/api/v1/credit/balance" \
   -H "Authorization: ApiKey ${OKKIGO_API_KEY}" \
-  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.3.2}"
+  -H "X-Okki-Skill-Version: ${OKKIGO_SKILL_VERSION:-1.3.4}"
 ```
 
 Use compact wrappers for normal work. Do not call raw/non-compact output unless the user explicitly asks for raw, debug, export, or full detail.

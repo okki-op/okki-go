@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Okki Go Skill Installer
+ * OKKI Go Installer
  * Multi-runtime installation for AI coding assistants.
  *
  * Usage:
@@ -30,7 +30,7 @@ const bold   = '\x1b[1m';
 // ─── Skill metadata ───────────────────────────────────────────────────────────
 const SKILL_NAME = 'okki-go';
 const DISPLAY_NAME = 'OKKI Go';
-const VERSION    = '1.3.2';
+const VERSION    = '1.3.4';
 
 // Friendly display names for each runtime
 const RUNTIME_LABELS = {
@@ -57,8 +57,8 @@ const messages = {
   langEn:           { en: '1. English (default)',                           zh: '1. English' },
   langZh:           { en: '2. 中文',                                        zh: '2. 中文（默认）' },
   langChoose:       { en: 'Choose (1-2) [1]: ',                             zh: '请选择 (1-2) [2]: ' },
-  welcome:          { en: 'Welcome to Okki Go Installer!',                  zh: '欢迎使用 Okki Go 安装向导！' },
-  welcomeDesc:      { en: 'This will install Okki Go AI prospecting capabilities to your AI assistant.', zh: '接下来会把 Okki Go 的 AI 获客能力安装到你的 AI 助手中。' },
+  welcome:          { en: 'Welcome to OKKI Go Installer!',                  zh: '欢迎使用 OKKI Go 安装向导！' },
+  welcomeDesc:      { en: 'This will install OKKI Go B2B prospecting capabilities to your AI assistant.', zh: '接下来会把 OKKI Go 的 B2B prospecting 能力安装到你的 AI 助手中。' },
   selectRuntime:    { en: 'Select your AI assistant (enter a number):',     zh: '请选择你使用的 AI 助手（输入编号即可）：' },
   allRuntimes:      { en: 'Install all',                                    zh: '全部安装' },
   otherRuntime:     { en: 'Other (enter name manually)',                    zh: '其他（手动输入名称）' },
@@ -913,7 +913,7 @@ function printNextSteps() {
   log(`${cyan}${t('nextStepsTitle')}${reset}`);
   log(`${cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${reset}\n`);
   log(`${yellow}1.${reset} ${t('step1Title')}`);
-  log(`   ${cyan}→${reset} ${t('step1Desc').replace('%s', `${green}https://go.okki.ai${reset}`).replace('%s', `${yellow}sk-xxx${reset}`)}\n`);
+  log(`   ${cyan}→${reset} ${t('step1Desc').replace('%s', `${green}https://go.okki.ai/${reset}`).replace('%s', `${yellow}sk-xxx${reset}`)}\n`);
   log(`${yellow}2.${reset} ${t('step2Title')}`);
   log(`   ${cyan}→${reset} ${t('step2Desc')}`);
   log(`   ${cyan}→${reset} One-time local login: ${green}printf '%s\\n' 'sk-xxx' | node scripts/okki-auth.js login --with-api-key${reset}`);

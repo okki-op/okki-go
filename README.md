@@ -1,6 +1,11 @@
-# Okki Go Skill
+# OKKI Go
 
-B2B lead prospecting and outreach skill for AI coding assistants.
+OKKI Go is a B2B prospecting engine for AI agents and sales teams.
+
+Find target companies, discover decision-maker contacts, and run outbound workflows from your AI Agent.
+
+Website: https://go.okki.ai/
+Install: npx -y @okki-global/okki-go@latest
 
 ## Quick Start
 
@@ -61,7 +66,7 @@ If your AI platform requires manual file upload:
 After installation, configure your API key once. The recommended local flow caches the key in the user-level OKKI Go config directory so future agent sessions can detect it without asking again:
 
 ```bash
-# Get your API key at: https://go.okki.ai
+# Get your API key at: https://go.okki.ai/
 # Run this from the installed OKKI Go skill directory.
 printf '%s\n' 'sk-xxx' | node scripts/okki-auth.js login --with-api-key
 ```
@@ -185,11 +190,11 @@ cp -r package/skill/* ~/.claude/skills/okki-go/
 
 ## Version
 
-**Current**: 1.3.2
+**Current**: 1.3.4
 
 ## Links
 
-- Homepage: https://go.okki.ai
+- Homepage: https://go.okki.ai/
 - Documentation: https://docs.okki.ai
 - Support: go@okki.ai
 - npm: https://www.npmjs.com/package/@okki-global/okki-go

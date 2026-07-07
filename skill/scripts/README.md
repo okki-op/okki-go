@@ -1,6 +1,6 @@
-# Okki Go Update Notification Scripts
+# OKKI Go Update Notification Scripts
 
-These scripts manage automatic update notifications for the Okki Go skill.
+These scripts manage automatic update notifications for OKKI Go.
 
 ## Compact Output Contract
 
@@ -308,5 +308,5 @@ openclaw cron add \
 ## Support
 
 For issues, visit:
-- Project homepage: https://go.okki.ai
+- Project homepage: https://go.okki.ai/
 - Documentation: https://docs.openclaw.ai

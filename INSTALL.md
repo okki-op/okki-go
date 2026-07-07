@@ -1,4 +1,6 @@
-# Okki Go Skill 安装指南
+# OKKI Go 安装指南
+
+OKKI Go is a B2B prospecting engine for AI agents and sales teams.
 
 多运行时安装系统，支持 Claude Code、OpenClaw、Accio Work、Cursor、Windsurf 等 AI 助手。
 
@@ -92,7 +94,7 @@ Accio Work 需要先打开桌面端并登录。安装器会自动检测 `~/.acci
 
 ### 配置 API Key
 
-OKKI Go Skill 使用 Codex 风格的认证模式：首次显式配置一次，写入用户级 OKKI Go 凭证缓存；之后新 agent 会话先自检缓存，只有不可用时才引导重新配置。环境变量和平台配置只作为显式覆盖或自动化路径，运行时 resolver 不扫描平台专属配置目录。
+OKKI Go 使用 Codex 风格的认证模式：首次显式配置一次，写入用户级 OKKI Go 凭证缓存；之后新 agent 会话先自检缓存，只有不可用时才引导重新配置。环境变量和平台配置只作为显式覆盖或自动化路径，运行时 resolver 不扫描平台专属配置目录。
 
 **1. 用户级凭证缓存（推荐，适合大多数本地/容器 agent）**
 在已安装的 OKKI Go skill 目录中执行：
@@ -307,21 +309,19 @@ okki-go/
 | 补丁保存 | 自动保存本地修改到 `.okki-go-patches/` |
 | 多运行时 | 支持 10 种 AI 助手 |
 
-## NPM 包安装（即将支持）
-
-未来版本将支持：
+## NPM 包安装
 
 ```bash
 # 全局安装
-npm install -g @okki/go-skill
+npm install -g @okki-global/okki-go
 
 # 自动安装到检测到的运行时
-okki-go-install --global --all
+okki-go --global --all
 ```
 
 
 ---
 
-**当前版本**: 1.3.2
+**当前版本**: 1.3.4
 **安装脚本**: bin/install.js
 **最后更新**: 2026-04-24

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# publish-npm.sh - 自动化发布 @okki/go-skill 到 npm
+# publish-npm.sh - 自动化发布 @okki-global/okki-go 到 npm
 #
 # 用法:
 #   ./scripts/publish-npm.sh [--version <version>] [--dry-run]
@@ -164,7 +164,7 @@ else
     fi
 
     npm publish $npm_args
-    echo "  ✓ 已发布：@okki/go-skill@$VERSION"
+    echo "  ✓ 已发布：@okki-global/okki-go@$VERSION"
 fi
 
 echo ""

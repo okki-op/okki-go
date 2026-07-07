@@ -1,7 +1,7 @@
 {
   "name": "@okki-global/okki-go",
-  "version": "1.3.2",
-  "description": "B2B lead prospecting and outreach skill for AI coding assistants",
+  "version": "1.3.4",
+  "description": "OKKI Go is a B2B prospecting engine for AI agents and sales teams.",
   "main": "bin/install.js",
   "bin": {
     "okki-go": "bin/install.js",
@@ -11,26 +11,28 @@
     "test": "node bin/install.js --help"
   },
   "keywords": [
+    "OKKI Go",
+    "okki-go",
     "okki",
-    "b2b",
-    "prospecting",
-    "outreach",
-    "claude",
-    "openclaw",
-    "cursor",
-    "windsurf",
-    "ai-skill",
-    "lead-generation"
+    "B2B prospecting",
+    "AI prospecting",
+    "AI agents",
+    "sales teams",
+    "lead generation",
+    "outbound sales",
+    "decision-maker contacts",
+    "sales automation",
+    "prospecting engine"
   ],
   "author": "Okki AI",
   "license": "MIT",
-  "homepage": "https://go.okki.ai",
+  "homepage": "https://go.okki.ai/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/okki-ai/okki-go-skill.git"
+    "url": "git+https://github.com/okki-op/okki-go.git"
   },
   "bugs": {
-    "url": "https://github.com/okki-ai/okki-go-skill/issues"
+    "url": "https://github.com/okki-op/okki-go"
   },
   "engines": {
     "node": ">=14.0.0"
