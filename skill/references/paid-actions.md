@@ -1,12 +1,12 @@
 # Paid Actions
 
-Read this for `PAID_ACTION`: unlock, cross-company contact search, or sending email.
+Read this for `PAID_ACTION`: unlock, retired cross-company contact search handling, or sending email.
 
 ## Contents
 
 1. Non-Bypassable Rules
 2. Company Unlock
-3. Contact Search
+3. Retired Contact Search
 4. Email Send
 5. Balance and Local State
 6. Missing Batch Recovery
@@ -15,7 +15,7 @@ Read this for `PAID_ACTION`: unlock, cross-company contact search, or sending em
 
 - Free company search is allowed without paid confirmation.
 - Unlock selected companies requires explicit credit confirmation before the selected unlock batch runs.
-- Cross-company `POST /contacts/search` requires first-session confirmation that it costs 1 credit per query.
+- Cross-company `POST /contacts/search` is retired and must not be called.
 - Email send requires explicit recipient and content confirmation.
 - Profile, Web Research, Expansion, result review, and search strategy cannot authorize paid actions.
 - Digests and Action Envelopes do not authorize paid/send/write actions; they only make scope deterministic enough to ask for or verify explicit confirmation.
@@ -77,27 +77,19 @@ Report:
 - artifact access note and fallback warnings
 - warnings
 
-After selected-company unlock, the normal next step is drafting outreach from the unlocked company/profileEmails data when useful. Do not present paid `contacts/search` as the normal next step; use it only when the user explicitly asks for cross-company contact search.
+After selected-company unlock, the normal next step is drafting outreach from the unlocked company/profileEmails data when useful. Do not present paid `contacts/search` as a next step.
 
 Field ownership, raw/debug behavior, and private metadata handling are governed by `output-contracts.md`. Free-search domains stay hidden, but unlocked company details may show `display_website` derived from profile website/domain or saved search domain.
 
 `companyHashId` is script-owned. The only valid source for `companyHashId` is the `/companies/unlock` response for the confirmed plan. Do not use free-search ID, raw `id`, row number, domain, or model memory as `companyHashId`; profile and profileEmails lookups must use the hash returned by the unlock wrapper.
 
-## 3. Contact Search
+## 3. Retired Contact Search
 
-Before the first contact search in a session:
+Cross-company contact search is retired because the business contract is unclear. Do not call `POST /api/v1/contacts/search`; do not ask the user to confirm a contact-search credit charge.
 
-```text
-Contact search costs 1 credit per query. Do you want to continue?
-```
+If a user asks to search contacts across companies, explain that this route is unavailable and offer the supported path: search companies, unlock selected companies after explicit credit confirmation, then use the `profileEmails` data returned by the unlock workflow.
 
-After confirmation:
-
-```bash
-node scripts/search-contacts.js --json '<contacts/search payload>' --save-batch /private/tmp/okki-go-batches/<contacts>.json --compact
-```
-
-Default visible size is 20 unless the user asked for more; wrapper requests may use `size` up to 100. Report script-provided contact rows, counts, and charge summary without filtering or renumbering them. Save raw contact results when many contacts are requested; field ownership follows `output-contracts.md`.
+The legacy `search-contacts.js` wrapper remains only to fail fast locally for old instructions. It returns `contact_search_retired` and does not call the API or charge credits.
 
 ## 4. Email Send
 

@@ -104,16 +104,7 @@ Details Markdown artifact path order is `--markdown-file`, then `--artifact-dir`
 
 `--mark-unlocked` is local viewed-state bookkeeping for `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/viewed.json`; it is not part of the paid unlock transaction. In restricted sandboxes, callers can preflight that file or its parent directory and request file_system write permission before running a confirmed unlock. If the local state write fails after the unlock API succeeds, `unlock-companies.js` still exits 0, preserves `charged_count`, `charged`, `balance`, and the saved raw file, and emits `state_update_failed` plus a warning. Do not retry `/companies/unlock` to repair local viewed state.
 
-Cross-company contact search after first-session paid confirmation:
-
-```bash
-node scripts/search-contacts.js \
-  --json '{"title":"Procurement Manager","country_codes":"DE","has_email":1,"size":20}' \
-  --save-batch /private/tmp/okki-go-batches/contacts-de-procurement-20260604.json \
-  --compact
-```
-
-Default visible size is 20; requested contact search size may be up to 100. Internal contact IDs are saved in the raw file, not stdout. Phone numbers are hidden unless `--include-phone` is used because the user requested phone/contact details.
+Cross-company contact search is retired. The legacy `search-contacts.js` wrapper remains only to fail fast locally with `contact_search_retired`; it does not call the API or charge credits. Use company unlock plus `profileEmails` to retrieve available contacts for selected companies.
 
 Email status:
 

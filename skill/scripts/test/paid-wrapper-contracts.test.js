@@ -140,43 +140,28 @@ function createEmailStatusServer(t) {
   });
 }
 
-test('search-contacts honors requested size up to 100 and keeps compact charge semantics explicit', async (t) => {
+test('search-contacts returns retired response without calling the API', async (t) => {
   const { baseUrl, requests } = await createContactServer(t);
-  const tempDir = makeTempDir(t);
-  const batchPath = path.join(tempDir, 'contacts.json');
   const result = await runScript('search-contacts.js', [
     '--json', JSON.stringify({ title: 'Procurement Manager', country_codes: 'DE', has_email: 1, size: 50 }),
-    '--save-batch', batchPath,
     '--compact'
   ], { OKKIGO_BASE_URL: baseUrl });
 
-  assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.equal(requests[0].size, 50);
+  assert.equal(result.status, 2);
+  assert.equal(requests.length, 0);
   const output = JSON.parse(result.stdout);
-  assert.equal(output.contacts.length, 50);
-  assert.equal(output.charged, true);
-  assert.equal(output.charge_type, 'credit_per_query');
-  assert.equal(output.balance_available, false);
-  assert.equal(fs.existsSync(batchPath), true);
+  assert.equal(output.deprecated, true);
+  assert.equal(output.error_code, 'contact_search_retired');
+  assert.equal(output.replacement, 'GET /api/v1/companies/:companyHashId/profileEmails');
+  assert.equal(output.charged, false);
 });
 
-test('search-contacts accepts size 100 and rejects size above 100', async (t) => {
-  const { baseUrl, requests } = await createContactServer(t);
-  const ok = await runScript('search-contacts.js', [
-    '--json', JSON.stringify({ title: 'Procurement Manager', size: 100 }),
-    '--compact'
-  ], { OKKIGO_BASE_URL: baseUrl });
+test('search-contacts help documents retirement', async () => {
+  const help = await runScript('search-contacts.js', ['--help']);
 
-  assert.equal(ok.status, 0, ok.stderr || ok.stdout);
-  assert.equal(requests[0].size, 100);
-
-  const tooLarge = await runScript('search-contacts.js', [
-    '--json', JSON.stringify({ title: 'Procurement Manager', size: 101 }),
-    '--compact'
-  ], { OKKIGO_BASE_URL: baseUrl });
-
-  assert.equal(tooLarge.status, 2);
-  assert.match(tooLarge.stderr, /size must be an integer between 1 and 100/);
+  assert.equal(help.status, 0);
+  assert.match(help.stderr, /retired/);
+  assert.match(help.stderr, /profileEmails/);
 });
 
 test('send-email validates batch recipients and personalized emails by mode', async (t) => {
