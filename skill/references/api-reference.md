@@ -379,6 +379,7 @@ At least one of `companyTypeKeywords`, `productKeywords`, or `industryKeywords` 
 {
   "content": "Dear company_name, we would love to partner with you.",
   "body_format": "html",
+  "task_subject": "Germany Expo customer follow-up",
   "recipients": [
     {
       "email": "alice@acme.com",
@@ -396,6 +397,7 @@ At least one of `companyTypeKeywords`, `productKeywords`, or `industryKeywords` 
 |------|------|------|------|------|
 | `content` | string | 是 | ≤50000 字符 | 邮件正文模板，可包含变量名（直接写变量名，不加 `{{}}`）|
 | `body_format` | string | 是 | `"text"` / `"html"` | 正文格式 |
+| `task_subject` | string | 否 | ≤255 字符 | 任务主题；提交时自动清理前后空白和不可见字符 |
 | `recipients` | array | 是 | 1–100 个 | 收件人列表 |
 | `recipients[].email` | string | 是 | 有效邮箱格式 | 收件人邮箱 |
 | `recipients[].subject` | string | 是 | ≤200 字符 | 邮件主题 |
@@ -424,6 +426,7 @@ At least one of `companyTypeKeywords`, `productKeywords`, or `industryKeywords` 
 
 ```json
 {
+  "task_subject": "Personalized July campaign",
   "emails": [
     {
       "content": "Hi Alice, Acme Corp has been leading the textile industry...",
@@ -441,6 +444,7 @@ At least one of `companyTypeKeywords`, `productKeywords`, or `industryKeywords` 
 
 | 参数 | 类型 | 必填 | 约束 | 说明 |
 |------|------|------|------|------|
+| `task_subject` | string | 否 | ≤255 字符 | 任务主题；提交时自动清理前后空白和不可见字符 |
 | `emails` | array | 是 | 1–100 个 | 邮件列表 |
 | `emails[].content` | string | 是 | ≤50000 字符 | 该封邮件的独立正文 |
 | `emails[].body_format` | string | 是 | `"text"` / `"html"` | 正文格式 |
@@ -477,6 +481,7 @@ At least one of `companyTypeKeywords`, `productKeywords`, or `industryKeywords` 
 |------|------|--------|------|
 | `task_ids` | string | — | 逗号分隔任务 ID，如 `1001,1002` |
 | `subject` | string | — | 邮件主题模糊匹配 |
+| `task_subject` | string | — | 任务主题模糊匹配 |
 | `statuses` | string | — | 逗号分隔状态，可选值：`pending`/`requested`/`completed`/`partial`/`failed` |
 | `recipient_email` | string | — | 收件人邮箱精确匹配 |
 | `recipient_nickname` | string | — | 收件人昵称模糊匹配 |
@@ -508,6 +513,8 @@ At least one of `companyTypeKeywords`, `productKeywords`, or `industryKeywords` 
       "status": "completed",
       "sentCount": 48,
       "failedCount": 2,
+      "openedCount": 16,
+      "taskSubject": "Germany Expo customer follow-up",
       "createdAt": "2026-03-20T08:00:00.000Z",
       "completedAt": "2026-03-20T08:05:32.000Z"
     }
@@ -543,6 +550,8 @@ At least one of `companyTypeKeywords`, `productKeywords`, or `industryKeywords` 
   "status": "partial",
   "sentCount": 48,
   "failedCount": 2,
+  "openedCount": 16,
+  "taskSubject": "Germany Expo customer follow-up",
   "createdAt": "2026-03-20T08:00:00.000Z",
   "completedAt": "2026-03-20T08:05:32.000Z",
   "content": "Dear company_name, we have a great product for you.",

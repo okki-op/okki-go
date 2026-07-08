@@ -122,6 +122,7 @@ Email status:
 
 ```bash
 node scripts/email-status.js tasks --json '{"page":1,"page_size":20}' --compact
+node scripts/email-status.js tasks --json '{"task_subject":"Germany Expo","page":1,"page_size":20}' --compact
 node scripts/email-status.js mails --json '{"statuses":"failed","page":1,"page_size":20}' --compact
 ```
 

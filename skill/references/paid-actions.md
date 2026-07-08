@@ -107,7 +107,8 @@ Before sending:
 
 1. Show recipient summary.
 2. Show or reference the content to be sent.
-3. Ask for explicit confirmation of both recipients and content.
+3. If the user provides a campaign/task label, include it as `task_subject` in the send payload so the task can be searched later.
+4. Ask for explicit confirmation of both recipients and content.
 
 After confirmation:
 

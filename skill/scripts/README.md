@@ -119,6 +119,7 @@ Email status:
 
 ```bash
 node scripts/email-status.js tasks --json '{"page":1,"page_size":20}' --compact
+node scripts/email-status.js tasks --json '{"task_subject":"Germany Expo","page":1,"page_size":20}' --compact
 node scripts/email-status.js task --task-id 1001 --compact
 node scripts/email-status.js mails --json '{"statuses":"failed","page":1,"page_size":20}' --compact
 node scripts/email-status.js mail --mail-id 2001 --compact
@@ -132,6 +133,8 @@ Email send after explicit recipient and content confirmation:
 node scripts/send-email.js batch --json '<payload>' --mapping-file /private/tmp/okki-go-batches/email-send.json --compact
 node scripts/send-email.js personalized --file /private/tmp/personalized-send.json --compact
 ```
+
+Send payloads may include optional `task_subject` (max 255 characters) to label the task for later task-list or dashboard search.
 
 Post-send output summarizes task IDs/counts and mapping path. It does not echo full email bodies or all recipient variables.
 
