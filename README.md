@@ -1,204 +1,88 @@
 # OKKI Go
 
-OKKI Go is a B2B prospecting engine for AI agents and sales teams.
+**English** · [简体中文](./README.zh-CN.md) · [繁體中文（台灣）](./README.zh-TW.md)
 
-Find target companies, discover decision-maker contacts, and run outbound workflows from your AI Agent.
+![Find B2B buyers in the AI agent you already use.](assets/cover-en.png)
 
-Website: https://go.okki.ai/
-Install: npx -y @okki-global/okki-go@latest
+OKKI Go is a B2B prospecting skill for sales teams using Claude Code, Cursor, Codex and other AI agents. Describe the companies you want to reach and review a shortlist for free. Choose which companies to unlock with credits to see available business contacts. Your agent asks before a paid unlock or an email send.
 
-## Quick Start
+[① Install the skill](#install-the-skill) → [② Sign up and get your API key](#sign-up-and-get-your-api-key) → [③ Configure your agent](#let-your-agent-set-it-up) → [④ Run your first search](#run-your-first-search)
 
-### Method 1: Automated Installation (Recommended)
+<a name="install-the-skill"></a>
 
-```bash
-# Using npx (no installation required)
-npx @okki-global/okki-go
+## 📦 Install the skill
 
-# Or install globally first
-npm install -g @okki-global/okki-go
-okki-go
+**Choose one** of these two ways to install the skill.
+
+### 1. 💻 Install from your terminal
+
+If Node.js and npm are installed, run this command, then choose your agent and installation location when prompted:
+
+```sh
+npx -y @okki-global/okki-go@latest
 ```
 
-The installer supports:
-- **Global installation** - Install to `~/.{runtime}/skills/okki-go`
-- **Current directory** - Install to `./skills/okki-go`
-- **Custom path** - Install to a directory you specify
+### 2. 🤖 Ask your agent to install it
 
-### Method 2: Manual Upload (For platforms with file upload)
+For **Codex**, send this message:
 
-If your AI platform requires manual file upload:
+> Run `npx -y @okki-global/okki-go@latest --global --codex` to install the OKKI Go skill for me.
 
-1. **Download the skill package**:
-   ```bash
-   # After installing the npm package
-   npm install @okki-global/okki-go
+Using another agent? Select your platform on the [install page](https://go.okki.ai/install) and send the matching command to your agent.
 
-   # The full skill directory is located at:
-   node_modules/@okki-global/okki-go/skill/
-   ```
+<a name="sign-up-and-get-your-api-key"></a>
 
-2. **Or download directly from npm**:
-   - Visit: https://www.npmjs.com/package/@okki-global/okki-go
-   - Download the package
-   - Extract and locate the `skill/` directory
+## 🔑 Sign up and get your API key
 
-3. **Upload to your platform**:
-   - Open your AI assistant's settings/configuration
-   - Look for "Upload Skill" or "Add Custom Instructions"
-   - Select the full `skill/` directory when the platform supports scripts
-   - Save and restart your AI assistant
+**Already signed up but don’t have an API key?** [Open your dashboard](https://go.okki.ai/dashboard) and select **Create Key** under **API Key**. You don’t need to sign up again.
 
-**Important**: OKKI Go uses helper scripts for authentication diagnostics and company search wrappers. Prefer uploading/installing the full `skill/` directory. If a platform only accepts a single markdown file, `SKILL.md` still documents the workflow, but script-based helpers such as `scripts/okki-auth.js` will not be available.
+Already have a key? [Go straight to agent setup](#let-your-agent-set-it-up). New to OKKI Go? Choose a sign-up option below.
 
-### Supported Platforms
+**🤖 Sign up with your agent:** Ask: “Help me sign up for OKKI Go, create an API key and set it up.” Review and accept the terms, then verify your email when prompted.
 
-- **Claude Code** - AI coding assistant CLI
-- **OpenClaw** - Open-source AI coding platform
-- **Cursor** - AI-first code editor
-- **Windsurf** - AI coding assistant
-- **Accio Work** - Alibaba International cross-border business agent workspace
-- **Codex, Copilot, Gemini, Cline** - Other AI platforms
-- **Custom platforms** - Use `--custom=<name>` for unlisted platforms
+**🌐 Sign up manually:**
 
-### Configure API Key
+1. [Sign up on the website](https://go.okki.ai/register). If your full API key appears, copy it. Otherwise, [open the dashboard](https://go.okki.ai/dashboard) and find **API Key**.
+2. No key yet? Select **Create Key**, enter a name (such as `Cursor`), then select **Create Key** again. If you already have a key, select **Show** instead.
+3. Copy the full API key and return to the agent where you installed the skill. Ask it to finish setup for you.
 
-After installation, configure your API key once. The recommended local flow caches the key in the user-level OKKI Go config directory so future agent sessions can detect it without asking again:
+<a name="let-your-agent-set-it-up"></a>
 
-```bash
-# Get your API key at: https://go.okki.ai/
-# Run this from the installed OKKI Go skill directory.
-printf '%s\n' 'sk-xxx' | node scripts/okki-auth.js login --with-api-key
-```
+## 🔧 Let your agent set it up
 
-The helper writes `${XDG_CONFIG_HOME:-$HOME/.config}/okki-go/credentials.json` and non-secret source metadata in `auth-source.json`, both with mode `0600`.
+**Did your agent confirm setup is complete?** [Run your first search](#run-your-first-search). If you got your key on the website or your agent says it still needs setup, send this message:
 
-Verify without printing the secret:
+> Set up OKKI Go with this API key and let me know when it’s ready.
 
-```bash
-bash scripts/resolve-api-key.sh --check
-node scripts/okki-auth.js status --json
-```
+When prompted, paste your key into the agent’s key field or secure local prompt. If your agent just created the key, skip the paste. Once your agent confirms setup, you’re ready to search for companies.
 
-For automation or platforms that provide secrets injection, use explicit environment/config sources:
+<a name="run-your-first-search"></a>
 
-```bash
-# Platform secrets/config that injects OKKIGO_API_KEY
-openclaw config set skills.entries.okkigo.apiKey "sk-xxx"
+## 🔍 Run your first search
 
-# Standard environment variable, for CLI/CI/local agent sessions
-export OKKIGO_API_KEY="sk-xxx"
-```
+Once your agent has finished setup, ask: “Find automotive parts importers in Germany. Show me the companies first. Don’t unlock contacts or send email.” If there are matches, you’ll get a shortlist to review. This search doesn’t spend unlock credits or send email.
 
-For Claude Code or other runtimes with JSON settings, inject the same variable:
+## 🎬 Official product demo
 
-```json
-{
-  "env": {
-    "OKKIGO_API_KEY": "sk-xxx"
-  }
-}
-```
+![OKKI Go prospecting workflow in an agent chat](assets/official-agent-demo.gif)
 
-The skill resolves credentials in this order: registered user-level source, explicit environment/config overrides, then the legacy local credentials file. It does not scan platform-specific config directories at runtime; platforms should inject `OKKIGO_API_KEY` or register a source during setup.
+The agent conversation below is the demo used on the OKKI Go website. The cover uses an illustrative shortlist, not live search results.
 
-## Features
+## ✉️ From shortlist to outreach
 
-- 🔍 **Company Search** - Find B2B prospects by industry, country, keywords
-- 📧 **Contact Discovery** - Get decision-maker emails
-- 📨 **Outreach Campaigns** - Send personalized cold emails
-- 📊 **Email Tracking** - Monitor delivery status
-- 💳 **Credit Management** - Check balance and upgrade plans
+| What you want to do | What to ask next |
+| --- | --- |
+| Review a shortlist | “Which of these companies look like importers rather than manufacturers? Explain your picks using the results we have.” |
+| Find contacts at selected companies | “I’m interested in rows 1 and 3. Show me the credit cost before unlocking them.” |
+| Prepare outreach | “Draft an introductory email for the first selected company using the information we have. Don’t send it.” |
 
-## Advanced Installation
+Contact availability varies by company. Sending is a separate, confirmed action that requires an eligible plan; see [pricing](https://go.okki.ai/pricing). After a send you can ask the agent to check delivery status.
 
-### CLI Options
+## 📚 Setup and reference
 
-```bash
-# Install to specific runtime
-npx @okki-global/okki-go --global --claude
+- [Official install guide](https://go.okki.ai/install) — agent-specific commands, API key setup and troubleshooting.
+- [Skill workflows](https://github.com/okki-op/okki-go/blob/main/skill/SKILL.md) · [API reference](https://github.com/okki-op/okki-go/blob/main/skill/references/api-reference.md) — technical behavior and supported operations.
+- [npm package](https://www.npmjs.com/package/@okki-global/okki-go) · [OKKI Go website](https://go.okki.ai/).
+- Need help installing the skill or configuring your API key? Email OKKI Go support at [go@okki.ai](mailto:go@okki.ai).
 
-# Install to multiple runtimes
-npx @okki-global/okki-go --global --claude --cursor
-
-# Install to custom path
-npx @okki-global/okki-go --claude --path /your/custom/path
-
-# Install to custom runtime
-npx @okki-global/okki-go --global --custom=myai
-
-# Uninstall
-npx @okki-global/okki-go --uninstall --global --claude
-```
-
-### File Locations
-
-After installation, the skill files are located at:
-
-- **Global**: `~/.{runtime}/skills/okki-go/`
-- **Local**: `./skills/okki-go/`
-- **Custom**: `<your-path>/skills/okki-go/`
-
-The skill directory contains:
-- `SKILL.md` - Main skill file for most runtimes (`instructions.md` for GitHub Copilot)
-- `references/` - API documentation
-- `scripts/` - Helper scripts
-- `VERSION` - Version tracking
-
-## Documentation
-
-- [Installation Guide](INSTALL.md) - Detailed installation instructions
-- [Skill Documentation](skill/SKILL.md) - Complete API reference and workflows
-- [API Reference](skill/references/api-reference.md) - Full API documentation
-
-## Installation Architecture
-
-Multi-runtime installation system with the following features:
-
-- ✅ Multi-runtime support (10 platforms + custom)
-- ✅ SHA256 manifest for change detection
-- ✅ Local modification protection
-- ✅ Automatic version management
-- ✅ Interactive & CLI modes
-- ✅ Custom path support
-
-## Troubleshooting
-
-### npx cache issues
-
-If you encounter issues with npx, clear the cache:
-
-```bash
-npm cache clean --force
-npx clear-npx-cache
-```
-
-### Manual installation
-
-If automated installation fails, you can manually copy the skill files:
-
-```bash
-# 1. Download the package
-npm pack @okki-global/okki-go
-
-# 2. Extract the tarball
-tar -xzf okki-global-okki-go-*.tgz
-
-# 3. Copy skill files to your platform's config directory
-cp -r package/skill/* ~/.claude/skills/okki-go/
-```
-
-## Version
-
-**Current**: 1.3.4
-
-## Links
-
-- Homepage: https://go.okki.ai/
-- Documentation: https://docs.okki.ai
-- Support: go@okki.ai
-- npm: https://www.npmjs.com/package/@okki-global/okki-go
-
-## License
-
-MIT
+**Package license:** MIT.
